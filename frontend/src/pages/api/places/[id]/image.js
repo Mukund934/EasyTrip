@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         method: 'GET',
         headers: {
           'Accept': 'image/*',
-          'x-user': 'dharmendra23101'
+          'x-user': 'AdminX'
         },
       });
       

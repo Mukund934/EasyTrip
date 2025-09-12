@@ -123,7 +123,7 @@ function ExploreDestinations() {
   const { isAuthenticated, currentUser } = useAuth();
   const { q, category, season, rating } = router.query;
   const currentDateTime = '2025-09-05 22:32:35';
-  const currentUserLogin = 'dharmendra23101';
+  const currentUserLogin = 'AdminX';
   
   // Core state management
   const [places, setPlaces] = useState([]);

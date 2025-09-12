@@ -26,7 +26,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 
 const FALLBACK_IMAGE = '/images/placeholder.jpg';
 const CURRENT_DATE = '2025-09-05 23:25:51';
-const CURRENT_USER = 'dharmendra23101';
+const CURRENT_USER = 'AdminX';
 
 // Hero section with cinematic magazine styling
 const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorite, avgRating, onShareSocial }) => {
@@ -1211,7 +1211,7 @@ export default function PlaceDetails() {
       console.error('Error loading page data:', { 
         message: err.message, 
         placeId: id, 
-        user: 'dharmendra23101',
+        user: 'AdminX',
       });
       setError(err.message || 'Failed to load place details. Please try again.');
     } finally {
@@ -1271,7 +1271,7 @@ export default function PlaceDetails() {
         rating,
         comment,
         user_id: currentUser.uid,
-        user_name: currentUser.displayName || currentUser.email || 'dharmendra23101',
+        user_name: currentUser.displayName || currentUser.email || 'AdminX',
       }, token);
 
       // Optimistic UI Update

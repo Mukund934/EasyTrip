@@ -12,8 +12,8 @@ const getProfile = async (req, res) => {
   try {
     const { uid } = req.user;
     const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'dharmendra23101';
-    
+    const currentUser = req.headers['x-user'] || 'AdminX';
+
     console.log(`Profile requested by ${currentUser} at ${currentTime} for UID: ${uid}`);
     
     // Get user from database
@@ -71,7 +71,7 @@ const updateProfile = async (req, res) => {
     const { uid } = req.user;
     const { name } = req.body;
     const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'dharmendra23101';
+    const currentUser = req.headers['x-user'] || 'AdminX';
     
     console.log(`Profile update requested by ${currentUser} at ${currentTime} for UID: ${uid}`);
     
@@ -113,7 +113,7 @@ const checkAdmin = async (req, res) => {
   try {
     const { uid } = req.user;
     const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'dharmendra23101';
+    const currentUser = req.headers['x-user'] || 'AdminX';
     
     console.log(`Admin check requested by ${currentUser} at ${currentTime} for UID: ${uid}`);
     
@@ -156,7 +156,7 @@ const logAdminActivity = async (req, res) => {
     const { uid } = req.user;
     const { action, details } = req.body;
     const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'dharmendra23101';
+    const currentUser = req.headers['x-user'] || 'AdminX';
     
     // Verify user is admin
     const userResult = await pool.query(

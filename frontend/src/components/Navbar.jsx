@@ -11,7 +11,7 @@ const Navbar = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState('2025-09-05 22:26:25');
-  const [currentUser] = useState('dharmendra23101');
+  const [currentUser] = useState('AdminX');
   const { currentUser: authUser, isAdmin, logout } = useAuth();
   const router = useRouter();
 

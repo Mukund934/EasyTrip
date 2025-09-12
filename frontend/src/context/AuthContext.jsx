@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // For development - allow specific users to be admin
       if (process.env.NODE_ENV === 'development' && 
-          (user.uid === 'dharmendra23101' || 
+          (user.uid === 'AdminX' || 
            user.uid === 'af9GjxDZDeNCT69gLbEkk45md1x1' || 
            user.uid === 'aJJJxZNJXsZgQStO3yL7ahjKZDr1')) {
         console.log(`Development mode: User ${user.uid} is admin`);
@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }) => {
       
       // For development - allow specific users to be admin even on error
       if (process.env.NODE_ENV === 'development' && 
-          (user.uid === 'dharmendra23101' || 
+          (user.uid === 'AdminX' || 
            user.uid === 'af9GjxDZDeNCT69gLbEkk45md1x1' || 
            user.uid === 'aJJJxZNJXsZgQStO3yL7ahjKZDr1')) {
         console.log(`Development fallback: User ${user.uid} is admin`);

@@ -280,7 +280,7 @@ const ExploreMap = ({
       // Add custom attribution
       const attribution = L.control.attribution({
         position: 'bottomright',
-        prefix: 'dharmendra23101 | 2025-09-05 23:19:33'
+        prefix: 'AdminX | 2025-09-05 23:19:33'
       }).addTo(map);
       
       // Initialize marker layers
@@ -770,7 +770,7 @@ const ExploreMap = ({
               </p>
               <p className="attribution">
                 <span>Map data © OpenStreetMap</span>
-                <span>dharmendra23101</span>
+                <span>AdminX</span>
               </p>
             </div>
           </motion.div>

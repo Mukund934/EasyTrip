@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         timeout: 15000,
         headers: {
           'Accept': 'image/*',
-          'x-user': 'dharmendra23101'
+          'x-user': 'AdminX'
         }
       });
       

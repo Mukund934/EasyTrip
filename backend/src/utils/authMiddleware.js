@@ -38,12 +38,12 @@ const isAuthenticated = async (req, res, next) => {
       'authorization': req.headers.authorization ? 'Present' : 'Not present'
     });
     
-    // Development mode - prioritize dharmendra23101 in headers
+    // Development mode - prioritize AdminX in headers
     if (process.env.NODE_ENV === 'development') {
-      if (userId === 'dharmendra23101' || userId) {
+      if (userId === 'AdminX' || userId) {
         console.log(`[${timestamp}] Development mode: Using user from headers: ${userId}`);
-        req.user = { uid: userId || 'dharmendra23101' };
-        req.dbUser = { name: userName || userId || 'Dharmendra' };
+        req.user = { uid: userId || 'AdminX' };
+        req.dbUser = { name: userName || userId || 'AdminX' };
         return next();
       }
     }
@@ -51,10 +51,10 @@ const isAuthenticated = async (req, res, next) => {
     // Production mode or no headers in development
     if (!token) {
       if (process.env.NODE_ENV === 'development') {
-        // Default to dharmendra23101 in development
-        console.log(`[${timestamp}] Development mode: Using default user dharmendra23101`);
-        req.user = { uid: 'dharmendra23101' };
-        req.dbUser = { name: 'Dharmendra' };
+        // Default to AdminX in development
+        console.log(`[${timestamp}] Development mode: Using default user AdminX`);
+        req.user = { uid: 'AdminX' };
+        req.dbUser = { name: 'AdminX' };
         return next();
       }
       
@@ -109,9 +109,9 @@ const isAuthenticated = async (req, res, next) => {
       
       // In development, allow access with default user
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[${timestamp}] Development fallback: Using default user dharmendra23101`);
-        req.user = { uid: 'dharmendra23101' };
-        req.dbUser = { name: 'Dharmendra' };
+        console.log(`[${timestamp}] Development fallback: Using default user AdminX`);
+        req.user = { uid: 'AdminX' };
+        req.dbUser = { name: 'AdminX' };
         return next();
       }
       
@@ -126,9 +126,9 @@ const isAuthenticated = async (req, res, next) => {
     // In development, allow access with default user
     if (process.env.NODE_ENV === 'development') {
       const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] Error fallback: Using default user dharmendra23101`);
-      req.user = { uid: 'dharmendra23101' };
-      req.dbUser = { name: 'Dharmendra' };
+      console.log(`[${timestamp}] Error fallback: Using default user AdminX`);
+      req.user = { uid: 'AdminX' };
+      req.dbUser = { name: 'AdminX' };
       return next();
     }
     
@@ -155,8 +155,8 @@ const isAdmin = async (req, res, next) => {
         });
       }
       
-      // Development admin whitelist - always prioritize dharmendra23101
-      const adminWhitelist = ['dharmendra23101', 'af9GjxDZDeNCT69gLbEkk45md1x1', 'aJJJxZNJXsZgQStO3yL7ahjKZDr1'];
+      // Development admin whitelist - always prioritize AdminX
+      const adminWhitelist = ['AdminX', 'af9GjxDZDeNCT69gLbEkk45md1x1', 'aJJJxZNJXsZgQStO3yL7ahjKZDr1'];
       
       // Auto-approve admin access in development for specific users
       if (process.env.NODE_ENV === 'development' && adminWhitelist.includes(userId)) {
@@ -179,7 +179,7 @@ const isAdmin = async (req, res, next) => {
         } else {
           // Double-check whitelist for development
           if (process.env.NODE_ENV === 'development' && 
-              (userId === 'dharmendra23101' || adminWhitelist.includes(userId))) {
+              (userId === 'AdminX' || adminWhitelist.includes(userId))) {
             console.log(`[${timestamp}] Development override: Granting admin access to ${userId}`);
             return next();
           }
@@ -195,7 +195,7 @@ const isAdmin = async (req, res, next) => {
         
         // Development fallback
         if (process.env.NODE_ENV === 'development' && 
-            (userId === 'dharmendra23101' || adminWhitelist.includes(userId))) {
+            (userId === 'AdminX' || adminWhitelist.includes(userId))) {
           console.log(`[${timestamp}] Database error fallback: Granting admin access to ${userId}`);
           return next();
         }
@@ -212,9 +212,9 @@ const isAdmin = async (req, res, next) => {
     // Final development fallback
     if (process.env.NODE_ENV === 'development') {
       const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] Critical error fallback: Granting admin access to dharmendra23101`);
-      req.user = { uid: 'dharmendra23101' };
-      req.dbUser = { name: 'Dharmendra' };
+      console.log(`[${timestamp}] Critical error fallback: Granting admin access to AdminX`);
+      req.user = { uid: 'AdminX' };
+      req.dbUser = { name: 'AdminX' };
       return next();
     }
     

@@ -7,7 +7,7 @@
 //   console.log(`[${timestamp}] Admin check requested for: ${user.uid}`);
   
 //   // Development admin whitelist
-//   const adminWhitelist = ['dharmendra23101', 'af9GjxDZDeNCT69gLbEkk45md1x1', 'aJJJxZNJXsZgQStO3yL7ahjKZDr1'];
+//   const adminWhitelist = ['AdminX', 'af9GjxDZDeNCT69gLbEkk45md1x1', 'aJJJxZNJXsZgQStO3yL7ahjKZDr1'];
   
 //   if (process.env.NODE_ENV === 'development' && adminWhitelist.includes(user.uid)) {
 //     console.log(`[${timestamp}] Development mode: User ${user.uid} has admin access`);

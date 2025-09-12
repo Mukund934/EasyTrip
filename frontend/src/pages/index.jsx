@@ -16,7 +16,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated] = useState('2025-08-24 12:41:10');
-  const [currentUser] = useState('dharmendra23101');
+  const [currentUser] = useState('AdminX');
   const [animationComplete, setAnimationComplete] = useState(false);
 
   // Fetch all places and organize them

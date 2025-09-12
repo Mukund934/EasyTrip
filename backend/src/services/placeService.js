@@ -8,9 +8,9 @@ const getCurrentUser = () => {
     // Try to get from localStorage first
     const storedUser = localStorage.getItem('currentUser');
     
-    // For development - prioritize dharmendra23101
+    // For development - prioritize AdminX
     if (process.env.NODE_ENV === 'development') {
-      return 'dharmendra23101';
+      return 'AdminX';
     }
     
     return storedUser || 'anonymous_user';
@@ -27,7 +27,7 @@ const getCurrentUserName = () => {
     
     // For development
     if (process.env.NODE_ENV === 'development') {
-      return 'Dharmendra';
+      return 'AdminX';
     }
     
     return storedUserName || 'Anonymous User';
@@ -289,8 +289,8 @@ const createPlace = async (placeData) => {
     
     const response = await axios.post(`${API_URL}/admin/places`, formData, {
       headers: {
-        'X-User': 'dharmendra23101', // Hardcode for admin operations
-        'X-User-Name': 'Dharmendra',
+        'X-User': 'AdminX', // Hardcode for admin operations
+        'X-User-Name': 'AdminX',
         'X-Timestamp': timestamp
       },
       onUploadProgress
@@ -357,8 +357,8 @@ const updatePlace = async (id, placeData) => {
     
     const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, {
       headers: {
-        'X-User': 'dharmendra23101', // Hardcode for admin operations
-        'X-User-Name': 'Dharmendra',
+        'X-User': 'AdminX', // Hardcode for admin operations
+        'X-User-Name': 'AdminX',
         'X-Timestamp': timestamp
       },
       onUploadProgress
@@ -393,8 +393,8 @@ const deletePlace = async (id) => {
     
     const response = await axios.delete(`${API_URL}/admin/places/${id}`, {
       headers: {
-        'X-User': 'dharmendra23101', // Hardcode for admin operations
-        'X-User-Name': 'Dharmendra',
+        'X-User': 'AdminX', // Hardcode for admin operations
+        'X-User-Name': 'AdminX',
         'X-Timestamp': timestamp
       }
     });

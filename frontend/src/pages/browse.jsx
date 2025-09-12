@@ -1995,7 +1995,7 @@ function Browse() {
                       <FiUser className="h-3 w-3 mr-1" />
                       <span>Logged in as</span>
                       <span className="ml-1 font-medium text-primary-600">
-                        {currentUser.displayName || currentUser.email || 'dharmendra23101'}
+                        {currentUser.displayName || currentUser.email || 'AdminX'}
                       </span>
                     </div>
                   </div>
