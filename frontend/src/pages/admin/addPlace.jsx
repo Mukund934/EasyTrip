@@ -389,58 +389,85 @@ export default function AddPlace() {
         <title>Add New Place - EasyTrip Admin</title>
         <meta name="description" content="Add a new place to EasyTrip - Admin Panel" />
         <meta name="robots" content="noindex, nofollow" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Head>
 
-      <div className="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen pt-20 sm:pt-24 pb-12 px-3 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
+            className="mb-6 sm:mb-8"
           >
             <button
               onClick={() => router.push('/admin')}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-4 group"
+              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-3 sm:mb-4 group"
             >
               <FiArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
-              Back to Admin Dashboard
+              <span className="text-sm sm:text-base">Back to Admin Dashboard</span>
             </button>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Add New Place</h1>
-            <p className="text-gray-600 text-lg">Create a new destination with detailed information</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Add New Place</h1>
+            <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Create a new destination with detailed information</p>
           </motion.div>
 
           {/* Progress Indicator */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
+            className="mb-6 sm:mb-8"
           >
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex items-center justify-between">
-                {Object.entries(stepTitles).map(([stepNum, title]) => (
-                  <div key={stepNum} className="flex items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      parseInt(stepNum) === step 
-                        ? 'bg-blue-600 text-white' 
-                        : parseInt(stepNum) < step 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      {parseInt(stepNum) < step ? <FiCheck className="w-4 h-4" /> : stepNum}
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+              {/* Mobile Progress */}
+              <div className="block sm:hidden">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-600">
+                    Step {step} of 4
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {Math.round((step / 4) * 100)}% Complete
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(step / 4) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="mt-2">
+                  <h3 className="text-sm font-semibold text-blue-600">
+                    {stepTitles[step]}
+                  </h3>
+                </div>
+              </div>
+
+              {/* Desktop Progress */}
+              <div className="hidden sm:block">
+                <div className="flex items-center justify-between">
+                  {Object.entries(stepTitles).map(([stepNum, title]) => (
+                    <div key={stepNum} className="flex items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        parseInt(stepNum) === step 
+                          ? 'bg-blue-600 text-white' 
+                          : parseInt(stepNum) < step 
+                            ? 'bg-green-500 text-white' 
+                            : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {parseInt(stepNum) < step ? <FiCheck className="w-4 h-4" /> : stepNum}
+                      </div>
+                      <span className={`ml-2 text-xs sm:text-sm font-medium ${
+                        parseInt(stepNum) === step ? 'text-blue-600' : 'text-gray-500'
+                      }`}>
+                        {title}
+                      </span>
+                      {stepNum !== '4' && (
+                        <div className={`w-8 sm:w-12 h-1 mx-2 sm:mx-4 ${
+                          parseInt(stepNum) < step ? 'bg-green-500' : 'bg-gray-200'
+                        }`} />
+                      )}
                     </div>
-                    <span className={`ml-2 text-sm font-medium ${
-                      parseInt(stepNum) === step ? 'text-blue-600' : 'text-gray-500'
-                    }`}>
-                      {title}
-                    </span>
-                    {stepNum !== '4' && (
-                      <div className={`w-12 h-1 mx-4 ${
-                        parseInt(stepNum) < step ? 'bg-green-500' : 'bg-gray-200'
-                      }`} />
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -450,7 +477,7 @@ export default function AddPlace() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             onSubmit={handleSubmit} 
-            className="bg-white shadow-xl rounded-2xl overflow-hidden"
+            className="bg-white shadow-xl rounded-xl sm:rounded-2xl overflow-hidden"
           >
             <AnimatePresence mode="wait">
               {/* Step 1: Basic Information */}
@@ -460,17 +487,17 @@ export default function AddPlace() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -50 }}
-                  className="p-8"
+                  className="p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex items-center mb-6">
-                    <div className="p-3 bg-blue-100 rounded-lg mr-4">
-                      <FiInfo className="text-blue-600 h-6 w-6" />
+                    <div className="p-2 sm:p-3 bg-blue-100 rounded-lg mr-3 sm:mr-4">
+                      <FiInfo className="text-blue-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Basic Information</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Basic Information</h2>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <div className="md:col-span-2 lg:col-span-1">
                       <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
                         Place Name *
                       </label>
@@ -480,7 +507,7 @@ export default function AddPlace() {
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.name ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="Enter the place name"
@@ -492,13 +519,13 @@ export default function AddPlace() {
                           animate={{ opacity: 1, y: 0 }}
                           className="mt-2 text-sm text-red-500 flex items-center"
                         >
-                          <FiAlertCircle className="mr-1" />
+                          <FiAlertCircle className="mr-1 flex-shrink-0" />
                           {errors.name}
                         </motion.p>
                       )}
                     </div>
 
-                    <div>
+                    <div className="md:col-span-2 lg:col-span-1">
                       <label htmlFor="location" className="block text-sm font-semibold text-gray-700 mb-2">
                         Location *
                       </label>
@@ -510,7 +537,7 @@ export default function AddPlace() {
                           name="location"
                           value={formData.location}
                           onChange={handleChange}
-                          className={`block w-full pl-10 border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 ${
+                          className={`block w-full pl-10 pr-10 border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                             errors.location ? 'border-red-500' : 'border-gray-300'
                           }`}
                           placeholder="Enter the location"
@@ -519,7 +546,7 @@ export default function AddPlace() {
                         <button
                           type="button"
                           onClick={handleLocationLookup}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-500 hover:text-blue-700"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-500 hover:text-blue-700 p-1"
                           title="Auto-fill coordinates"
                         >
                           <FiNavigation className="w-4 h-4" />
@@ -531,7 +558,7 @@ export default function AddPlace() {
                           animate={{ opacity: 1, y: 0 }}
                           className="mt-2 text-sm text-red-500 flex items-center"
                         >
-                          <FiAlertCircle className="mr-1" />
+                          <FiAlertCircle className="mr-1 flex-shrink-0" />
                           {errors.location}
                         </motion.p>
                       )}
@@ -547,13 +574,13 @@ export default function AddPlace() {
                       name="description"
                       value={formData.description}
                       onChange={handleChange}
-                      rows="6"
-                      className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 ${
+                      rows="4"
+                      className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base resize-none ${
                         errors.description ? 'border-red-500' : 'border-gray-300'
                       }`}
                       placeholder="Describe this place, its attractions, and what makes it special..."
                     />
-                    <div className="mt-1 flex justify-between text-sm text-gray-500">
+                    <div className="mt-1 flex justify-between text-xs sm:text-sm text-gray-500">
                       <span>Optional but recommended</span>
                       <span>{formData.description.length}/2000</span>
                     </div>
@@ -563,17 +590,17 @@ export default function AddPlace() {
                         animate={{ opacity: 1, y: 0 }}
                         className="mt-2 text-sm text-red-500 flex items-center"
                       >
-                        <FiAlertCircle className="mr-1" />
+                        <FiAlertCircle className="mr-1 flex-shrink-0" />
                         {errors.description}
                       </motion.p>
                     )}
                   </div>
 
-                  <div className="mt-8 flex justify-end">
+                  <div className="mt-6 sm:mt-8 flex justify-end">
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base"
                     >
                       Next: Location Details
                       <FiArrowLeft className="ml-2 rotate-180" />
@@ -589,16 +616,16 @@ export default function AddPlace() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -50 }}
-                  className="p-8"
+                  className="p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex items-center mb-6">
-                    <div className="p-3 bg-green-100 rounded-lg mr-4">
-                      <FiLocation className="text-green-600 h-6 w-6" />
+                    <div className="p-2 sm:p-3 bg-green-100 rounded-lg mr-3 sm:mr-4">
+                      <FiLocation className="text-green-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Location Details</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Location Details</h2>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label htmlFor="district" className="block text-sm font-semibold text-gray-700 mb-2">
                         District
@@ -609,7 +636,7 @@ export default function AddPlace() {
                         name="district"
                         value={formData.district}
                         onChange={handleChange}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base"
                         placeholder="Enter district name"
                       />
                     </div>
@@ -624,7 +651,7 @@ export default function AddPlace() {
                         name="state"
                         value={formData.state}
                         onChange={handleChange}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base"
                         placeholder="Enter state name"
                       />
                     </div>
@@ -639,7 +666,7 @@ export default function AddPlace() {
                         name="locality"
                         value={formData.locality}
                         onChange={handleChange}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base"
                         placeholder="Enter locality/area name"
                       />
                     </div>
@@ -654,7 +681,7 @@ export default function AddPlace() {
                         name="pin_code"
                         value={formData.pin_code}
                         onChange={handleChange}
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.pin_code ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="123456"
@@ -666,14 +693,14 @@ export default function AddPlace() {
                           animate={{ opacity: 1, y: 0 }}
                           className="mt-2 text-sm text-red-500 flex items-center"
                         >
-                          <FiAlertCircle className="mr-1" />
+                          <FiAlertCircle className="mr-1 flex-shrink-0" />
                           {errors.pin_code}
                         </motion.p>
                       )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 mt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-6">
                     <div>
                       <label htmlFor="latitude" className="block text-sm font-semibold text-gray-700 mb-2">
                         Latitude
@@ -685,7 +712,7 @@ export default function AddPlace() {
                         value={formData.latitude}
                         onChange={handleChange}
                         placeholder="e.g. 28.6139"
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.latitude ? 'border-red-500' : 'border-gray-300'
                         }`}
                       />
@@ -695,7 +722,7 @@ export default function AddPlace() {
                           animate={{ opacity: 1, y: 0 }}
                           className="mt-2 text-sm text-red-500 flex items-center"
                         >
-                          <FiAlertCircle className="mr-1" />
+                          <FiAlertCircle className="mr-1 flex-shrink-0" />
                           {errors.latitude}
                         </motion.p>
                       )}
@@ -712,7 +739,7 @@ export default function AddPlace() {
                         value={formData.longitude}
                         onChange={handleChange}
                         placeholder="e.g. 77.2090"
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.longitude ? 'border-red-500' : 'border-gray-300'
                         }`}
                       />
@@ -722,18 +749,18 @@ export default function AddPlace() {
                           animate={{ opacity: 1, y: 0 }}
                           className="mt-2 text-sm text-red-500 flex items-center"
                         >
-                          <FiAlertCircle className="mr-1" />
+                          <FiAlertCircle className="mr-1 flex-shrink-0" />
                           {errors.longitude}
                         </motion.p>
                       )}
                     </div>
                   </div>
 
-                  <div className="mt-8 flex justify-between">
+                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-2 sm:order-1"
                     >
                       <FiArrowLeft className="mr-2" />
                       Previous
@@ -741,7 +768,7 @@ export default function AddPlace() {
                     <button
                       type="button"
                       onClick={() => setStep(3)}
-                      className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
                     >
                       Next: Media & Themes
                       <FiArrowLeft className="ml-2 rotate-180" />
@@ -757,19 +784,19 @@ export default function AddPlace() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -50 }}
-                  className="p-8"
+                  className="p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex items-center mb-6">
-                    <div className="p-3 bg-purple-100 rounded-lg mr-4">
-                      <FiCamera className="text-purple-600 h-6 w-6" />
+                    <div className="p-2 sm:p-3 bg-purple-100 rounded-lg mr-3 sm:mr-4">
+                      <FiCamera className="text-purple-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Media & Themes</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Media & Themes</h2>
                   </div>
 
                   {/* Primary Image Section */}
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Primary Image</h3>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Primary Image</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-4">
                       Upload a main image for this place (max 5MB). You can add more images after creating the place.
                     </p>
                     
@@ -795,7 +822,7 @@ export default function AddPlace() {
                         animate={{ opacity: 1, y: 0 }}
                         className="mt-2 text-sm text-red-500 flex items-center"
                       >
-                        <FiAlertCircle className="mr-1" />
+                        <FiAlertCircle className="mr-1 flex-shrink-0" />
                         {errors.image}
                       </motion.p>
                     )}
@@ -803,12 +830,12 @@ export default function AddPlace() {
 
                   {/* Themes Section */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Theme Categories</h3>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Theme Categories</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-4">
                       Select all themes that apply to this destination
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {themeOptions.map(theme => (
                         <motion.div
                           key={theme.id}
@@ -818,18 +845,18 @@ export default function AddPlace() {
                           <button
                             type="button"
                             onClick={() => handleThemeToggle(theme.id)}
-                            className={`flex items-center p-4 rounded-xl w-full transition-all border-2 ${
+                            className={`flex items-center p-3 sm:p-4 rounded-xl w-full transition-all border-2 text-left ${
                               formData.themes.includes(theme.id)
                                 ? `bg-${theme.color}-50 text-${theme.color}-700 border-${theme.color}-300 shadow-md`
                                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                             }`}
                           >
-                            <div className="flex-shrink-0">
+                            <div className="flex-shrink-0 text-sm sm:text-base">
                               {theme.icon}
                             </div>
                             <div className="text-left">
-                              <div className="font-medium">{theme.label}</div>
-                              <div className="text-xs opacity-75">{theme.description}</div>
+                              <div className="font-medium text-sm sm:text-base">{theme.label}</div>
+                              <div className="text-xs opacity-75 hidden sm:block">{theme.description}</div>
                             </div>
                           </button>
                         </motion.div>
@@ -840,11 +867,11 @@ export default function AddPlace() {
                     </p>
                   </div>
 
-                  <div className="mt-8 flex justify-between">
+                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-2 sm:order-1"
                     >
                       <FiArrowLeft className="mr-2" />
                       Previous
@@ -852,7 +879,7 @@ export default function AddPlace() {
                     <button
                       type="button"
                       onClick={() => setStep(4)}
-                      className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
                     >
                       Next: Tags & Details
                       <FiArrowLeft className="ml-2 rotate-180" />
@@ -868,18 +895,18 @@ export default function AddPlace() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -50 }}
-                  className="p-8"
+                  className="p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex items-center mb-6">
-                    <div className="p-3 bg-yellow-100 rounded-lg mr-4">
-                      <FiTag className="text-yellow-600 h-6 w-6" />
+                    <div className="p-2 sm:p-3 bg-yellow-100 rounded-lg mr-3 sm:mr-4">
+                      <FiTag className="text-yellow-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Tags & Additional Details</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Tags & Additional Details</h2>
                   </div>
 
                   {/* Tags Section */}
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Tags</h3>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Tags</h3>
                     
                     <div className="flex flex-wrap gap-2 mb-4">
                       {formData.tags.map((tag, index) => (
@@ -889,20 +916,20 @@ export default function AddPlace() {
                           animate={{ opacity: 1, scale: 1 }}
                           className="flex items-center bg-blue-50 text-blue-700 px-3 py-2 rounded-full border border-blue-200"
                         >
-                          <span className="text-sm font-medium">{tag}</span>
+                          <span className="text-xs sm:text-sm font-medium">{tag}</span>
                           <button
                             type="button"
                             onClick={() => handleRemoveTag(tag)}
                             className="ml-2 text-blue-500 hover:text-blue-700 transition-colors"
                           >
-                            <FiX className="w-4 h-4" />
+                            <FiX className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
                         </motion.div>
                       ))}
                     </div>
 
                     <div className="relative">
-                      <div className="flex">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
                         <input
                           type="text"
                           value={newTag}
@@ -910,7 +937,7 @@ export default function AddPlace() {
                             setNewTag(e.target.value);
                             setShowTagSuggestions(e.target.value.length > 0);
                           }}
-                          className="block w-full border-2 border-gray-300 rounded-l-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4"
+                          className="block w-full border-2 border-gray-300 rounded-xl sm:rounded-l-xl sm:rounded-r-none shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4 text-sm sm:text-base"
                           placeholder="Add a tag (e.g., family-friendly, weekend, nature)"
                           onKeyPress={(e) => {
                             if (e.key === 'Enter') {
@@ -922,7 +949,7 @@ export default function AddPlace() {
                         <button
                           type="button"
                           onClick={() => handleAddTag()}
-                          className="inline-flex items-center px-6 py-3 border-2 border-l-0 border-blue-600 text-blue-600 font-medium rounded-r-xl hover:bg-blue-50 transition-colors"
+                          className="inline-flex items-center justify-center px-4 sm:px-6 py-3 border-2 border-blue-600 sm:border-l-0 text-blue-600 font-medium rounded-xl sm:rounded-l-none sm:rounded-r-xl hover:bg-blue-50 transition-colors text-sm sm:text-base"
                         >
                           <FiPlus className="mr-1" />
                           Add
@@ -947,7 +974,7 @@ export default function AddPlace() {
                                 key={suggestion}
                                 type="button"
                                 onClick={() => handleAddTag(suggestion)}
-                                className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 border-b border-gray-100 last:border-b-0"
+                                className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 border-b border-gray-100 last:border-b-0 text-sm"
                               >
                                 {suggestion}
                               </button>
@@ -962,7 +989,7 @@ export default function AddPlace() {
 
                   {/* Custom Details Section */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Additional Details</h3>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Additional Details</h3>
 
                     <div className="space-y-3 mb-6">
                       {Object.entries(formData.custom_keys).map(([key, value], index) => (
@@ -970,36 +997,36 @@ export default function AddPlace() {
                           key={index}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center bg-gray-50 p-4 rounded-xl border border-gray-200"
+                          className="flex items-center bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-200"
                         >
-                          <div className="flex-1">
-                            <div className="font-semibold text-gray-800">{key}</div>
-                            <div className="text-gray-600 text-sm">{value}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-800 text-sm sm:text-base truncate">{key}</div>
+                            <div className="text-gray-600 text-xs sm:text-sm break-words">{value}</div>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveCustomKey(key)}
-                            className="text-red-500 hover:text-red-700 transition-colors p-2"
+                            className="text-red-500 hover:text-red-700 transition-colors p-2 ml-2 flex-shrink-0"
                           >
-                            <FiMinus className="w-5 h-5" />
+                            <FiMinus className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
                         </motion.div>
                       ))}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3">
                       <input
                         type="text"
                         value={newKeyName}
                         onChange={(e) => setNewKeyName(e.target.value)}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4 text-sm sm:text-base"
                         placeholder="Detail name (e.g., Best Time to Visit)"
                       />
                       <input
                         type="text"
                         value={newKeyValue}
                         onChange={(e) => setNewKeyValue(e.target.value)}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4 text-sm sm:text-base"
                         placeholder="Detail value (e.g., October to March)"
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') {
@@ -1012,7 +1039,7 @@ export default function AddPlace() {
                     <button
                       type="button"
                       onClick={handleAddCustomKey}
-                      className="mt-3 inline-flex items-center px-4 py-2 border-2 border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                      className="mt-3 inline-flex items-center px-4 py-2 border-2 border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors text-sm"
                     >
                       <FiPlus className="mr-2" />
                       Add Detail
@@ -1022,36 +1049,36 @@ export default function AddPlace() {
                     </p>
                   </div>
 
-                  <div className="mt-8 flex justify-between">
+                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
                     <button
                       type="button"
                       onClick={() => setStep(3)}
-                      className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-3 sm:order-1"
                     >
                       <FiArrowLeft className="mr-2" />
                       Previous
                     </button>
-                    <div className="space-x-4">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 order-1 sm:order-2">
                       <button
                         type="button"
                         onClick={() => router.push('/admin')}
-                        className="inline-flex items-center px-6 py-3 border-2 border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                        className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="inline-flex items-center px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+                        className="inline-flex items-center justify-center px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
                       >
                         {isSubmitting ? (
                           <span className="flex items-center">
-                            <FiLoader className="animate-spin mr-2 h-5 w-5" />
+                            <FiLoader className="animate-spin mr-2 h-4 w-4 sm:h-5 sm:w-5" />
                             Creating Place...
                           </span>
                         ) : (
                           <span className="flex items-center">
-                            <FiSave className="mr-2 h-5 w-5" />
+                            <FiSave className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
                             Create Place
                           </span>
                         )}
@@ -1070,13 +1097,13 @@ export default function AddPlace() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-6"
+                className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6"
               >
                 <div className="flex items-center mb-4">
                   <FiLoader className="animate-spin h-5 w-5 text-blue-600 mr-3" />
-                  <h3 className="text-lg font-semibold text-blue-900">Creating Your Place...</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-blue-900">Creating Your Place...</h3>
                 </div>
-                <div className="text-sm text-blue-700 space-y-1">
+                <div className="text-xs sm:text-sm text-blue-700 space-y-1">
                   <p>• Validating form data</p>
                   <p>• {primaryImage ? 'Uploading image to Firebase Storage' : 'Preparing place data'}</p>
                   <p>• Saving to database</p>
