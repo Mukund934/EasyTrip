@@ -31,8 +31,8 @@ const CarouselImage = ({ place, isActive }) => {
       {imageState === 'error' && (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
           <div className="text-center">
-            <FiImage className="h-12 w-12 text-blue-400 mx-auto mb-3" />
-            <p className="text-blue-600 text-sm font-medium">{place?.name}</p>
+            <FiImage className="h-8 w-8 sm:h-12 sm:w-12 text-blue-400 mx-auto mb-2 sm:mb-3" />
+            <p className="text-blue-600 text-xs sm:text-sm font-medium">{place?.name}</p>
             <p className="text-blue-500 text-xs">Explore this destination</p>
           </div>
         </div>
@@ -63,14 +63,14 @@ const FeatureCard = ({ icon, title, description }) => (
       hidden: { opacity: 0, y: 20 },
       visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
     }}
-    className="bg-white p-6 rounded-xl shadow-lg backdrop-blur-sm border border-gray-100/50 hover:shadow-xl transition-shadow duration-300"
+    className="bg-white p-4 sm:p-6 rounded-xl shadow-lg backdrop-blur-sm border border-gray-100/50 hover:shadow-xl transition-shadow duration-300"
     whileHover={{ y: -5 }}
   >
-    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-6 mx-auto">
+    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
       {icon}
     </div>
-    <h3 className="text-xl font-semibold text-gray-900 mb-2 text-center">{title}</h3>
-    <p className="text-gray-600 text-center">{description}</p>
+    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 text-center">{title}</h3>
+    <p className="text-sm sm:text-base text-gray-600 text-center">{description}</p>
   </motion.div>
 );
 
@@ -85,11 +85,11 @@ const CategoryCard = ({ category, gradient }) => (
     <Link href={`/browse?theme=${category.toLowerCase()}`} passHref>
       <motion.div
         whileHover={{ y: -3, scale: 1.02 }}
-        className={`relative h-32 sm:h-40 rounded-xl overflow-hidden group cursor-pointer ${gradient}`}
+        className={`relative h-24 sm:h-32 md:h-40 rounded-xl overflow-hidden group cursor-pointer ${gradient}`}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent group-hover:from-black/40 transition-all duration-300"></div>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-white font-bold text-lg sm:text-xl drop-shadow-lg">{category}</span>
+          <span className="text-white font-bold text-sm sm:text-lg md:text-xl drop-shadow-lg">{category}</span>
         </div>
       </motion.div>
     </Link>
@@ -304,43 +304,55 @@ const Home = () => {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 font-inter">
+      <div className="min-h-screen bg-gray-900 font-inter">
         {/* Hero Section */}
         <div className="relative min-h-screen overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20"></div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),transparent_70%)]"></div>
-          </div>
+          {/* Dynamic Background Image */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPlaceIndex}
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ 
+                backgroundImage: `url(${places[currentPlaceIndex]?.primary_image_url || places[currentPlaceIndex]?.image_url || '/images/hero-bg.jpg'})` 
+              }}
+              initial={{ opacity: 0, scale: 1.1 }}
+              animate={{ opacity: 0.3, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 1, ease: "easeInOut" }}
+            />
+          </AnimatePresence>
+          
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/80"></div>
 
-          <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 min-h-screen flex items-center">
+          <div className="relative container mx-auto px-3 sm:px-4 lg:px-8 min-h-screen flex items-center">
             {/* Mobile Layout */}
             {isMobile ? (
-              <div className="w-full space-y-8">
+              <div className="w-full space-y-6">
                 {/* Hero Content - Mobile (Top) */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8 }}
-                  className="text-center text-white pt-8"
+                  className="text-center text-white pt-4"
                 >
-                  <h1 className="text-3xl sm:text-4xl font-extrabold mb-4 leading-tight">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold mb-3 leading-tight">
                     Discover Your Next
                     <span className="block text-blue-300">Adventure</span>
                   </h1>
                   
-                  <p className="text-base text-gray-200 mb-6 max-w-md mx-auto leading-relaxed">
-                    Explore breathtaking destinations with curated recommendations and seamless planning.
+                  <p className="text-sm text-gray-200 mb-5 max-w-xs mx-auto leading-relaxed">
+                    Explore breathtaking destinations with curated recommendations.
                   </p>
                   
-                  <div className="flex flex-col gap-3 max-w-xs mx-auto">
+                  <div className="flex flex-col gap-2 max-w-64 mx-auto">
                     <Link href="/browse" passHref>
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                        className="w-full px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center text-sm"
                       >
-                        <FiCompass className="mr-2" />
+                        <FiCompass className="mr-2 h-4 w-4" />
                         Explore Now
                       </motion.button>
                     </Link>
@@ -348,7 +360,7 @@ const Home = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-full px-6 py-3 bg-white/10 backdrop-blur-md border border-white/30 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
+                        className="w-full px-5 py-2.5 bg-white/10 backdrop-blur-md border border-white/30 text-white font-medium rounded-lg hover:bg-white/20 transition-colors text-sm"
                       >
                         Learn More
                       </motion.button>
@@ -361,10 +373,10 @@ const Home = () => {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: 0.2 }}
-                  className="relative pb-16"
+                  className="relative pb-12"
                 >
                   <div 
-                    className="relative h-[380px] mx-2"
+                    className="relative h-80 mx-2"
                     ref={carouselRef}
                     onTouchStart={() => setAutoplay(false)}
                     onTouchEnd={() => setTimeout(() => setAutoplay(true), 3000)}
@@ -372,17 +384,17 @@ const Home = () => {
                     {loading ? (
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center">
-                          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
-                          <p className="text-white/80 text-sm">Loading destinations...</p>
+                          <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin mb-3"></div>
+                          <p className="text-white/80 text-sm">Loading...</p>
                         </div>
                       </div>
                     ) : error ? (
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
-                          <p className="mb-4 text-sm">{error}</p>
+                          <p className="mb-3 text-sm">{error}</p>
                           <button 
                             onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            className="px-3 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm"
                           >
                             Try Again
                           </button>
@@ -426,12 +438,12 @@ const Home = () => {
                               className="absolute w-full h-full"
                             >
                               <div className="bg-white/95 backdrop-blur-md border border-white/30 shadow-2xl h-full rounded-xl overflow-hidden">
-                                {/* Image Section - 60% height */}
+                                {/* Image Section - 65% height */}
                                 <div className="h-3/5 relative">
                                   <CarouselImage place={places[currentPlaceIndex]} isActive={true} />
                                   
                                   {/* Rating Badge */}
-                                  <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm rounded-full px-2 py-1 flex items-center shadow-lg">
+                                  <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm rounded-full px-2 py-1 flex items-center shadow-lg">
                                     <FiStar className="text-yellow-500 mr-1 h-3 w-3" />
                                     <span className="text-xs font-medium text-gray-800">
                                       {calculateRating(places[currentPlaceIndex])}
@@ -443,7 +455,7 @@ const Home = () => {
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={(e) => toggleLike(e, places[currentPlaceIndex]?.id)}
-                                    className={`absolute top-3 left-3 rounded-full backdrop-blur-sm w-8 h-8 flex items-center justify-center shadow-lg transition-colors ${
+                                    className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-7 h-7 flex items-center justify-center shadow-lg transition-colors ${
                                       likedPlaces.includes(places[currentPlaceIndex]?.id) 
                                         ? 'bg-red-500 text-white' 
                                         : 'bg-white/95 text-gray-700'
@@ -455,25 +467,25 @@ const Home = () => {
                                   </motion.button>
                                   
                                   {/* Location Tag */}
-                                  <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm rounded-md text-white flex items-center px-2 py-1">
+                                  <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded-md text-white flex items-center px-2 py-1">
                                     <FiMapPin className="mr-1 h-3 w-3" />
                                     <span className="text-xs">{places[currentPlaceIndex]?.location || 'Worldwide'}</span>
                                   </div>
                                 </div>
                                 
-                                {/* Content Section - 40% height */}
-                                <div className="h-2/5 p-4 flex flex-col justify-between bg-white">
+                                {/* Content Section - 35% height */}
+                                <div className="h-2/5 p-3 flex flex-col justify-between bg-white">
                                   <div>
-                                    <h2 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">
+                                    <h2 className="text-base font-bold text-gray-900 mb-1 line-clamp-1">
                                       {places[currentPlaceIndex]?.name}
                                     </h2>
                                     
-                                    <p className="text-sm text-gray-600 mb-3 line-clamp-2 leading-relaxed">
-                                      {places[currentPlaceIndex]?.description || 'Discover this amazing destination with EasyTrip.'}
+                                    <p className="text-xs text-gray-600 mb-2 line-clamp-2 leading-relaxed">
+                                      {places[currentPlaceIndex]?.description || 'Discover this amazing destination.'}
                                     </p>
                                     
                                     {/* Tags */}
-                                    <div className="flex flex-wrap gap-1 mb-3">
+                                    <div className="flex flex-wrap gap-1 mb-2">
                                       {places[currentPlaceIndex]?.tags?.slice(0, 2).map((tag, idx) => (
                                         <span 
                                           key={idx} 
@@ -491,7 +503,7 @@ const Home = () => {
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 px-4 py-1.5 text-sm flex items-center"
+                                        className="bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 px-3 py-1.5 text-xs flex items-center"
                                       >
                                         View Details
                                         <FiChevronRight className="ml-1 h-3 w-3" />
@@ -500,7 +512,7 @@ const Home = () => {
                                     
                                     <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
                                       <button className="text-blue-600 hover:text-blue-800 text-xs underline underline-offset-2">
-                                        More destinations
+                                        More places
                                       </button>
                                     </Link>
                                   </div>
@@ -511,7 +523,7 @@ const Home = () => {
                         </div>
                         
                         {/* Indicator Dots */}
-                        <div className="absolute -bottom-8 left-0 right-0 flex justify-center space-x-2">
+                        <div className="absolute -bottom-6 left-0 right-0 flex justify-center space-x-2">
                           {places.map((_, index) => (
                             <motion.button
                               key={index}
@@ -791,7 +803,7 @@ const Home = () => {
             hidden: { opacity: 0 }, 
             visible: { opacity: 1, transition: { staggerChildren: 0.2 } } 
           }}
-          className="py-16 sm:py-20 bg-white"
+          className="py-12 sm:py-16 lg:py-20 bg-white"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div 
@@ -799,28 +811,28 @@ const Home = () => {
                 hidden: { opacity: 0, y: 20 }, 
                 visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
               }} 
-              className="text-center mb-12"
+              className="text-center mb-8 sm:mb-12"
             >
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Why Choose EasyTrip</h2>
-              <p className="text-base sm:text-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-sm sm:text-base lg:text-lg text-gray-600 max-w-3xl mx-auto">
                 Curated destinations and personalized recommendations for seamless travel planning.
               </p>
             </motion.div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
               {[
                 {
-                  icon: <FiCompass className="h-6 w-6" />,
+                  icon: <FiCompass className="h-5 w-5 sm:h-6 sm:w-6" />,
                   title: 'Curated Destinations',
                   description: 'Handpicked places with detailed information and authentic reviews.',
                 },
                 {
-                  icon: <FiStar className="h-6 w-6" />,
+                  icon: <FiStar className="h-5 w-5 sm:h-6 sm:w-6" />,
                   title: 'Real Reviews',
                   description: 'Genuine feedback from travelers to help you make informed decisions.',
                 },
                 {
-                  icon: <FiHeart className="h-6 w-6" />,
+                  icon: <FiHeart className="h-5 w-5 sm:h-6 sm:w-6" />,
                   title: 'Personalized Experience',
                   description: 'Smart recommendations based on your preferences and interests.',
                 },
@@ -834,13 +846,13 @@ const Home = () => {
                 hidden: { opacity: 0, y: 20 }, 
                 visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
               }} 
-              className="mt-12 text-center"
+              className="mt-8 sm:mt-12 text-center"
             >
               <Link href="/browse" passHref>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 bg-blue-600 text-white font-medium rounded-lg flex items-center mx-auto text-base shadow-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 sm:px-8 py-3 bg-blue-600 text-white font-medium rounded-lg flex items-center mx-auto text-sm sm:text-base shadow-lg hover:bg-blue-700 transition-colors"
                 >
                   Start Exploring
                   <FiArrowRight className="ml-2 h-4 w-4" />
@@ -859,7 +871,7 @@ const Home = () => {
             hidden: { opacity: 0 }, 
             visible: { opacity: 1, transition: { staggerChildren: 0.1 } } 
           }}
-          className="py-16 sm:py-20 bg-gray-50"
+          className="py-12 sm:py-16 lg:py-20 bg-gray-50"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div 
@@ -867,15 +879,15 @@ const Home = () => {
                 hidden: { opacity: 0, y: 20 }, 
                 visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
               }} 
-              className="text-center mb-12"
+              className="text-center mb-8 sm:mb-12"
             >
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Explore by Category</h2>
-              <p className="text-base sm:text-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="text-sm sm:text-base lg:text-lg text-gray-600 max-w-3xl mx-auto">
                 Find destinations that match your travel style and interests.
               </p>
             </motion.div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
               {[
                 'Adventure', 'Historical', 'Romantic', 'Nature', 
                 'Religious', 'Beach', 'Mountain', 'City'
