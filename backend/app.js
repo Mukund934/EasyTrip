@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-domain.com'] 
+    ? ['https://easytrip-psi.vercel.app/'] 
     : ['http://localhost:3000'],
   credentials: true
 }));
@@ -118,5 +118,6 @@ app.listen(PORT, () => {
   console.log(`🔐 Auth: http://localhost:${PORT}/api/auth`);
   console.log(`⚙️  Admin: http://localhost:${PORT}/api/admin`);
 });
+
 
 module.exports = app;
