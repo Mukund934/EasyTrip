@@ -1,12 +1,10 @@
 {
-  "name": "easytrip-backend",
+    "name": "easytrip-backend",
   "version": "1.0.0",
-  "description": "Backend for EasyTrip travel platform",
-  "main": "src/app.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js",
+    "dev": "nodemon app.js"
   },
   "keywords": [
     "easytrip",
@@ -44,4 +42,3 @@
     "typescript": "^5.0.4"
   }
 }
-
