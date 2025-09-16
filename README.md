@@ -118,6 +118,18 @@ EasyTrip/
 
 ---
 
+## 🏛️ Architecture Patterns  
+
+> EasyTrip follows modern, scalable, and maintainable architecture principles:  
+
+- 🗂️ **MVC (Model–View–Controller)** – Clean separation of concerns in the backend  
+- ⚛️ **Component-Based UI** – Reusable and modular React/Next.js components  
+- 🌐 **Context API** – Centralized global state for authentication & user data  
+- 🔄 **Custom Hooks** – Abstracted reusable logic for fetching & state management  
+- 🔗 **API-First Design** – RESTful endpoints for seamless frontend–backend integration  
+
+---
+
 
 ## 🔧 Installation & Setup
 
