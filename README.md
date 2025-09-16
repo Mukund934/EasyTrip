@@ -406,6 +406,16 @@ Licensed under the **MIT License**. See [LICENSE](LICENSE).
 
 ---
 
+
+## 📞 Contact  
+
+**Project Maintainers**  
+👤 Dharmendra — [@dharmendra23101](https://github.com/dharmendra23101)  
+👤 Mukund Thakur — [@Mukund934](https://github.com/Mukund934)  
+
+
+
+
 ## 🗺️ Roadmap
 ### Upcoming Features
 - [ ] Mobile app (React Native)
