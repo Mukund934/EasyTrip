@@ -38,17 +38,17 @@
 ---
 
 ### 🗺️ Checking Out a Tourism Spot (Hero Section)  
-![Tourism Spot](./preview6.png)  
+![Tourism Spot](./preview5.png)  
 
 ---
 
 ### 📖 Explore About the Place  
-![About Place](./preview7.png)  
+![About Place](./preview6.png)  
 
 ---
 
 ### ☀️ Current Weather Condition & Map Location  
-![Weather & Map](./preview8.png)  
+![Weather & Map](./preview7.png)  
 
 ---
 
