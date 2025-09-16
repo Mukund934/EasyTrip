@@ -1604,65 +1604,90 @@ function Browse() {
 
                                 {/* Desktop filter sections */}
                                 <div className="p-6">
+
                                     <FilterSection
-                                        title="Location Details"
-                                        icon={<FiMapPin className="text-primary-600" />}
-                                        collapsed={collapsedSections.location}
-                                        onToggle={() => toggleSection('location')}
-                                    >
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label htmlFor="desktop-location" className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Location
-                                                </label>
-                                                <select
-                                                    id="desktop-location"
-                                                    value={selectedLocation}
-                                                    onChange={(e) => setSelectedLocation(e.target.value)}
-                                                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                                >
-                                                    <option value="">All Locations</option>
-                                                    {locations.map((loc, index) => (
-                                                        <option key={index} value={loc}>{loc}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+    title="Location Details"
+    icon={<FiMapPin className="text-primary-600" />}
+    collapsed={collapsedSections.location}
+    onToggle={() => toggleSection('location')}
+>
+    <div className="space-y-4">
+        {/* Location Dropdown */}
+        <div>
+            <label htmlFor="desktop-location" className="block text-sm font-medium text-gray-700 mb-1">
+                Location
+            </label>
+            <select
+                id="desktop-location"
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="block w-full bg-white border border-gray-200 rounded-lg shadow-md hover:shadow-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 px-4 py-2 text-gray-700 text-sm transition-all duration-300 ease-in-out cursor-pointer"
+            >
+                <option value="">All Locations</option>
+                {locations.map((loc, index) => (
+                    <option key={index} value={loc}>{loc}</option>
+                ))}
+            </select>
+            {selectedLocation && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-full shadow-sm flex items-center gap-1">
+                        <FiMapPin className="h-4 w-4" /> {selectedLocation}
+                    </span>
+                </div>
+            )}
+        </div>
 
-                                            <div>
-                                                <label htmlFor="desktop-district" className="block text-sm font-medium text-gray-700 mb-1">
-                                                    District
-                                                </label>
-                                                <select
-                                                    id="desktop-district"
-                                                    value={selectedDistrict}
-                                                    onChange={(e) => setSelectedDistrict(e.target.value)}
-                                                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                                >
-                                                    <option value="">All Districts</option>
-                                                    {districts.map((district, index) => (
-                                                        <option key={index} value={district}>{district}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+        {/* District Dropdown */}
+        <div>
+            <label htmlFor="desktop-district" className="block text-sm font-medium text-gray-700 mb-1">
+                District
+            </label>
+            <select
+                id="desktop-district"
+                value={selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value)}
+                className="block w-full bg-white border border-gray-200 rounded-lg shadow-md hover:shadow-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 px-4 py-2 text-gray-700 text-sm transition-all duration-300 ease-in-out cursor-pointer"
+            >
+                <option value="">All Districts</option>
+                {districts.map((district, index) => (
+                    <option key={index} value={district}>{district}</option>
+                ))}
+            </select>
+            {selectedDistrict && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-full shadow-sm flex items-center gap-1">
+                        <FiMapPin className="h-4 w-4" /> {selectedDistrict}
+                    </span>
+                </div>
+            )}
+        </div>
 
-                                            <div>
-                                                <label htmlFor="desktop-state" className="block text-sm font-medium text-gray-700 mb-1">
-                                                    State
-                                                </label>
-                                                <select
-                                                    id="desktop-state"
-                                                    value={selectedState}
-                                                    onChange={(e) => setSelectedState(e.target.value)}
-                                                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                                >
-                                                    <option value="">All States</option>
-                                                    {states.map((state, index) => (
-                                                        <option key={index} value={state}>{state}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </FilterSection>
+        {/* State Dropdown */}
+        <div>
+            <label htmlFor="desktop-state" className="block text-sm font-medium text-gray-700 mb-1">
+                States
+            </label>
+            <select
+                id="desktop-state"
+                value={selectedState}
+                onChange={(e) => setSelectedState(e.target.value)}
+                className="block w-full bg-white border border-gray-200 rounded-lg shadow-md hover:shadow-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 px-4 py-2 text-gray-700 text-sm transition-all duration-300 ease-in-out cursor-pointer"
+            >
+                <option value="">All States</option>
+                {states.map((state, index) => (
+                    <option key={index} value={state}>{state}</option>
+                ))}
+            </select>
+            {selectedState && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-full shadow-sm flex items-center gap-1">
+                        <FiMapPin className="h-4 w-4" /> {selectedState}
+                    </span>
+                </div>
+            )}
+        </div>
+    </div>
+</FilterSection>
 
                                     <FilterSection
                                         title="Themes"
