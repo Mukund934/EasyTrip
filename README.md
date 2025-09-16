@@ -17,9 +17,24 @@
 
 > Sneak peek into the EasyTrip experience  
 
-| Landing Page | Destination Details | Admin Dashboard | Mobile View |
-|--------------|--------------------|----------------|-------------|
-| ![Preview 1](./preview/preview1.png) | ![Preview 2](./preview/preview2.png) | ![Preview 3](./preview/preview3.png) | ![Preview 4](./preview/preview4.png) |
+### 🏠 Landing Page (Home Section)  
+![Landing Page (Home section)](./preview1.png)  
+
+---
+
+### 🌍 Discover Amazing Places (Browse Section)  
+![Discover Amazing places (Browse section)](./preview2.png)  
+
+---
+
+### ✨ Why Choose EasyTrip  
+![Why Choose EasyTrip](./preview3.png)  
+
+---
+
+### 🔎 Search in Browse Section  
+![Search in Browse section](./preview4.png)  
+
 
 ---
 
