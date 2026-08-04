@@ -4,16 +4,21 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiClock, FiInfo, FiCompass, FiSearch } from 'react-icons/fi';
+import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiInfo, FiCompass, FiSearch } from 'react-icons/fi';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [currentDateTime, setCurrentDateTime] = useState('2025-09-05 22:26:25');
-  const [currentUser] = useState('AdminX');
   const { currentUser: authUser, isAdmin, logout } = useAuth();
   const router = useRouter();
+
+  // A signed-in user can still be missing displayName and/or email, so every
+  // read has to tolerate it rather than dereferencing straight through.
+  const displayName =
+    authUser?.displayName || authUser?.name || authUser?.email?.split('@')[0] || 'Account';
+  const displayEmail = authUser?.email || displayName;
+  const avatarInitial = displayName.charAt(0).toUpperCase();
 
   // Close menu when route changes
   useEffect(() => {
@@ -37,9 +42,7 @@ const Navbar = () => {
     };
   }, []);
 
-  // Log logout action
   const handleLogout = async () => {
-    console.log(`User ${currentUser} logging out at ${currentDateTime}`);
     await logout();
     router.push('/');
   };
@@ -154,11 +157,11 @@ const Navbar = () => {
                     />
                   ) : (
                     <div className="relative w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-bold">
-                      {authUser.name ? authUser.name.charAt(0).toUpperCase() : authUser.email.charAt(0).toUpperCase()}
+                      {avatarInitial}
                     </div>
                   )}
                   <span className="text-sm font-medium truncate max-w-[100px]">
-                    {authUser.name || authUser.email.split('@')[0]}
+                    {displayName}
                   </span>
                   <FiChevronDown className={`h-4 w-4 ${isProfileOpen ? 'rotate-180' : 'rotate-0'} transition-transform duration-200`} />
                 </motion.button>
@@ -174,15 +177,7 @@ const Navbar = () => {
                     >
                       <div className="px-4 py-3 border-b border-gray-100">
                         <p className="text-sm text-gray-500">Signed in as</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">{authUser.email}</p>
-                        <div className="mt-1 flex items-center text-xs text-gray-500">
-                          <FiClock className="mr-1 h-3 w-3" />
-                          <span>{currentDateTime}</span>
-                        </div>
-                        <div className="flex items-center text-xs text-gray-500">
-                          <FiUser className="mr-1 h-3 w-3" />
-                          <span>{currentUser}</span>
-                        </div>
+                        <p className="text-sm font-medium text-gray-900 truncate">{displayEmail}</p>
                       </div>
                       <div className="py-1">
                         <motion.div variants={itemVariants}>
@@ -332,15 +327,7 @@ const Navbar = () => {
                   <>
                     <div className="px-3 py-2 border-b border-gray-200 mb-2">
                       <p className="text-sm text-gray-500">Signed in as</p>
-                      <p className="text-base font-medium text-gray-900 truncate">{authUser.email}</p>
-                      <div className="mt-1 flex items-center text-xs text-gray-500">
-                        <FiClock className="mr-1 h-3 w-3" />
-                        <span>{currentDateTime}</span>
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <FiUser className="mr-1 h-3 w-3" />
-                        <span>{currentUser}</span>
-                      </div>
+                      <p className="text-base font-medium text-gray-900 truncate">{displayEmail}</p>
                     </div>
 
                     <Link
@@ -407,13 +394,6 @@ const Navbar = () => {
                     </Link>
                   </>
                 )}
-              </div>
-            </div>
-            
-            {/* Footer with timestamp */}
-            <div className="px-4 py-2 bg-gray-50 text-center">
-              <div className="text-xs text-gray-500">
-                {currentDateTime} • {currentUser}
               </div>
             </div>
           </motion.div>

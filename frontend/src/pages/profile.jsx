@@ -20,10 +20,12 @@ export default function Profile() {
     }
   }, [authLoading, currentUser, router]);
 
-  // Set initial form values
+  // Set initial form values.
+  // AuthContext supplies `displayName`, never `name`; seeding from `name` alone left the
+  // field blank, and PUT /auth/profile now rejects an empty name with a 400.
   useEffect(() => {
     if (currentUser) {
-      setName(currentUser.name || '');
+      setName(currentUser.displayName || currentUser.name || '');
       setLocation(currentUser.location || '');
       setDob(currentUser.dob ? new Date(currentUser.dob).toISOString().split('T')[0] : '');
     }
@@ -116,6 +118,8 @@ export default function Profile() {
                       name="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      required
+                      maxLength={100}
                       className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                       placeholder="Your full name"
                     />

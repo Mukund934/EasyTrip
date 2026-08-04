@@ -25,8 +25,6 @@ EasyTrip/
 │   │   │   ├── authRoutes.js
 │   │   │   ├── placeRoutes.js
 │   │   │   └── userRoutes.js
-│   │   ├── services/            # Business logic
-│   │   │   └── placeService.js
 │   │   └── utils/               # Helpers and middleware
 │   │       ├── authMiddleware.js
 │   │       ├── errorHandler.js
@@ -95,14 +93,11 @@ EasyTrip/
 │   │   │   │   │   └── [id].js  # Direct image endpoint
 │   │   │   │   ├── image/
 │   │   │   │   │   └── [id].js  # Image endpoint
-│   │   │   │   ├── image-proxy.js # Image proxy endpoint
 │   │   │   │   └── places/
 │   │   │   │       └── [id]/
 │   │   │   │           └── image.js # Place images endpoint
 │   │   │   └── places/          # Place pages
 │   │   │       └── [id].jsx     # Place details page
-│   │   ├── routes/              # Frontend routes
-│   │   │   └── authRoutes.js
 │   │   ├── services/            # API services
 │   │   │   ├── adminService.js
 │   │   │   ├── authService.js

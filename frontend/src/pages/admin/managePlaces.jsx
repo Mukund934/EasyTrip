@@ -41,7 +41,7 @@ const truncateText = (text, maxLength) => {
 };
 
 export default function ManagePlaces() {
-  const { currentUser, loading, isAdmin } = useAuth();
+  const { currentUser, loading, isAdmin, getIdToken } = useAuth();
   const router = useRouter();
   const [places, setPlaces] = useState([]);
   const [filteredPlaces, setFilteredPlaces] = useState([]);
@@ -130,7 +130,10 @@ export default function ManagePlaces() {
 
     try {
       setDeleting(true);
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
       await deletePlace(placeToDelete.id, token);
 
       // Update state
@@ -682,4 +685,37 @@ export default function ManagePlaces() {
       )}
     </>
   );
+}
+
+// Server-side admin gate. A Firebase ID token lives in browser JS memory and is not sent with
+// a document request, so it only reaches this function when the auth layer mirrors it into the
+// `et_id_token` cookie. Without a verifiable admin token the page HTML is never served; the
+// useEffect guard above stays as defence in depth for client-side navigations.
+export async function getServerSideProps({ req }) {
+  const token = req.cookies?.et_id_token;
+
+  if (!token) {
+    return { redirect: { destination: '/login', permanent: false } };
+  }
+
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const response = await fetch(`${API_URL}/auth/check-admin`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+      return { redirect: { destination: '/login', permanent: false } };
+    }
+
+    const { isAdmin } = await response.json();
+    if (!isAdmin) {
+      return { redirect: { destination: '/', permanent: false } };
+    }
+  } catch (error) {
+    console.error('Admin gate check failed:', error.message);
+    return { redirect: { destination: '/login', permanent: false } };
+  }
+
+  return { props: {} };
 }

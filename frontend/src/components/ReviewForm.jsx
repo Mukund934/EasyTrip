@@ -1,23 +1,44 @@
 import { useState } from 'react';
-import { FiStar } from 'react-icons/fi';
+import { FiStar, FiAlertCircle } from 'react-icons/fi';
 
-const ReviewForm = ({ rating, review, onRatingChange, onReviewChange, onSubmit, isSubmitting }) => {
+const ReviewForm = ({
+  rating = 0,
+  comment = '',
+  onRatingChange,
+  onCommentChange,
+  onSubmit,
+  isSubmitting = false,
+  userHasReviewed = false,
+  error = null,
+}) => {
   const [hoverRating, setHoverRating] = useState(0);
-  
+
   const handleStarClick = (value) => {
     onRatingChange(value);
   };
-  
+
   const handleStarHover = (value) => {
     setHoverRating(value);
   };
-  
+
   const handleStarLeave = () => {
     setHoverRating(0);
   };
-  
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isSubmitting || !rating) return;
+    onSubmit({ rating, comment });
+  };
+
   return (
-    <form onSubmit={onSubmit}>
+    <form onSubmit={handleSubmit}>
+      {userHasReviewed && (
+        <p className="mb-4 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-4 py-3">
+          You have already reviewed this place. Submitting again updates your existing review.
+        </p>
+      )}
+
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Your Rating
@@ -31,6 +52,8 @@ const ReviewForm = ({ rating, review, onRatingChange, onReviewChange, onSubmit, 
               onMouseEnter={() => handleStarHover(value)}
               onMouseLeave={handleStarLeave}
               className="text-2xl mr-1 focus:outline-none"
+              aria-label={`Rate ${value} out of 5`}
+              aria-pressed={rating === value}
             >
               <FiStar
                 className={`h-8 w-8 ${
@@ -43,7 +66,7 @@ const ReviewForm = ({ rating, review, onRatingChange, onReviewChange, onSubmit, 
           ))}
         </div>
       </div>
-      
+
       <div className="mb-4">
         <label htmlFor="review" className="block text-sm font-medium text-gray-700 mb-2">
           Your Review (Optional)
@@ -51,16 +74,23 @@ const ReviewForm = ({ rating, review, onRatingChange, onReviewChange, onSubmit, 
         <textarea
           id="review"
           rows="4"
-          value={review}
-          onChange={(e) => onReviewChange(e.target.value)}
+          value={comment}
+          onChange={(e) => onCommentChange(e.target.value)}
           placeholder="Share your experience..."
           className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
         ></textarea>
       </div>
-      
+
+      {error && (
+        <div role="alert" className="mb-4 flex items-start text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-4 py-3">
+          <FiAlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <button
         type="submit"
-        disabled={isSubmitting || rating === 0}
+        disabled={isSubmitting || !rating}
         className="w-full md:w-auto px-6 py-3 bg-primary-600 text-white rounded-md font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isSubmitting ? (
@@ -72,7 +102,7 @@ const ReviewForm = ({ rating, review, onRatingChange, onReviewChange, onSubmit, 
             Submitting...
           </span>
         ) : (
-          'Submit Review'
+          userHasReviewed ? 'Update Review' : 'Submit Review'
         )}
       </button>
     </form>

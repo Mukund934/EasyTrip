@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { FiStar, FiFlag, FiThumbsUp, FiUser, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { getCloudinaryThumbnail } from '../utils/cloudinaryHelper';
 
-const ReviewList = ({ reviews = [], onReportReview, currentUserId }) => {
+// Ownership comes from the server's `is_own` flag, not from comparing ids: the API
+// returns an opaque per-place digest as `user_id`, never a Firebase uid, so a
+// client-side comparison against the signed-in uid can never match.
+const ReviewList = ({ reviews = [], onReportReview }) => {
   const [sortOption, setSortOption] = useState('newest');
   const [expandedReviews, setExpandedReviews] = useState({});
   
@@ -80,7 +84,7 @@ const ReviewList = ({ reviews = [], onReportReview, currentUserId }) => {
                 <div className="flex items-center">
                   {review.user_avatar ? (
                     <img
-                      src={review.user_avatar}
+                      src={getCloudinaryThumbnail(review.user_avatar, 400, 400)}
                       alt={review.user_name || 'User'}
                       className="w-10 h-10 rounded-full mr-3"
                     />
@@ -92,7 +96,7 @@ const ReviewList = ({ reviews = [], onReportReview, currentUserId }) => {
                   <div>
                     <h4 className="font-medium text-gray-900">
                       {review.user_name || 'Anonymous User'}
-                      {review.user_id === currentUserId && (
+                      {review.is_own && (
                         <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">You</span>
                       )}
                     </h4>
@@ -116,7 +120,7 @@ const ReviewList = ({ reviews = [], onReportReview, currentUserId }) => {
                   </div>
                 </div>
                 
-                {review.user_id !== currentUserId && (
+                {!review.is_own && (
                   <button
                     onClick={() => onReportReview(review.id)}
                     className="text-gray-400 hover:text-red-500"
@@ -156,7 +160,7 @@ const ReviewList = ({ reviews = [], onReportReview, currentUserId }) => {
                   {review.images.map((image, index) => (
                     <img
                       key={index}
-                      src={image.url}
+                      src={getCloudinaryThumbnail(image.url, 400, 400)}
                       alt={`Review image ${index + 1}`}
                       className="h-20 w-20 object-cover rounded-md"
                     />

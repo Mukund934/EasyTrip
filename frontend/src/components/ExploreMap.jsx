@@ -130,8 +130,7 @@ const ExploreMap = ({
   const [mapMetrics, setMapMetrics] = useState({
     zoom: zoom,
     bearing: 0,
-    pitch: 0,
-    currentTime: '2025-09-05 23:19:33'
+    pitch: 0
   });
   const [hoveredPlace, setHoveredPlace] = useState(null);
   
@@ -280,7 +279,7 @@ const ExploreMap = ({
       // Add custom attribution
       const attribution = L.control.attribution({
         position: 'bottomright',
-        prefix: 'AdminX | 2025-09-05 23:19:33'
+        prefix: 'EasyTrip'
       }).addTo(map);
       
       // Initialize marker layers
@@ -770,7 +769,6 @@ const ExploreMap = ({
               </p>
               <p className="attribution">
                 <span>Map data © OpenStreetMap</span>
-                <span>AdminX</span>
               </p>
             </div>
           </motion.div>

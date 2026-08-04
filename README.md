@@ -1,12 +1,12 @@
 
 # EasyTrip 🌍 
-> Discover Your Next Adventure – A modern travel destination platform built with Next.js, Node.js, and MySQL  (A Full Stack Project)
+> Discover Your Next Adventure – A modern travel destination platform built with Next.js, Node.js, and PostgreSQL  (A Full Stack Project)
 
-[![Next.js](https://img.shields.io/badge/Next.js-13.0+-black?logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-18.0+-blue?logo=react)](https://reactjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-13.4-black?logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-18.2-blue?logo=react)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18.0+-green?logo=node.js)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.18+-lightgrey?logo=express)](https://expressjs.com/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0+-orange?logo=mysql)](https://mysql.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?logo=postgresql)](https://postgresql.org/)
 [![Firebase](https://img.shields.io/badge/Firebase-Auth-yellow?logo=firebase)](https://firebase.google.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-blue?logo=tailwindcss)](https://tailwindcss.com/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-Images-lightblue?logo=cloudinary)](https://cloudinary.com/)
@@ -47,8 +47,12 @@
 
 ---
 
-### ☀️ Current Weather Condition & Map Location  
+### ☀️ Weather Widget & Map Location  
 ![Weather & Map](./preview7.png)  
+
+> ⚠️ The map is a Google Maps embed driven by the place's stored coordinates and works as shown.
+> The weather panel is a **UI placeholder** — no weather API is connected yet.
+> See [Not Yet Implemented](#-not-yet-implemented).
 
 ---
 
@@ -56,69 +60,92 @@
 
 - [Overview](#-overview)  
 - [Features](#-features)  
+- [Not Yet Implemented](#-not-yet-implemented)  
 - [Technology Stack](#️-technology-stack)  
 - [Project Architecture](#-project-architecture)  
-- [Environment Variables](#-environment-variables)  
 - [Installation & Setup](#-installation--setup)  
 - [API Documentation](#-api-documentation)  
 - [Deployment](#-deployment)  
 - [Contributing](#-contributing)  
 - [License](#-license)  
 - [Contact](#-contact)  
-- [Acknowledgments](#-acknowledgments)  
 - [Roadmap](#-roadmap)  
 
 ---
 
 ## 🌟 Overview  
 
-**EasyTrip** is a modern travel destination discovery platform designed to help users explore breathtaking destinations, read reviews, and plan trips seamlessly. With curated content, rich visuals, and a robust admin panel, it empowers both travelers and admins.  
+**EasyTrip** is a travel destination discovery platform designed to help users explore destinations, read and write reviews, and browse places on an interactive map. Curated destination content is managed through an admin panel with full create/edit/delete and image upload.  
+
+> **Honest status:** the feature lists below describe what is actually implemented in this repository today. Anything advertised but not yet built lives in [Not Yet Implemented](#-not-yet-implemented) rather than being listed as a feature.
 
 ---
 
 ## 🚀 Features  
 
 ### ✨ User Features  
-- 🏞️ **Destination Discovery** – Browse curated destinations with stunning galleries  
-- 🔍 **Advanced Search & Filters** – Explore by location, theme, or rating  
-- ⭐ **Ratings & Reviews** – Share and read community feedback  
+- 🏞️ **Destination Discovery** – Browse curated destinations with image-rich cards  
+- 🔍 **Search & Filters** – Full-text search over name/description, plus location, district, state, and tag filters (server-side)  
+- ⭐ **Ratings & Reviews** – Read reviews and post a 1–5 star rating with a comment; one review per user per place (enforced by a `UNIQUE` constraint + upsert), with place averages maintained by a PostgreSQL trigger  
 - 📱 **Responsive Design** – Optimized for all devices  
-- 🖼️ **Immersive Galleries** – Magazine-style photo layouts  
-- ❤️ **User Profiles** – Save favorites, manage reviews  
+- 🖼️ **Magazine-Style Detail Pages** – Full-bleed hero, carousels, related places, and a Google Maps embed for the location  
+- 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name  
 
 ### 🛡️ Admin Features  
-- 🖊️ **Content Management** – Add, edit, or manage places  
-- 📊 **Analytics Dashboard** – Track engagement and popular spots  
-- 👥 **User Management** – Monitor users and activity  
-- 📝 **Review Moderation** – Ensure authentic feedback  
-- 📦 **Image Management** – Cloudinary-based storage & optimization  
+- 🖊️ **Content Management** – Create, edit, and delete destinations  
+- 📦 **Image Management** – Cloudinary-backed upload with a drag-and-drop admin UI and an SVG placeholder fallback  
+- 👥 **Admin Management API** – List, grant, and revoke admin rights (`/api/admin/admins`) — API only, no UI yet  
+
+---
+
+## 🧭 Not Yet Implemented  
+
+Built-but-incomplete or not started. Listed here so the feature list above stays honest.
+
+| Feature | Status today |
+|---|---|
+| 🗺️ Explore map (browse page) | The Leaflet UI is fully built — clustering, six tile layers, a geolocation radius filter, in-map search — but it renders **no markers**: PostgreSQL returns `DECIMAL` coordinates as strings and the marker filter requires `typeof === 'number'` |
+| ❤️ Favorites / wishlist | Heart buttons exist in the UI but persist to component state only — there is no `favorites` table or endpoint |
+| 📖 Multi-image galleries | The `place_images` table, its read endpoint, and the gallery UI exist, but nothing writes to the table yet |
+| ☀️ Weather information | The weather widget on the detail page (preview 7) renders **placeholder values** — no weather API is wired up |
+| 📝 Review moderation | No moderation endpoints or queue; "report review" is a client-side stub |
+| 📊 Analytics dashboard | The admin dashboard is a set of static navigation tiles — no metrics are computed |
+| 👥 Admin user-management UI | The backend API works, but the dashboard's "User Management" and "Settings" tiles link to pages that do not exist yet |
+| 🎯 Theme & minimum-rating filters | Sent by the browse UI but not yet applied by the search query |
+| 🔑 Password reset | Not implemented |
+| 🧪 Tests & CI | No test suite and no CI pipeline in this repository yet |
 
 ---
 
 ## 🛠️ Technology Stack  
 
 ### 🎨 Frontend  
-- **Next.js 13+** - React framework with App Router
-- **React 18** - Modern React with hooks and context
+- **Next.js 13.4** - React framework, **Pages Router** (`frontend/src/pages`); public pages are client-rendered, admin pages are gated in `getServerSideProps`
+- **React 18.2** - Modern React with hooks and context
 - **Tailwind CSS** - Utility-first CSS framework
 - **Framer Motion** - Animation library for smooth interactions
+- **Leaflet + markercluster** - Explore map on the browse page (see [Not Yet Implemented](#-not-yet-implemented))
 - **React Icons** - Comprehensive icon library
+- **Axios** - HTTP client for the API service layer
 
 ### ⚙️ Backend  
-- **Node.js** - JavaScript runtime
-- **Express.js** - Web application framework
-- **MySQL** - Relational database
+- **Node.js** - JavaScript runtime (CommonJS)
+- **Express.js 4** - Web application framework
+- **PostgreSQL** - Relational database, accessed with `pg` (`SERIAL`, `TEXT[]`, `JSONB`, `plpgsql` triggers)
 - **Multer** - File upload middleware
-- **CORS** - Cross-origin resource sharing
+- **Helmet** - Security response headers
+- **express-rate-limit** - Global ceiling plus tighter buckets on reviews, uploads, and admin writes
+- **express-validator** - Request validation on review, place, profile, and admin writes
+- **CORS** - Explicit origin allowlist from `CORS_ALLOWED_ORIGINS` (no wildcard)
 
 ### 🔐 Auth & Storage  
-- **Firebase Auth** - User authentication and management
+- **Firebase Auth** - Email/password + Google sign-in on the client
+- **Firebase Admin SDK** - Server-side verification of Firebase ID tokens (`Authorization: Bearer <idToken>`)
 - **Cloudinary** - Image storage and optimization
-- **JWT** - JSON Web Tokens for secure sessions
 
 ### 🛠️ Dev Tools  
-- **ESLint** - Code linting and formatting
-- **PostCSS** - CSS processing
+- **PostCSS + Autoprefixer** - CSS processing
+- **Nodemon** - Backend dev server reload
 - **Git** - Version control
 
 
@@ -128,34 +155,41 @@
 
 ```bash
 EasyTrip/
-├── backend/              # Node.js + Express API
-│   ├── config/           # DB & services
-│   ├── controllers/      # Business logic
-│   ├── models/           # Database models
-│   ├── routes/           # API endpoints
-│   ├── services/         # Core services
-│   └── utils/            # Middleware & helpers
+├── backend/                  # Node.js + Express API
+│   ├── app.js                # Entry point: CORS, routes, health check, pg pool
+│   ├── script/make-admin.js  # CLI to grant admin rights
+│   └── src/
+│       ├── config/           # db, cloudinary, firebase, schema.sql
+│       ├── controllers/      # Request handling / business logic
+│       ├── models/           # SQL data access (parameterized queries)
+│       ├── routes/           # Express routers
+│       ├── services/         # Service helpers
+│       └── utils/            # Auth middleware & helpers
 │
-├── frontend/             # Next.js App
-│   ├── public/           # Static assets
-│   ├── components/       # UI Components
-│   ├── pages/            # App routes
-│   ├── context/          # Global context
-│   ├── hooks/            # Custom hooks
-│   └── utils/            # Utilities
-````
+└── frontend/                 # Next.js app (Pages Router)
+    ├── public/               # Static assets
+    └── src/
+        ├── components/       # UI components
+        ├── config/           # Firebase client config
+        ├── context/          # Auth / user context
+        ├── hooks/            # Custom hooks
+        ├── pages/            # Routes (incl. pages/api image helpers)
+        ├── services/         # API clients (axios)
+        ├── styles/           # Global styles
+        └── utils/            # Utilities
+```
 
 ---
 
 ## 🏛️ Architecture Patterns  
 
-> EasyTrip follows modern, scalable, and maintainable architecture principles:  
+> Patterns the codebase actually uses:  
 
-- 🗂️ **MVC (Model–View–Controller)** – Clean separation of concerns in the backend  
+- 🗂️ **Routes → Controllers → Models** – Separation of concerns in the backend; all SQL is parameterized (`$1`, `$2`, …)  
 - ⚛️ **Component-Based UI** – Reusable and modular React/Next.js components  
-- 🌐 **Context API** – Centralized global state for authentication & user data  
-- 🔄 **Custom Hooks** – Abstracted reusable logic for fetching & state management  
-- 🔗 **API-First Design** – RESTful endpoints for seamless frontend–backend integration  
+- 🌐 **Context API** – Centralized global state for authentication & user data, consumed via a `useAuth()` hook  
+- 🧮 **Denormalized rating aggregates** – `rating_sum` / `rating_count` on `places` are kept in sync by a `plpgsql` trigger on every review write, so list pages never aggregate at read time  
+- 🔗 **API-First Design** – RESTful endpoints consumed by an axios service layer  
 
 ---
 
@@ -170,28 +204,41 @@ EasyTrip/
 ### Prerequisites
 
 - Node.js (v18.0 or higher)
-- MySQL (v8.0 or higher)
+- PostgreSQL (v13 or higher) — local, or a managed instance such as Supabase / Neon / RDS
 - npm or yarn
-- Firebase account
+- Firebase project (Authentication + a service account for the Admin SDK)
 - Cloudinary account
 
 ---
 ### Environment Variables
 
-Create `.env.local` files in both frontend and backend directories:
+Copy the environment template for each tier and fill in real values. `backend/.env` and
+`frontend/.env.local` are gitignored, and **neither should ever be committed**.
 
-#### Backend (.env)
 ```bash
-# Database Configuration
-DB_HOST=localhost
-DB_USER=your_mysql_username
-DB_PASSWORD=your_mysql_password
-DB_NAME=easytrip
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+```
+
+Each template documents every variable and where to obtain it. Summary:
+
+#### Backend (`backend/.env`)
+```bash
+# Database — connection string used by app.js, the models, and script/make-admin.js
+DATABASE_URL=postgresql://user:password@host:5432/easytrip
+
+# Database — discrete vars, still read by src/config/db.js (admin/user models)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=your_postgres_user
+POSTGRES_PASSWORD=your_postgres_password
+POSTGRES_DB=easytrip
 
 # Firebase Admin SDK
 FIREBASE_PROJECT_ID=your_firebase_project_id
-FIREBASE_PRIVATE_KEY=your_firebase_private_key
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 FIREBASE_CLIENT_EMAIL=your_firebase_client_email
+FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 
 # Cloudinary Configuration
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
@@ -201,10 +248,27 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 # Server Configuration
 PORT=5000
 NODE_ENV=development
+
+# Comma-separated list of browser origins allowed by CORS.
+# Falls back to http://localhost:3000 outside production.
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+
+# Number of reverse proxies in front of the API. Leave UNSET for local development.
+# Rate limiting buckets by client IP, which behind a proxy arrives in X-Forwarded-For.
+# Set this to the hop count (1 on Render/Railway/Fly/Heroku) or every request is
+# attributed to the proxy's IP and one busy visitor rate-limits everyone.
+# Do not guess high: trusting more hops than actually exist lets a caller spoof its
+# own IP via X-Forwarded-For and defeat the limiter entirely.
+# TRUST_PROXY_HOPS=1
 ```
+
+> Both `DATABASE_URL` and the `POSTGRES_*` set are currently required: most queries use the
+> `DATABASE_URL` pool, while `src/config/db.js` (used by the admin/user models) builds its pool
+> from the discrete variables. Consolidating onto a single shared pool is a known cleanup item.
+
 ---
 
-#### Frontend (.env.local)
+#### Frontend (`frontend/.env.local`)
 ```bash
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
@@ -216,21 +280,26 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
 ```
 ---
 
 ### Database Setup
 
-1. **Create MySQL Database:**
-```sql
-CREATE DATABASE easytrip;
-USE easytrip;
+1. **Create the PostgreSQL database:**
+```bash
+createdb easytrip
+# or, from psql:  CREATE DATABASE easytrip;
 ```
 
-2. **Run Database Schema:**
+2. **Run the schema** (tables, timestamp triggers, and the rating-aggregate trigger):
 ```bash
-cd backend
-mysql -u your_username -p easytrip < src/config/schema.sql
+psql "$DATABASE_URL" -f backend/src/config/schema.sql
+```
+
+3. **Apply migrations** — required for databases created before the current schema:
+```bash
+psql "$DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql
 ```
 
 ---
@@ -271,11 +340,16 @@ The frontend will run on `http://localhost:3000`
 
 ### Creating Admin User
 
-Run the admin creation script:
+The user must already have signed up through Firebase Authentication. The script then flips
+`users.is_admin` and sets the matching Firebase custom claim:
+
 ```bash
-cd backend
-node script/make-admin.js
+cd backend/script
+node make-admin.js user@example.com
 ```
+
+> Run it from `backend/script/`: the script loads `../.env` relative to the current working
+> directory, and it requires `DATABASE_URL` plus the `FIREBASE_*` service-account variables.
 
 ---
 
@@ -286,26 +360,43 @@ Update your environment variables for production:
 ```bash
 # Backend
 NODE_ENV=production
-DB_HOST=your_production_db_host
-API_URL=https://your-domain.com/api
+DATABASE_URL=postgresql://user:password@your-production-host:5432/easytrip
+CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
+TRUST_PROXY_HOPS=1
 
 # Frontend
 NEXT_PUBLIC_API_URL=https://your-domain.com/api
 ```
 
+> `CORS_ALLOWED_ORIGINS` has **no fallback in production** — if you leave it unset the server
+> **refuses to boot**, rather than starting up and rejecting every browser origin. Set it to your
+> deployed frontend origin.
+
+> `TRUST_PROXY_HOPS` must be set on any platform that terminates TLS in front of the app
+> (Render, Railway, Fly, Heroku — almost always `1`). Without it every request is rate-limited
+> under the proxy's IP, so a single busy visitor can 429 the whole site. Setting it higher than
+> the real hop count is worse than leaving it unset: a caller can then forge `X-Forwarded-For`
+> and bypass rate limiting entirely.
+
 ---
 
-### Database Migration
+### Database Backup & Schema
 
 1. **Backup existing data:**
 ```bash
-mysqldump -u username -p easytrip > backup.sql
+pg_dump "$DATABASE_URL" > backup.sql
 ```
 
-2. **Run production schema:**
+2. **Apply the schema to the production database:**
 ```bash
-mysql -u username -p production_db < src/config/schema.sql
+psql "$PRODUCTION_DATABASE_URL" -f backend/src/config/schema.sql
+psql "$PRODUCTION_DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql
 ```
+
+> There is no migration *tool* yet — migrations are hand-run SQL files under
+> `backend/src/config/migrations/`, applied in filename order. `schema.sql` is idempotent for table
+> creation (`CREATE TABLE IF NOT EXISTS`) but its trigger statements are not, so re-running it
+> against an existing database will error on the `CREATE TRIGGER` lines.
 
 ---
 
@@ -324,8 +415,8 @@ npm install --production
 
 2. **Deploy to your hosting platform:**
    - **Frontend**: Deploy to Vercel, Netlify, or similar
-   - **Backend**: Deploy to Railway, Heroku, or VPS
-   - **Database**: Use managed MySQL service (AWS RDS, PlanetScale, etc.)
+   - **Backend**: Deploy to Render, Railway, or a VPS
+   - **Database**: Use a managed PostgreSQL service (Supabase, Neon, AWS RDS, etc.)
 
 3. **Configure environment variables** in your hosting platform
 
@@ -341,68 +432,77 @@ npm install --production
 http://localhost:5000/api
 ```
 
-### Authentication Endpoints
+**Authentication:** there are no login/register endpoints — sign-in happens client-side through
+Firebase. Protected routes expect the resulting Firebase ID token as
+`Authorization: Bearer <idToken>`, which the API verifies with the Firebase Admin SDK.
+Admin routes additionally require the account to be an admin (`users.is_admin`).
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/login` | User login |
-| POST | `/auth/register` | User registration |
-| POST | `/auth/logout` | User logout |
-| GET | `/auth/profile` | Get user profile |
+The table below is the complete set of Express routes the backend actually registers.
 
-### Places Endpoints
+### Health
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/places` | Get all places |
-| GET | `/places/:id` | Get place by ID |
-| POST | `/places` | Create new place (Admin) |
-| PUT | `/places/:id` | Update place (Admin) |
-| DELETE | `/places/:id` | Delete place (Admin) |
-| GET | `/places/:id/image` | Get place image |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/health` | — | Service + database status |
 
-### User Endpoints
+### Places
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/users/profile` | Get user profile |
-| PUT | `/users/profile` | Update user profile |
-| GET | `/users/favorites` | Get user favorites |
-| POST | `/users/favorites/:id` | Add to favorites |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/places` | — | List all places |
+| GET | `/places/search` | — | Search / filter (`searchTerm`, `location`, `district`, `state`, `tags`) |
+| GET | `/places/locations` | — | Distinct locations |
+| GET | `/places/districts` | — | Distinct districts |
+| GET | `/places/states` | — | Distinct states |
+| GET | `/places/tags` | — | Distinct tags |
+| GET | `/places/:id` | — | Get place by ID |
+| GET | `/places/:id/image` | — | Primary image (redirect/proxy, with placeholder fallback) |
+| GET | `/places/:id/images` | — | Gallery images for a place |
+| GET | `/places/:id/images/:imageId` | — | Same handler as `/places/:id/image` |
+| GET | `/places/:id/reviews` | — | Reviews for a place |
+| POST | `/places/:id/reviews` | Bearer | Create a review — body `{ rating: 1-5, comment: string }` |
 
-### Admin Endpoints
+### Profile
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/admin/dashboard` | Admin dashboard data |
-| GET | `/admin/users` | Manage users |
-| GET | `/admin/places` | Manage places |
-| POST | `/admin/places` | Create place |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/auth/profile` | Bearer | Get the signed-in user's profile row |
+| PUT | `/auth/profile` | Bearer | Update the signed-in user's profile |
+| GET | `/auth/check-admin` | Bearer | Whether the signed-in user is an admin |
+
+### Admin
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/admin/places` | Admin | Create a place (`multipart/form-data`, field `image`) |
+| PUT | `/admin/places/:id` | Admin | Update a place (`multipart/form-data`, field `image`) |
+| DELETE | `/admin/places/:id` | Admin | Delete a place |
+| GET | `/admin/admins` | Admin | List admin accounts |
+| POST | `/admin/admins` | Admin | Grant admin rights |
+| DELETE | `/admin/admins/:email` | Admin | Revoke admin rights |
 
 ### Example API Usage
 
 ```javascript
-// Fetch all places
-const response = await fetch('/api/places');
-const places = await response.json();
+// Fetch all places (public)
+const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places`);
+const places = await res.json();
 
-// Create new place (Admin)
-const newPlace = {
-  name: "Beautiful Destination",
-  description: "Amazing place to visit",
-  location: "Country, Region",
-  tags: ["Nature", "Adventure"]
-};
+// Post a review (requires a Firebase ID token)
+const idToken = await auth.currentUser.getIdToken();
 
-const response = await fetch('/api/places', {
+await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    'Authorization': `Bearer ${idToken}`
   },
-  body: JSON.stringify(newPlace)
+  body: JSON.stringify({ rating: 5, comment: 'Stunning at sunrise.' })
 });
 ```
+
+> The reviewer's identity is taken from the verified token on the server — it is never read from
+> the request body.
 ---
 
 </details>
@@ -413,9 +513,13 @@ const response = await fetch('/api/places', {
 
 ## 🚀 Deployment
 
+Deployment is manual — there is no CI/CD pipeline in this repository yet.
+
 * **Frontend**: Vercel
 * **Backend**: Render
-* **Database**: PostgreSQL
+* **Database**: Managed PostgreSQL
+
+No public demo URL is published here yet; the screenshots above are from a local run.
 
 ---
 
@@ -431,12 +535,16 @@ const response = await fetch('/api/places', {
 
 ## 📄 License
 
-Licensed under the **MIT License**. See [LICENSE](LICENSE).
+No license file has been added to this repository yet. The `package.json` manifests declare
+`ISC`; a matching `LICENSE` file still needs to be committed before that declaration means anything.
+Until then, treat the code as all-rights-reserved.
 
 ---
 
 
 ## 📞 Contact  
+
+EasyTrip is a **two-person team project**, not the work of a single author.
 
 **Project Maintainers**  
 👤 Dharmendra — [@dharmendra23101](https://github.com/dharmendra23101)  
@@ -446,6 +554,10 @@ Licensed under the **MIT License**. See [LICENSE](LICENSE).
 
 
 ## 🗺️ Roadmap
+
+Near-term work is listed in [Not Yet Implemented](#-not-yet-implemented). The items below are
+longer-term ideas, none of which have been started.
+
 ### Upcoming Features
 - [ ] Mobile app (React Native)
 - [ ] Trip planning and itinerary builder
