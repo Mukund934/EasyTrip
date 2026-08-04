@@ -112,7 +112,7 @@ const tagSuggestions = [
 
 export default function AddPlace() {
   const router = useRouter();
-  const { currentUser, loading, isAdmin } = useAuth();
+  const { currentUser, loading, isAdmin, getIdToken } = useAuth();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -145,7 +145,7 @@ export default function AddPlace() {
   useEffect(() => {
     if (!loading && (!currentUser || !isAdmin)) {
       toast.error('Unauthorized access - Admin privileges required');
-      router.push('/auth/login?redirect=/admin/addPlace');
+      router.push('/login');
     }
   }, [currentUser, loading, isAdmin, router]);
 
@@ -321,13 +321,18 @@ export default function AddPlace() {
     setErrors({});
     
     try {
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
       // Prepare data object for the service
       const placeData = {
         ...formData,
         // Add the image file directly
         image: primaryImage
       };
-      
+
       console.log('Submitting place data:', {
         name: placeData.name,
         location: placeData.location,
@@ -337,7 +342,7 @@ export default function AddPlace() {
       });
       
       // Submit the form - let the service handle FormData creation
-      const response = await createPlace(placeData);
+      const response = await createPlace(placeData, token);
       
       setIsSubmitting(false);
       toast.success('Place created successfully!');
@@ -1116,4 +1121,37 @@ export default function AddPlace() {
       </div>
     </>
   );
+}
+
+// Server-side admin gate. A Firebase ID token lives in browser JS memory and is not sent with
+// a document request, so it only reaches this function when the auth layer mirrors it into the
+// `et_id_token` cookie. Without a verifiable admin token the page HTML is never served; the
+// useEffect guard above stays as defence in depth for client-side navigations.
+export async function getServerSideProps({ req }) {
+  const token = req.cookies?.et_id_token;
+
+  if (!token) {
+    return { redirect: { destination: '/login', permanent: false } };
+  }
+
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const response = await fetch(`${API_URL}/auth/check-admin`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+      return { redirect: { destination: '/login', permanent: false } };
+    }
+
+    const { isAdmin } = await response.json();
+    if (!isAdmin) {
+      return { redirect: { destination: '/', permanent: false } };
+    }
+  } catch (error) {
+    console.error('Admin gate check failed:', error.message);
+    return { redirect: { destination: '/login', permanent: false } };
+  }
+
+  return { props: {} };
 }

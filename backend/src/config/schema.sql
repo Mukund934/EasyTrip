@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS place_reviews (
   rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment TEXT,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  -- One review per user per place; the review upsert targets this constraint by name
+  CONSTRAINT place_reviews_place_id_user_id_key UNIQUE (place_id, user_id)
 );
 
 -- Create users table

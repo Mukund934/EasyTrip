@@ -21,6 +21,7 @@ import { getAllPlaces, searchPlaces, getLocations, getDistricts, getStates, getT
 import { useAuth } from '../context/AuthContext';
 import debounce from 'lodash/debounce';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getCloudinaryThumbnail } from '../utils/cloudinaryHelper';
 
 // Dynamically import the map component
 const ExploreMap = dynamic(() => import('../components/ExploreMap'), {
@@ -131,7 +132,9 @@ function Browse() {
     // UI state
     const [loading, setLoading] = useState(true);
     const [initialLoading, setInitialLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
+    // No `loadingMore`: paging is a synchronous slice of already-fetched data, so there is
+    // nothing to wait for. IMP-038 (server-side pagination) is what reintroduces a real
+    // async loading state here.
     const [error, setError] = useState(null);
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', or 'map'
@@ -166,6 +169,9 @@ function Browse() {
         topLocation: '',
         locationCount: 0
     });
+
+    // When the places currently on screen were actually fetched (null until the first load resolves)
+    const [lastUpdated, setLastUpdated] = useState(null);
 
     // Infinite scroll
     const { ref: loadMoreRef, inView } = useInView({
@@ -209,13 +215,11 @@ function Browse() {
                 setLoading(true);
                 setInitialLoading(true);
 
-                // Show loading spinner for at least 800ms for better UX
-                const startTime = Date.now();
-
                 // Fetch places first since it's critical
                 let placesData;
                 try {
                     placesData = await getAllPlaces();
+                    setLastUpdated(new Date());
 
                     // Calculate stats
                     if (placesData.length > 0) {
@@ -245,12 +249,6 @@ function Browse() {
                 } catch (error) {
                     console.error('Failed to load places:', error);
                     setError('Failed to load places. Please try again.');
-
-                    // Ensure minimum loading time for UX
-                    const elapsed = Date.now() - startTime;
-                    if (elapsed < 800) {
-                        await new Promise(resolve => setTimeout(resolve, 800 - elapsed));
-                    }
 
                     setLoading(false);
                     setInitialLoading(false);
@@ -313,12 +311,6 @@ function Browse() {
                             console.warn('Failed to parse recent searches:', e);
                         }
                     }
-                }
-
-                // Ensure minimum loading time for UX
-                const elapsed = Date.now() - startTime;
-                if (elapsed < 800) {
-                    await new Promise(resolve => setTimeout(resolve, 800 - elapsed));
                 }
 
             } catch (err) {
@@ -401,8 +393,7 @@ function Browse() {
                 console.error('Error applying filters:', err);
                 setFilteredPlaces(places);
             } finally {
-                // Short delay to prevent flickering
-                setTimeout(() => setLoading(false), 300);
+                setLoading(false);
             }
         };
 
@@ -566,20 +557,29 @@ function Browse() {
         setDisplayedPlaces(filteredPlaces.slice(start, end));
     }, [filteredPlaces, currentPage, placesPerPage]);
 
-    // Infinite scroll loading with improved UX
+    // Infinite scroll loading — pagination is a client-side slice, so the next page is
+    // available immediately and needs no interim loading state.
+    //
+    // The guard is load-bearing, not decoration. This effect re-runs every time
+    // displayedPlaces grows, and `inView` only flips back asynchronously when the
+    // observer next fires, so without it one sentinel sighting cascades through every
+    // remaining page in a single burst and pagination stops meaning anything. One page
+    // per in-view episode; the explicit "Load More Places" button below covers the case
+    // where the appended page is too short to push the sentinel back out of view.
+    const advancedForCurrentViewRef = useRef(false);
+
     useEffect(() => {
-        if (inView && !loadingMore && displayedPlaces.length < filteredPlaces.length) {
-            setLoadingMore(true);
-
-            // Simulate loading delay with smooth transition
-            const timer = setTimeout(() => {
-                setCurrentPage(prev => prev + 1);
-                setLoadingMore(false);
-            }, 500);
-
-            return () => clearTimeout(timer);
+        if (!inView) {
+            advancedForCurrentViewRef.current = false;
+            return;
         }
-    }, [inView, loadingMore, displayedPlaces.length, filteredPlaces.length]);
+
+        if (advancedForCurrentViewRef.current) return;
+        if (displayedPlaces.length >= filteredPlaces.length) return;
+
+        advancedForCurrentViewRef.current = true;
+        setCurrentPage(prev => prev + 1);
+    }, [inView, displayedPlaces.length, filteredPlaces.length]);
 
     // Handle theme toggle with animation feedback
     const handleThemeToggle = (themeId) => {
@@ -631,10 +631,8 @@ function Browse() {
         try {
             setLoading(true);
 
-            // Add a small delay to show the loading animation
-            await new Promise(resolve => setTimeout(resolve, 400));
-
             const placesData = await getAllPlaces();
+            setLastUpdated(new Date());
             setPlaces(placesData);
 
             if (!hasActiveFilters()) {
@@ -1997,25 +1995,27 @@ function Browse() {
                                 </div>
 
                                 {/* User status */}
-                                {currentUser && (
+                                {currentUser && (currentUser.displayName || currentUser.email) && (
                                     <div className="mt-6 pt-4 border-t border-gray-100">
                                         <div className="flex items-center text-xs text-gray-500">
                                             <FiUser className="h-3 w-3 mr-1" />
                                             <span>Logged in as</span>
                                             <span className="ml-1 font-medium text-primary-600">
-                                                {currentUser.displayName || currentUser.email || 'AdminX'}
+                                                {currentUser.displayName || currentUser.email}
                                             </span>
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Data timestamp */}
-                                <div className="mt-4 text-xs text-center text-gray-400">
-                                    <div className="flex items-center justify-center">
-                                        <FiClock className="mr-1 h-3 w-3" />
-                                        <span>Data updated: 2025-09-05 22:08:08</span>
+                                {lastUpdated && (
+                                    <div className="mt-4 text-xs text-center text-gray-400">
+                                        <div className="flex items-center justify-center">
+                                            <FiClock className="mr-1 h-3 w-3" />
+                                            <span>Data updated: {lastUpdated.toLocaleString()}</span>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </aside>
 
@@ -2421,22 +2421,15 @@ function Browse() {
                                     {/* Load more */}
                                     {displayedPlaces.length < filteredPlaces.length && viewMode !== 'map' && (
                                         <div ref={loadMoreRef} className="flex justify-center py-8">
-                                            {loadingMore ? (
-                                                <div className="flex items-center bg-white rounded-xl px-6 py-4 shadow-lg">
-                                                    <LoadingSpinner size="small" color="primary" />
-                                                    <span className="text-blue-600 ml-3 font-medium">Loading more places...</span>
-                                                </div>
-                                            ) : (
-                                                <motion.button
-                                                    whileHover={{ scale: 1.05 }}
-                                                    whileTap={{ scale: 0.95 }}
-                                                    onClick={() => setCurrentPage(currentPage + 1)}
-                                                    className="inline-flex items-center px-8 py-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                                                >
-                                                    <span>Load More Places</span>
-                                                    <FiChevronDown className="ml-2 h-4 w-4" />
-                                                </motion.button>
-                                            )}
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                onClick={() => setCurrentPage(currentPage + 1)}
+                                                className="inline-flex items-center px-8 py-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                                            >
+                                                <span>Load More Places</span>
+                                                <FiChevronDown className="ml-2 h-4 w-4" />
+                                            </motion.button>
                                         </div>
                                     )}
 
@@ -2557,8 +2550,9 @@ const EnhancedImage = ({ place, priority = false }) => {
     const getImageUrl = () => {
         const cacheBuster = process.env.NODE_ENV === 'development' ? `?t=${Date.now()}` : '';
 
-        if (place.primary_image_url) return `${place.primary_image_url}${cacheBuster}`;
-        if (place.image_url) return `${place.image_url}${cacheBuster}`;
+        // Card-sized delivery transform: never pull the full-resolution original into a ~400px slot
+        if (place.primary_image_url) return `${getCloudinaryThumbnail(place.primary_image_url)}${cacheBuster}`;
+        if (place.image_url) return `${getCloudinaryThumbnail(place.image_url)}${cacheBuster}`;
 
         return `/api/places/${place.id}/image${cacheBuster}`;
     };

@@ -11,7 +11,7 @@ import {
   FiAlertCircle, FiRefreshCw, FiCheckCircle, FiBookmark, FiLink,
   FiChevronRight, FiChevronUp, FiList, FiMenu, FiArrowDown, FiArrowUp,
   FiFeather, FiAward, FiCoffee, FiShield, FiThumbsUp, FiGrid, FiCompass,
-  FiChevronLeft
+  FiChevronLeft, FiFlag
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
@@ -23,10 +23,9 @@ import ReviewList from '../../components/ReviewList';
 import RelatedPlaces from '../../components/RelatedPlaces';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { getCloudinaryThumbnail, getCloudinaryLargeImage } from '../../utils/cloudinaryHelper';
 
 const FALLBACK_IMAGE = '/images/placeholder.jpg';
-const CURRENT_DATE = '2025-09-05 23:25:51';
-const CURRENT_USER = 'AdminX';
 
 // Hero section with cinematic magazine styling
 const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorite, avgRating, onShareSocial }) => {
@@ -44,7 +43,10 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
     if (!place || !heroRef.current) return;
     
     const img = new window.Image();
-    const imageUrl = place.primary_image_url || place.image_url || FALLBACK_IMAGE;
+    const imageUrl = getCloudinaryLargeImage(
+      place.primary_image_url || place.image_url || FALLBACK_IMAGE,
+      1600
+    );
     
     img.onload = () => {
       setImageLoaded(true);
@@ -286,10 +288,12 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
           <FiUser className="mr-1 h-3 w-3" />
           <span>EasyTrip Editorial</span>
         </div>
-        <div className="hidden md:flex items-center">
-          <FiClock className="mr-1 h-3 w-3" />
-          <span>{CURRENT_DATE}</span>
-        </div>
+        {place.updated_at && (
+          <div className="hidden md:flex items-center">
+            <FiClock className="mr-1 h-3 w-3" />
+            <span>Updated: {formatDate(place.updated_at)}</span>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -815,8 +819,8 @@ const MagazineReviews = ({ reviews, onReportReview, currentUserId, isLoading = f
           >
             <div className="flex items-center mb-4">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mr-4 text-gray-500">
-                {review.user_avatar 
-                  ? <img src={review.user_avatar} alt={review.user_name} className="w-full h-full rounded-full object-cover" />
+                {review.user_avatar
+                  ? <img src={getCloudinaryThumbnail(review.user_avatar, 400, 400)} alt={review.user_name} className="w-full h-full rounded-full object-cover" />
                   : <FiUser className="w-6 h-6" />
                 }
               </div>
@@ -1125,7 +1129,7 @@ const WeatherWidget = ({ lat, lon }) => {
 export default function PlaceDetails() {
   const router = useRouter();
   const { id } = router.query;
-  const { currentUser, isAuthenticated } = useAuth();
+  const { currentUser, isAuthenticated, getIdToken, loading: authLoading } = useAuth();
   const { scrollY } = useScroll();
 
   // State management
@@ -1138,6 +1142,12 @@ export default function PlaceDetails() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeSection, setActiveSection] = useState('about');
   const [showTableOfContents, setShowTableOfContents] = useState(false);
+
+  // Review form state
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState(null);
 
   // Scroll progress
   const scrollProgress = useTransform(scrollY, [0, 2000], [0, 100]);
@@ -1157,6 +1167,21 @@ export default function PlaceDetails() {
     return (place.rating_sum / place.rating_count).toFixed(1);
   }, [place]);
 
+  // The API allows one review per user per place, so a second submit edits the existing one.
+  // Ownership is marked by the server (`is_own`): the payload's user_id is an opaque
+  // per-place digest, so comparing it to a Firebase uid would never match.
+  const existingReview = useMemo(() => {
+    if (!currentUser) return null;
+    return reviews.find((review) => review.is_own) || null;
+  }, [reviews, currentUser]);
+
+  // Seed the form from the signed-in user's existing review so editing starts from its values
+  useEffect(() => {
+    if (!existingReview) return;
+    setReviewRating(existingReview.rating || 0);
+    setReviewComment(existingReview.comment || '');
+  }, [existingReview]);
+
   // Enhanced data fetching with retry logic
   const fetchAllData = useCallback(async () => {
     if (!id) return;
@@ -1166,20 +1191,12 @@ export default function PlaceDetails() {
     setError(null);
     
     try {
-      console.log(`[${new Date().toISOString()}] Fetching data for place ID: ${id} by user: ${CURRENT_USER}`);
-      
+      console.log(`[${new Date().toISOString()}] Fetching data for place ID: ${id}`);
+
       // Fetch place data first (critical)
       const placeData = await getPlaceById(id);
-      
-      // Update place data with current context
-      const updatedPlaceData = {
-        ...placeData,
-        updated_by: placeData.updated_by || CURRENT_USER,
-        previous_update: placeData.previous_update || '2025-08-29T20:46:09.863Z',
-        updated_by_name: currentUser?.displayName || currentUser?.email || placeData.updated_by_name || CURRENT_USER,
-      };
 
-      setPlace(updatedPlaceData);
+      setPlace(placeData);
       setLoading(false); // Allow UI to render with basic data
 
       // Fetch additional data (non-critical)
@@ -1208,21 +1225,40 @@ export default function PlaceDetails() {
       console.log(`[${new Date().toISOString()}] Successfully loaded data for place: ${placeData.name}`);
       
     } catch (err) {
-      console.error('Error loading page data:', { 
-        message: err.message, 
-        placeId: id, 
-        user: 'AdminX',
+      console.error('Error loading page data:', {
+        message: err.message,
+        placeId: id,
       });
       setError(err.message || 'Failed to load place details. Please try again.');
     } finally {
       setContentLoading(false);
     }
-  }, [id, currentUser]);
+  }, [id]);
 
   // Effect for initial data loading
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // The first reviews read happens at mount, usually a beat before Firebase restores the
+  // session, so it goes out unauthenticated and the server cannot mark `is_own`. Re-read
+  // once a signed-in identity is known, otherwise a reload always renders the user's own
+  // review as somebody else's and the edit UI never appears. Anonymous visitors skip this.
+  useEffect(() => {
+    if (!id || authLoading || !currentUser?.uid) return;
+
+    let cancelled = false;
+
+    getPlaceReviews(id)
+      .then((data) => {
+        if (!cancelled) setReviews(data || []);
+      })
+      .catch((err) => console.error('Error refreshing reviews:', err.message));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, authLoading, currentUser?.uid]);
 
   // Scroll observer for section highlighting
   useEffect(() => {
@@ -1258,33 +1294,59 @@ export default function PlaceDetails() {
     };
   }, [sections, contentLoading]);
 
-  // Handler for submitting a new review
+  // Handler for submitting (or updating) the signed-in user's review
   const handleReviewSubmit = async ({ rating, comment }) => {
     if (!isAuthenticated) {
+      setReviewError('Please sign in to share your experience.');
       toast.error('You must be logged in to submit a review.');
       return;
     }
-    
+
+    if (!rating) {
+      setReviewError('Please select a star rating before submitting.');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    setReviewError(null);
+
+    const wasEditing = Boolean(existingReview);
+
     try {
-      const token = await currentUser.getIdToken();
-      const newReview = await createPlaceReview(id, {
-        rating,
-        comment,
-        user_id: currentUser.uid,
-        user_name: currentUser.displayName || currentUser.email || 'AdminX',
-      }, token);
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
 
-      // Optimistic UI Update
-      setReviews(prevReviews => [newReview, ...prevReviews]);
-      setPlace(prevPlace => ({
-        ...prevPlace,
-        rating_count: (prevPlace.rating_count || 0) + 1,
-        rating_sum: (prevPlace.rating_sum || 0) + rating,
-      }));
+      // Identity is derived server-side from the verified token, so the body carries
+      // only the review itself.
+      await createPlaceReview(id, { rating, comment }, token);
 
-      toast.success('Thank you! Your review has been submitted.');
+      // A database trigger recomputes the rating aggregate, so re-read both the list
+      // and the place instead of patching counts client-side.
+      const [reviewsResult, placeResult] = await Promise.allSettled([
+        getPlaceReviews(id),
+        getPlaceById(id),
+      ]);
+
+      if (reviewsResult.status === 'fulfilled') {
+        setReviews(reviewsResult.value || []);
+      }
+      if (placeResult.status === 'fulfilled' && placeResult.value) {
+        setPlace(placeResult.value);
+      }
+
+      toast.success(
+        wasEditing
+          ? 'Your review has been updated.'
+          : 'Thank you! Your review has been published.'
+      );
     } catch (err) {
-      toast.error(err.message || 'Failed to submit review. Please try again.');
+      const message = err?.message || 'Failed to submit review. Please try again.';
+      setReviewError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -1409,8 +1471,7 @@ export default function PlaceDetails() {
 
   // Prepare metadata for SEO and display
   const createdDate = formatDate(place.created_at);
-  const updatedDate = formatDate(place.updated_at) || formatDate('2025-09-05 23:34:11');
-  const showUpdatedBy = true;
+  const updatedDate = formatDate(place.updated_at);
   
   // Create some editorial content
   const editorialExcerpt = place.description || `${place.name} offers travelers a unique blend of experiences, with local culture and natural beauty combining to create unforgettable memories.`;
@@ -1432,7 +1493,7 @@ export default function PlaceDetails() {
         <meta name="keywords" content={`${place.name}, ${place.location}, ${place.tags?.join(', ') || 'travel'}, tourism, vacation, travel guide`} />
         <meta property="og:title" content={`${place.name} | EasyTrip Magazine`} />
         <meta property="og:description" content={place.description || `Discover ${place.name} in ${place.location}`} />
-        <meta property="og:image" content={place.primary_image_url || place.image_url || FALLBACK_IMAGE} />
+        <meta property="og:image" content={getCloudinaryLargeImage(place.primary_image_url || place.image_url || FALLBACK_IMAGE, 1600)} />
         <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
         <meta name="twitter:card" content="summary_large_image" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1509,11 +1570,12 @@ export default function PlaceDetails() {
               <span className="hidden md:inline-block">•</span>
               <span className="hidden md:inline-block">September 2025 Edition</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <span>{CURRENT_DATE}</span>
-              <span className="hidden md:inline-block">•</span>
-              <span className="hidden md:inline-block">By {CURRENT_USER}</span>
-            </div>
+            {currentUser && (
+              <div className="flex items-center space-x-4">
+                <span className="hidden md:inline-block">Signed in as</span>
+                <span>{currentUser.displayName || currentUser.email}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1623,7 +1685,6 @@ export default function PlaceDetails() {
                           <p className="flex items-center mr-4 mb-2">
                             <FiEdit3 className="mr-2 h-4 w-4 text-gray-400" />
                             Updated: {updatedDate}
-                            {showUpdatedBy && ` by ${CURRENT_USER}`}
                           </p>
                         )}
                       </div>
@@ -1727,16 +1788,41 @@ export default function PlaceDetails() {
                       
                       {/* Review form */}
                       <div id="review-form" className="mt-12 pt-8 border-t border-gray-200">
-                        <h3 className="text-2xl font-serif font-bold text-gray-900 mb-6">Share Your Experience</h3>
-                        <ReviewForm
-                          rating={0}
-                          review=""
-                          onRatingChange={() => {}}
-                          onReviewChange={() => {}}
-                          onSubmit={handleReviewSubmit}
-                          isSubmitting={false}
-                          userHasReviewed={reviews.some(r => r.user_id === currentUser?.uid)}
-                        />
+                        <h3 className="text-2xl font-serif font-bold text-gray-900 mb-6">
+                          {existingReview ? 'Edit Your Review' : 'Share Your Experience'}
+                        </h3>
+                        {authLoading ? (
+                          // Firebase resolves the session a beat after mount; without this
+                          // a signed-in user sees the "Sign in to review" panel flash first.
+                          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 animate-pulse">
+                            <div className="h-4 bg-gray-200 rounded w-40 mb-4"></div>
+                            <div className="h-24 bg-gray-200 rounded w-full"></div>
+                          </div>
+                        ) : isAuthenticated ? (
+                          <ReviewForm
+                            rating={reviewRating}
+                            comment={reviewComment}
+                            onRatingChange={setReviewRating}
+                            onCommentChange={setReviewComment}
+                            onSubmit={handleReviewSubmit}
+                            isSubmitting={isSubmittingReview}
+                            userHasReviewed={Boolean(existingReview)}
+                            error={reviewError}
+                          />
+                        ) : (
+                          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+                            <p className="text-gray-700 mb-4">
+                              Sign in to rate this place and share your experience with other travelers.
+                            </p>
+                            <Link
+                              href="/login"
+                              className="inline-flex items-center justify-center bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+                            >
+                              <FiUser className="mr-2 h-4 w-4" />
+                              Sign in to review
+                            </Link>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   </section>
@@ -1837,7 +1923,6 @@ export default function PlaceDetails() {
                 <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
                 <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
                 <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
-                <span>{CURRENT_DATE}</span>
               </div>
             </div>
           </div>

@@ -1,13 +1,13 @@
+import { auth } from '../config/firebase';
+
 /**
  * Helper function to get authenticated user information
  * and token in a consistent way across the application
  */
 export const getAuth = async () => {
-  // Get Firebase auth if available
-  const firebaseAuth = window.firebase?.auth?.();
-  const currentUser = firebaseAuth?.currentUser;
-  
-  let token = '';
+  const currentUser = auth.currentUser;
+
+  let token = null;
   if (currentUser) {
     try {
       token = await currentUser.getIdToken();
@@ -15,7 +15,7 @@ export const getAuth = async () => {
       console.error('Error getting auth token:', error);
     }
   }
-  
+
   return {
     user: currentUser,
     token,

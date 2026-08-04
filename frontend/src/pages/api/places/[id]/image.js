@@ -1,4 +1,10 @@
 // This handler should not return objects - fix the warnings
+
+// Only a positive integer may be interpolated into the upstream URL, so this route can
+// never be steered at a path (or host) other than the configured backend's image endpoint.
+const isValidPlaceId = (value) =>
+  typeof value === 'string' && /^\d+$/.test(value) && Number(value) > 0;
+
 export default async function handler(req, res) {
   const { id } = req.query;
 
@@ -7,16 +13,22 @@ export default async function handler(req, res) {
     return; // Don't return the object
   }
 
+  if (!isValidPlaceId(id)) {
+    res.status(400).json({ error: 'Invalid place ID' });
+    return;
+  }
+
+  const placeId = Number(id);
+
   try {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
     
     try {
       // Request image from backend
-      const response = await fetch(`${API_URL}/places/${id}/image`, {
+      const response = await fetch(`${API_URL}/places/${placeId}/image`, {
         method: 'GET',
         headers: {
-          'Accept': 'image/*',
-          'x-user': 'AdminX'
+          'Accept': 'image/*'
         },
       });
       
@@ -35,7 +47,7 @@ export default async function handler(req, res) {
         return; // Don't return the object
       }
     } catch (imageError) {
-      console.error(`Error fetching image for place ${id}:`, imageError.message);
+      console.error(`Error fetching image for place ${placeId}:`, imageError.message);
     }
     
     // Serve local placeholder
@@ -43,7 +55,7 @@ export default async function handler(req, res) {
     return; // Don't return the object
     
   } catch (err) {
-    console.error(`Error handling image request for place ${id}:`, err.message);
+    console.error(`Error handling image request for place ${placeId}:`, err.message);
     res.redirect('/images/placeholder.jpg');
     return; // Don't return the object
   }

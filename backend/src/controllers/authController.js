@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 const admin = require('firebase-admin');
+const { resolveAdminStatus } = require('../utils/authMiddleware');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -11,11 +12,9 @@ const pool = new Pool({
 const getProfile = async (req, res) => {
   try {
     const { uid } = req.user;
-    const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'AdminX';
 
-    console.log(`Profile requested by ${currentUser} at ${currentTime} for UID: ${uid}`);
-    
+    console.log(`Profile requested for UID: ${uid}`);
+
     // Get user from database
     const result = await pool.query(
       'SELECT id, firebase_uid, email, name, is_admin, created_at, updated_at FROM users WHERE firebase_uid = $1',
@@ -28,15 +27,15 @@ const getProfile = async (req, res) => {
       
       // Create user in database
       const newUser = await pool.query(
-        'INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, $4, $4) RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
-        [userRecord.uid, userRecord.email, userRecord.displayName || '', currentTime]
+        'INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
+        [userRecord.uid, userRecord.email, userRecord.displayName || '']
       );
-      
+
       // Add last login time and requesting user for audit purposes
       const userData = {
         ...newUser.rows[0],
-        last_login: currentTime,
-        accessed_by: currentUser
+        last_login: new Date().toISOString(),
+        accessed_by: uid
       };
       
       console.log(`New user created in database: ${userRecord.email}`);
@@ -46,14 +45,14 @@ const getProfile = async (req, res) => {
     // Add last login time and requesting user for audit purposes
     const userData = {
       ...result.rows[0],
-      last_login: currentTime,
-      accessed_by: currentUser
+      last_login: new Date().toISOString(),
+      accessed_by: uid
     };
-    
+
     // Log access to user profile
     await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, $5)',
-      [result.rows[0].id, 'profile_access', `Profile accessed by ${currentUser}`, currentUser, currentTime]
+      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
+      [result.rows[0].id, 'profile_access', `Profile accessed by ${uid}`, uid]
     ).catch(err => console.error('Error logging audit:', err));
     
     res.status(200).json(userData);
@@ -70,15 +69,13 @@ const updateProfile = async (req, res) => {
   try {
     const { uid } = req.user;
     const { name } = req.body;
-    const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'AdminX';
-    
-    console.log(`Profile update requested by ${currentUser} at ${currentTime} for UID: ${uid}`);
-    
+
+    console.log(`Profile update requested for UID: ${uid}`);
+
     // Update in database
     const result = await pool.query(
-      'UPDATE users SET name = $1, updated_at = $2 WHERE firebase_uid = $3 RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
-      [name, currentTime, uid]
+      'UPDATE users SET name = $1, updated_at = NOW() WHERE firebase_uid = $2 RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
+      [name, uid]
     );
     
     if (result.rows.length === 0) {
@@ -88,14 +85,14 @@ const updateProfile = async (req, res) => {
     // Add audit data
     const userData = {
       ...result.rows[0],
-      last_updated: currentTime,
-      updated_by: currentUser
+      last_updated: result.rows[0].updated_at,
+      updated_by: uid
     };
-    
+
     // Log profile update
     await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, $5)',
-      [result.rows[0].id, 'profile_update', `Profile updated by ${currentUser}`, currentUser, currentTime]
+      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
+      [result.rows[0].id, 'profile_update', `Profile updated by ${uid}`, uid]
     ).catch(err => console.error('Error logging audit:', err));
     
     console.log(`Profile updated successfully for ${result.rows[0].email}`);
@@ -112,35 +109,33 @@ const updateProfile = async (req, res) => {
 const checkAdmin = async (req, res) => {
   try {
     const { uid } = req.user;
-    const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'AdminX';
-    
-    console.log(`Admin check requested by ${currentUser} at ${currentTime} for UID: ${uid}`);
-    
-    // Check database
-    const result = await pool.query(
-      'SELECT id, is_admin FROM users WHERE firebase_uid = $1',
-      [uid]
-    );
-    
-    if (result.rows.length === 0) {
+
+    console.log(`Admin check requested for UID: ${uid}`);
+
+    // This endpoint is the sole authority behind the four /admin/* server-side page
+    // gates, so it must answer exactly as the isAdmin API gate would — same DB column,
+    // same claim cross-check. resolveAdminStatus is that shared rule; the route is
+    // mounted behind isAuthenticatedStrict so revocation is checked here too.
+    // Without both, a revoked or de-admined user is served admin HTML and then 403s on
+    // every call the page makes.
+    const { isAdmin, user } = await resolveAdminStatus(req.decodedToken);
+
+    if (!user) {
       console.log(`User with UID ${uid} not found in database, returning non-admin status`);
       return res.status(200).json({ isAdmin: false });
     }
-    
-    const isAdmin = result.rows[0].is_admin;
-    
+
     // Log admin check for audit purposes
     await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, $5)',
-      [result.rows[0].id, 'admin_check', `Admin status checked (result: ${isAdmin})`, currentUser, currentTime]
+      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
+      [user.id, 'admin_check', `Admin status checked (result: ${isAdmin})`, uid]
     ).catch(err => console.error('Error logging audit:', err));
-    
+
     console.log(`Admin check for ${uid}: ${isAdmin ? 'Is admin' : 'Not admin'}`);
-    res.status(200).json({ 
+    res.status(200).json({
       isAdmin: isAdmin,
-      checked_at: currentTime,
-      checked_by: currentUser 
+      checked_at: new Date().toISOString(),
+      checked_by: uid
     });
   } catch (error) {
     console.error('Error checking admin status:', error);
@@ -155,9 +150,7 @@ const logAdminActivity = async (req, res) => {
   try {
     const { uid } = req.user;
     const { action, details } = req.body;
-    const currentTime = '2025-08-23 20:09:05';
-    const currentUser = req.headers['x-user'] || 'AdminX';
-    
+
     // Verify user is admin
     const userResult = await pool.query(
       'SELECT id, is_admin FROM users WHERE firebase_uid = $1',
@@ -170,14 +163,14 @@ const logAdminActivity = async (req, res) => {
     
     // Log admin activity
     await pool.query(
-      'INSERT INTO admin_logs (user_id, action, details, timestamp) VALUES ($1, $2, $3, $4)',
-      [userResult.rows[0].id, action, details, currentTime]
+      'INSERT INTO admin_logs (user_id, action, details, timestamp) VALUES ($1, $2, $3, NOW())',
+      [userResult.rows[0].id, action, details]
     );
-    
-    console.log(`Admin activity logged for ${currentUser}: ${action}`);
-    res.status(200).json({ 
+
+    console.log(`Admin activity logged for ${uid}: ${action}`);
+    res.status(200).json({
       success: true,
-      logged_at: currentTime,
+      logged_at: new Date().toISOString(),
       action: action
     });
   } catch (error) {

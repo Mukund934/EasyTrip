@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const placeModel = require('../models/placeModel');
 const { uploadImage } = require('../config/cloudinary');
 
@@ -9,15 +10,56 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Get current user from request
+// Get current user from request.
+// Identity comes only from the token the auth middleware verified: the former x-user /
+// x-user-name header fallbacks were client-supplied, so any caller could attribute a write
+// to any identity they liked (SECURITY_AUDIT M6).
 const getCurrentUser = (req) => {
-  // Use the authenticated user from req.user or from headers, with a fallback
-  return req.user?.uid || req.headers['x-user'] || 'anonymous_user';
+  return req.user?.uid || 'anonymous_user';
 };
 
 const getCurrentUserName = (req) => {
-  // Use the authenticated user's name from req.dbUser or from headers, with a fallback
-  return req.dbUser?.name || req.headers['x-user-name'] || 'Anonymous User';
+  return req.user?.name || 'Anonymous User';
+};
+
+// Public review payloads must not carry Firebase uids or email addresses (SECURITY_AUDIT M7).
+// The author id is a stable digest scoped to one place, so a user's reviews can still be
+// correlated within that place without publishing the identifier auth accepts.
+const publicAuthorId = (placeId, userId) => {
+  return crypto
+    .createHash('sha256')
+    .update(`${placeId}:${userId || ''}`)
+    .digest('hex')
+    .slice(0, 16);
+};
+
+// Legacy rows stored the account email in user_name; never render one publicly.
+const publicAuthorName = (userName) => {
+  const name = (userName || '').trim();
+  return !name || name.includes('@') ? 'Traveler' : name;
+};
+
+// `viewerUid` is the uid of the caller, when there is one (soft auth on the public GET,
+// the verified author on POST). Ownership has to be resolved here: the client cannot
+// compare against `user_id` any more, because that field is now the opaque digest.
+const toPublicReview = (row, viewerUid) => {
+  const authorId = publicAuthorId(row.place_id, row.user_id);
+  const authorName = publicAuthorName(row.user_name);
+
+  return {
+    id: row.id,
+    place_id: row.place_id,
+    author_id: authorId,
+    author_name: authorName,
+    rating: row.rating,
+    comment: row.comment,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    is_own: Boolean(viewerUid) && row.user_id === viewerUid,
+    // Aliases the current UI still reads; they carry the opaque values, never the raw uid.
+    user_id: authorId,
+    user_name: authorName
+  };
 };
 
 /**
@@ -46,7 +88,10 @@ const getAllPlaces = async (req, res) => {
     console.error('[ERROR] Error getting places:', error);
     res.status(500).json({ 
       message: 'Error getting places',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -91,7 +136,10 @@ const getPlaceById = async (req, res) => {
     console.error('[ERROR] Error getting place:', error);
     res.status(500).json({ 
       message: 'Error getting place',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -165,23 +213,46 @@ const getPlaceImage = async (req, res) => {
   }
 };
 
-/**
- * Send default placeholder image
- */
-const sendDefaultImage = (res, timestamp, placeId) => {
-  try {
-    const svgPlaceholder = `
+// This response is served as image/svg+xml, which browsers execute scripts inside when it is
+// opened directly, so request input must never reach the document body (SECURITY_AUDIT M1).
+// Anything that is not a positive integer id gets this constant document verbatim.
+const GENERIC_PLACEHOLDER_SVG = `
+      <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="2"/>
+        <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#666">
+          No Image Available
+        </text>
+      </svg>
+    `;
+
+const buildPlaceholderSvg = (placeId) => {
+  const numericId = Number.parseInt(placeId, 10);
+
+  if (!Number.isInteger(numericId) || numericId <= 0) {
+    return GENERIC_PLACEHOLDER_SVG;
+  }
+
+  // numericId is a parsed integer here, not the raw path param
+  return `
       <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
         <rect width="100%" height="100%" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="2"/>
         <text x="50%" y="45%" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#666">
           No Image Available
         </text>
         <text x="50%" y="60%" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#999">
-          Place ID: ${placeId}
+          Place ID: ${numericId}
         </text>
       </svg>
     `;
-    
+};
+
+/**
+ * Send default placeholder image
+ */
+const sendDefaultImage = (res, timestamp, placeId) => {
+  try {
+    const svgPlaceholder = buildPlaceholderSvg(placeId);
+
     console.log(`[${timestamp}] Serving SVG placeholder for place: ${placeId}`);
     res.set({
       'Content-Type': 'image/svg+xml',
@@ -191,9 +262,9 @@ const sendDefaultImage = (res, timestamp, placeId) => {
     return res.send(svgPlaceholder);
   } catch (err) {
     console.error(`[${timestamp}] Error serving placeholder:`, err);
-    return res.status(404).json({ 
+    return res.status(404).json({
       message: 'Image not found',
-      place_id: placeId,
+      place_id: Number.parseInt(placeId, 10) || null,
       timestamp
     });
   }
@@ -315,7 +386,10 @@ const createPlace = async (req, res) => {
     console.error(`[ERROR] Error creating place:`, error);
     res.status(500).json({ 
       message: 'Error creating place',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -419,7 +493,10 @@ const updatePlace = async (req, res) => {
     console.error('[ERROR] Error updating place:', error);
     res.status(500).json({ 
       message: 'Error updating place',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -476,7 +553,10 @@ const deletePlace = async (req, res) => {
     console.error('[ERROR] Error deleting place:', error);
     res.status(500).json({ 
       message: 'Error deleting place',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -511,7 +591,10 @@ const searchPlaces = async (req, res) => {
     console.error('[ERROR] Error searching places:', error);
     res.status(500).json({ 
       message: 'Error searching places',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -535,7 +618,10 @@ const getPlaceImages = async (req, res) => {
     console.error('[ERROR] Error getting place images:', error);
     res.status(500).json({ 
       message: 'Error getting place images',
-      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message,
+      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
+      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
+      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
       timestamp: new Date().toISOString()
     });
   }
@@ -591,11 +677,13 @@ const getPlaceReviews = async (req, res) => {
     }
     
     const result = await pool.query(
-      'SELECT id, user_id, user_name, rating, comment, created_at, updated_at FROM place_reviews WHERE place_id = $1 ORDER BY created_at DESC',
+      'SELECT id, place_id, user_id, user_name, rating, comment, created_at, updated_at FROM place_reviews WHERE place_id = $1 ORDER BY created_at DESC',
       [id]
     );
-    
-    res.status(200).json(result.rows);
+
+    const viewerUid = req.user?.uid;
+
+    res.status(200).json(result.rows.map((row) => toPublicReview(row, viewerUid)));
   } catch (error) {
     console.error('[ERROR] Error getting reviews:', error);
     res.status(500).json({ message: 'Error getting reviews' });
@@ -606,25 +694,58 @@ const createPlaceReview = async (req, res) => {
   try {
     const { id } = req.params;
     const { rating, comment } = req.body;
-    const user = getCurrentUser(req);
+
+    // The author is whoever the token says it is - never a body field or a header
+    const userId = req.user?.uid;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const userName = getCurrentUserName(req);
-    
+
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
     }
-    
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+
+    const parsedRating = Number.parseInt(rating, 10);
+    if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+      return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
     }
-    
+
+    // One review per user per place, enforced by UNIQUE (place_id, user_id): reviewing again
+    // edits the existing row instead of stacking another vote onto the place's rating.
+    // `xmax = 0` distinguishes the inserted row from the updated one.
     const result = await pool.query(
-      'INSERT INTO place_reviews (place_id, user_id, user_name, rating, comment, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *',
-      [id, user, userName, rating, comment || null]
+      `INSERT INTO place_reviews (place_id, user_id, user_name, rating, comment, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       ON CONFLICT (place_id, user_id) DO UPDATE
+       SET rating = EXCLUDED.rating,
+           comment = EXCLUDED.comment,
+           user_name = EXCLUDED.user_name,
+           updated_at = NOW()
+       RETURNING id, place_id, user_id, user_name, rating, comment, created_at, updated_at, (xmax = 0) AS inserted`,
+      [id, userId, userName, parsedRating, comment || null]
     );
-    
-    res.status(201).json(result.rows[0]);
+
+    const review = result.rows[0];
+
+    res.status(review.inserted ? 201 : 200).json(toPublicReview(review, userId));
   } catch (error) {
     console.error('[ERROR] Error creating review:', error);
+
+    // 42P10: "no unique or exclusion constraint matching the ON CONFLICT specification".
+    // The upsert needs UNIQUE (place_id, user_id); app.js adds it at boot, but that fails
+    // when the table still holds duplicate rows. Say so instead of returning a bare 500.
+    if (error.code === '42P10') {
+      console.error(
+        '   place_reviews is missing UNIQUE (place_id, user_id). Back up the table, then ' +
+        'run: psql "$DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql'
+      );
+      return res.status(500).json({
+        message: 'Reviews are temporarily unavailable — the server is missing a required database constraint'
+      });
+    }
+
     res.status(500).json({ message: 'Error creating review' });
   }
 };
