@@ -96,8 +96,17 @@ const deletePlace = async (id) => {
   return result.rows.length > 0;
 };
 
+// The season filter matches the free-text "Best Time to Visit" entry in custom_keys, which is
+// the only seasonal data places actually carry. Keep the month lists in sync with the fallback
+// filter in frontend/src/pages/browse.jsx.
+const SEASON_MONTHS = {
+  summer: 'april|may|june',
+  monsoon: 'july|august|september',
+  winter: 'october|november|december|january|february|march'
+};
+
 const searchPlaces = async (criteria) => {
-  const { searchTerm, location, district, state, tags } = criteria;
+  const { searchTerm, location, district, state, tags, themes, minRating, date } = criteria;
   let query = `
     SELECT *,
       CASE
@@ -131,6 +140,25 @@ const searchPlaces = async (criteria) => {
   if (tags && tags.length > 0) {
     params.push(tags);
     query += ` AND tags && $${params.length}`;
+  }
+
+  if (themes && themes.length > 0) {
+    params.push(themes);
+    query += ` AND themes && $${params.length}`;
+  }
+
+  if (minRating > 0) {
+    params.push(minRating);
+    query += ` AND rating_count > 0 AND (rating_sum::NUMERIC / rating_count) >= $${params.length}`;
+  }
+
+  const seasonPattern = SEASON_MONTHS[date];
+  if (seasonPattern) {
+    params.push(seasonPattern);
+    // A place with no recorded best time is kept rather than hidden: the filter narrows the
+    // list, it does not exclude everything that has not been annotated yet.
+    query += ` AND (custom_keys->>'Best Time to Visit' IS NULL`
+           + ` OR lower(custom_keys->>'Best Time to Visit') ~ $${params.length})`;
   }
 
   query += ' ORDER BY created_at DESC';

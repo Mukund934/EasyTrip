@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const placeController = require('../controllers/placeController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
@@ -106,6 +106,25 @@ const placeBodyRules = (required) => [
   body('custom_keys').optional({ values: 'falsy' }).custom(isFlatObject)
 ];
 
+// Search accepts the same collection shapes as the write routes (JSON arrays as query text).
+// `date` is a season key, not a calendar date — see SEASON_MONTHS in placeModel.
+const searchRules = [
+  query('searchTerm').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 200 })
+    .withMessage('searchTerm must be at most 200 characters'),
+  query('location').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+    .withMessage('location must be at most 120 characters'),
+  query('district').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+    .withMessage('district must be at most 120 characters'),
+  query('state').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+    .withMessage('state must be at most 120 characters'),
+  query('tags').optional({ values: 'falsy' }).custom(isStringArray('tags', 50, 60)),
+  query('themes').optional({ values: 'falsy' }).custom(isStringArray('themes', 20, 60)),
+  query('minRating').optional({ values: 'falsy' }).isFloat({ min: 0, max: 5 })
+    .withMessage('minRating must be between 0 and 5'),
+  query('date').optional({ values: 'falsy' }).isIn(['summer', 'monsoon', 'winter'])
+    .withMessage('date must be one of: summer, monsoon, winter')
+];
+
 const reviewRules = [
   placeIdParam,
   body('rating')
@@ -127,7 +146,7 @@ const reviewRules = [
 
 // Public routes
 router.get('/places', placeController.getAllPlaces);
-router.get('/places/search', placeController.searchPlaces);
+router.get('/places/search', searchRules, handleValidationErrors, placeController.searchPlaces);
 router.get('/places/locations', placeController.getAllLocations);
 router.get('/places/districts', placeController.getDistricts);
 router.get('/places/states', placeController.getStates);

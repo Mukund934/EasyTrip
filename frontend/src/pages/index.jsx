@@ -152,6 +152,11 @@ const Home = () => {
             const parsedPlaces = JSON.parse(cachedPlaces);
             if (parsedPlaces.length > 0) {
               setPlaces(parsedPlaces.slice(0, 4));
+              // Only the carousel is cached. Returning here without loading locations left the
+              // location dropdown empty on every reload inside the 5-minute window, so a warm
+              // cache silently produced less working UI than a cold one (IMP-022). A locations
+              // failure must not discard the cache hit we already have.
+              setLocations(await getLocations().catch(() => []));
               setLoading(false);
               return;
             }
@@ -889,8 +894,11 @@ const Home = () => {
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
               {[
-                'Adventure', 'Historical', 'Romantic', 'Nature', 
-                'Religious', 'Beach', 'Mountain', 'City'
+                // CategoryCard links to /browse?theme=<lowercased label>, so every entry here must
+                // lowercase to a real theme id in browse.jsx's themeOptions. 'City' did not, so that
+                // tile always landed on an empty result set (IMP-021).
+                'Adventure', 'Historical', 'Romantic', 'Nature',
+                'Religious', 'Beach', 'Mountain', 'Family'
               ].map((category, index) => (
                 <CategoryCard 
                   key={category} 

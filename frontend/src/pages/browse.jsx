@@ -539,6 +539,18 @@ function Browse() {
             case 'name':
                 sortedPlaces.sort((a, b) => a.name.localeCompare(b.name));
                 break;
+            case 'popular':
+                // "Most Popular" was offered in the sort menu but had no case here, so choosing it
+                // silently left the order untouched (IMP-017). Popularity is review volume; ties
+                // fall back to rating so two places with one review each still order sensibly.
+                sortedPlaces.sort((a, b) => {
+                    const countDiff = (b.rating_count || 0) - (a.rating_count || 0);
+                    if (countDiff !== 0) return countDiff;
+                    const ratingA = a.rating_count > 0 ? a.rating_sum / a.rating_count : 0;
+                    const ratingB = b.rating_count > 0 ? b.rating_sum / b.rating_count : 0;
+                    return ratingB - ratingA;
+                });
+                break;
         }
 
         // This comparison avoids an infinite loop if the order is already correct.

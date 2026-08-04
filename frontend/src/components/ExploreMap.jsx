@@ -96,8 +96,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 // Main ExploreMap component
-const ExploreMap = ({ 
-  places = [], 
+const ExploreMap = ({
+  places: rawPlaces = [],
   selectedPlace,
   onSelectPlace,
   center = { lat: 20.5937, lng: 78.9629 }, // Default to India's center
@@ -133,7 +133,21 @@ const ExploreMap = ({
     pitch: 0
   });
   const [hoveredPlace, setHoveredPlace] = useState(null);
-  
+
+  // PostgreSQL returns DECIMAL columns as strings, so every `typeof place.latitude === 'number'`
+  // guard below rejected every row and the map rendered zero markers (IMP-007). Coordinates are
+  // normalised once here rather than at each guard: unparseable values become null, so those same
+  // guards still exclude them, and the distance maths downstream operates on real numbers.
+  const places = useMemo(() => rawPlaces.map((place) => {
+    const latitude = Number.parseFloat(place.latitude);
+    const longitude = Number.parseFloat(place.longitude);
+    return {
+      ...place,
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null
+    };
+  }), [rawPlaces]);
+
   // Map style options
   const TILE_LAYERS = [
     { id: 'osm', name: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: <FiMapPin /> },

@@ -565,16 +565,23 @@ const deletePlace = async (req, res) => {
 // Search and metadata functions
 const searchPlaces = async (req, res) => {
   try {
-    const { searchTerm, location, tags, district, state } = req.query;
+    const { searchTerm, location, tags, themes, district, state, minRating, date } = req.query;
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    
+
+    // themes/minRating/date were accepted by the route and silently dropped here before
+    // Phase 2, so every one of those filters was a no-op for the user (IMP-011).
+    const parsedMinRating = Number.parseFloat(minRating);
+
     const criteria = {
       searchTerm: searchTerm?.trim(),
       location: location?.trim(),
       district: district?.trim(),
       state: state?.trim(),
-      tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : undefined
+      tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : undefined,
+      themes: themes ? (Array.isArray(themes) ? themes : JSON.parse(themes)) : undefined,
+      minRating: Number.isFinite(parsedMinRating) ? parsedMinRating : undefined,
+      date: date?.trim()
     };
     
     const places = await placeModel.searchPlaces(criteria);
