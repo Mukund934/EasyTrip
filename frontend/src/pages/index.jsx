@@ -6,7 +6,7 @@ import {
   FiArrowRight, FiArrowLeft, FiMapPin, FiStar, FiCalendar, 
   FiCompass, FiChevronRight, FiClock, FiHeart, FiImage 
 } from 'react-icons/fi';
-import { getAllPlaces, getLocations } from '../services/placeService';
+import { fetchPlaces, fetchLocations } from '../services/placesApi';
 
 // CarouselImage component with better loading states
 const CarouselImage = ({ place, isActive }) => {
@@ -99,12 +99,13 @@ const CategoryCard = ({ category, gradient }) => (
 );
 
 // Main Home component
-const Home = () => {
-  const [places, setPlaces] = useState([]);
-  const [locations, setLocations] = useState([]);
+//
+// Data arrives as props from `getStaticProps` below, so the carousel is in the HTML the server
+// sends rather than three stages behind it (IMP-040). There is no loading state left to model:
+// by the time this component runs, `places` is already populated.
+const Home = ({ places = [], locations = [], loadError = null }) => {
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const error = loadError;
   const [autoplay, setAutoplay] = useState(true);
   const [direction, setDirection] = useState(1);
   const [likedPlaces, setLikedPlaces] = useState([]);
@@ -137,74 +138,6 @@ const Home = () => {
   useEffect(() => {
     localStorage.setItem('easytrip_liked_places', JSON.stringify(likedPlaces));
   }, [likedPlaces]);
-
-  // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Check localStorage first
-        const cachedPlaces = localStorage.getItem('easytrip_carousel_places');
-        const cachedTime = localStorage.getItem('easytrip_carousel_cache_time');
-        
-        if (cachedPlaces && cachedTime) {
-          const cacheAge = Date.now() - parseInt(cachedTime);
-          if (cacheAge < 300000) { // 5 minutes cache
-            const parsedPlaces = JSON.parse(cachedPlaces);
-            if (parsedPlaces.length > 0) {
-              setPlaces(parsedPlaces.slice(0, 4));
-              // Only the carousel is cached. Returning here without loading locations left the
-              // location dropdown empty on every reload inside the 5-minute window, so a warm
-              // cache silently produced less working UI than a cold one (IMP-022). A locations
-              // failure must not discard the cache hit we already have.
-              setLocations(await getLocations().catch(() => []));
-              setLoading(false);
-              return;
-            }
-          }
-        }
-
-        const [placesData, locationsData] = await Promise.all([getAllPlaces(), getLocations()]);
-        
-        if (!Array.isArray(placesData)) {
-          console.error('Invalid data format:', placesData);
-          setError('Invalid data format received');
-          setPlaces([]);
-          return;
-        }
-
-        // Sort places by rating (real data only)
-        const sortedByRating = [...placesData].sort((a, b) => {
-          const ratingA = a.rating_count > 0 ? a.rating_sum / a.rating_count : 0;
-          const ratingB = b.rating_count > 0 ? b.rating_sum / b.rating_count : 0;
-          return ratingB - ratingA;
-        });
-
-        // Take only top 4 places and clean the data
-        const limitedPlaces = sortedByRating.slice(0, 4).map(place => ({
-          ...place,
-          tags: place.tags || ['Destination'],
-          best_time: place.best_time || 'Year round',
-        }));
-
-        // Cache the data
-        localStorage.setItem('easytrip_carousel_places', JSON.stringify(limitedPlaces));
-        localStorage.setItem('easytrip_carousel_cache_time', Date.now().toString());
-        
-        setPlaces(limitedPlaces);
-        setLocations(locationsData);
-        
-      } catch (err) {
-        console.error('Error fetching places:', err);
-        setError('Failed to load destinations. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   // Autoplay carousel
   useEffect(() => {
@@ -387,14 +320,7 @@ const Home = () => {
                     onTouchStart={() => setAutoplay(false)}
                     onTouchEnd={() => setTimeout(() => setAutoplay(true), 3000)}
                   >
-                    {loading ? (
-                      <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
-                        <div className="text-center">
-                          <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin mb-3"></div>
-                          <p className="text-white/80 text-sm">Loading...</p>
-                        </div>
-                      </div>
-                    ) : error ? (
+                    {error ? (
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
                           <p className="mb-3 text-sm">{error}</p>
@@ -610,14 +536,7 @@ const Home = () => {
                     onMouseEnter={() => setAutoplay(false)}
                     onMouseLeave={() => setAutoplay(true)}
                   >
-                    {loading ? (
-                      <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
-                        <div className="text-center">
-                          <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
-                          <p className="text-white/80 text-sm">Loading destinations...</p>
-                        </div>
-                      </div>
-                    ) : error ? (
+                    {error ? (
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
                           <p className="mb-4 text-sm">{error}</p>
@@ -916,5 +835,47 @@ const Home = () => {
     </>
   );
 };
+
+/**
+ * Pre-render the landing page and refresh it in the background (IMP-040).
+ *
+ * What this replaces: the carousel used to download **every place, all columns**, sort them in
+ * the browser, keep the top four and throw the rest away — then cache those four in localStorage
+ * for five minutes to avoid doing it again. The server can sort and limit, so the request is now
+ * for four rows instead of the catalogue, and ISR makes it the *build's* request rather than
+ * every visitor's. The localStorage cache is gone with it: a pre-rendered page already has the
+ * data in its HTML, which beats reading it back out of localStorage after hydration.
+ *
+ * `revalidate: 300` keeps the previous five-minute freshness contract, now served from the CDN
+ * edge instead of each browser's own storage.
+ */
+export async function getStaticProps() {
+  try {
+    const [placesResult, locations] = await Promise.all([
+      fetchPlaces({ sort: 'rating', limit: 4 }),
+      fetchLocations().catch(() => [])
+    ]);
+
+    const places = placesResult.data.map((place) => ({
+      ...place,
+      tags: place.tags || ['Destination'],
+      best_time: place.best_time || 'Year round'
+    }));
+
+    return {
+      props: { places, locations },
+      revalidate: 300
+    };
+  } catch (error) {
+    // A build or revalidation must not fail because the API is briefly unreachable. Render the
+    // page with its error state and retry sooner than the normal interval — the alternative is
+    // a failed deploy, or a stale page with no way to recover on its own.
+    console.error('[getStaticProps] home:', error.message);
+    return {
+      props: { places: [], locations: [], loadError: 'Failed to load destinations. Please try again.' },
+      revalidate: 30
+    };
+  }
+}
 
 export default Home;

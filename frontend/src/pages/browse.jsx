@@ -4,7 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useInView } from 'react-intersection-observer';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     FiFilter, FiMap, FiMapPin, FiStar, FiTag, FiList, FiGrid,
     FiArrowRight, FiX, FiSearch, FiSliders, FiChevronDown,
@@ -18,7 +18,7 @@ import {
 } from 'react-icons/fi';
 import PlaceCard from '../components/PlaceCard';
 import { THEMES, SEASONS } from '../constants/themes';
-import { getAllPlaces, searchPlaces, getLocations, getDistricts, getStates, getTags } from '../services/placeService';
+import { fetchPlaces, fetchFacets, PLACES_PAGE_SIZE } from '../services/placesApi';
 import { useAuth } from '../context/AuthContext';
 import debounce from 'lodash/debounce';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -109,7 +109,7 @@ const staggerChildren = {
     }
 };
 
-function Browse() {
+function Browse({ initialResults, initialFacets, initialFilters, initialError }) {
     const router = useRouter();
     const { q, location, district, state, theme, tag, date, rating } = router.query;
     const { currentUser } = useAuth();
@@ -132,26 +132,36 @@ function Browse() {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // State management
-    const [places, setPlaces] = useState([]);
-    const [displayedPlaces, setDisplayedPlaces] = useState([]);
-    const [filteredPlaces, setFilteredPlaces] = useState([]);
-    const [placesPerPage, setPlacesPerPage] = useState(12);
-    const [currentPage, setCurrentPage] = useState(1);
+    // Results (IMP-038 / IMP-046).
+    //
+    // There used to be three lists here — `places` (everything the API returned), `filteredPlaces`
+    // (the same data narrowed) and `displayedPlaces` (a slice of that) — kept in step by a chain
+    // of effects, one of which compared the whole dataset with `JSON.stringify` on every pass.
+    // Filtering, sorting and paging all happen in the query now, so there is one list: the rows
+    // the server returned for the current criteria, with each additional page appended to it.
+    const [places, setPlaces] = useState(initialResults?.data || []);
+    const [total, setTotal] = useState(initialResults?.pagination?.total || 0);
+    const [hasMore, setHasMore] = useState(initialResults?.pagination?.hasMore || false);
 
     // Filter data
-    const [locations, setLocations] = useState([]);
-    const [districts, setDistricts] = useState([]);
-    const [states, setStates] = useState([]);
-    const [tags, setTags] = useState([]);
+    const [locations, setLocations] = useState(initialFacets?.locations || []);
+    const [districts, setDistricts] = useState(initialFacets?.districts || []);
+    const [states, setStates] = useState(initialFacets?.states || []);
+    const [tags, setTags] = useState(initialFacets?.tags || []);
+
+    // Map markers: fetched separately, only while the map is open, with a marker-sized projection.
+    // The grid is paginated and the map is not — one page of cards is the right amount of data to
+    // scroll through, and twelve pins is not a map. Splitting them means neither view pays for
+    // the other: the grid no longer downloads coordinates for the whole catalogue, and the map no
+    // longer downloads descriptions it will never render.
+    const [mapPlaces, setMapPlaces] = useState([]);
+    const [mapLoading, setMapLoading] = useState(false);
 
     // UI state
-    const [loading, setLoading] = useState(true);
-    const [initialLoading, setInitialLoading] = useState(true);
-    // No `loadingMore`: paging is a synchronous slice of already-fetched data, so there is
-    // nothing to wait for. IMP-038 (server-side pagination) is what reintroduces a real
-    // async loading state here.
-    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(!initialResults);
+    const [initialLoading, setInitialLoading] = useState(!initialResults);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [error, setError] = useState(initialError || null);
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', or 'map'
     const [sortOrder, setSortOrder] = useState('newest');
@@ -160,15 +170,17 @@ function Browse() {
     const [mapFullscreen, setMapFullscreen] = useState(false);
     const searchInputRef = useRef(null);
 
-    // Filter state
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedLocation, setSelectedLocation] = useState('');
-    const [selectedDistrict, setSelectedDistrict] = useState('');
-    const [selectedState, setSelectedState] = useState('');
-    const [selectedTags, setSelectedTags] = useState([]);
-    const [selectedThemes, setSelectedThemes] = useState([]);
-    const [selectedDate, setSelectedDate] = useState('any');
-    const [ratingFilter, setRatingFilter] = useState(0);
+    // Filter state, seeded from the URL by getServerSideProps so the server rendered the same
+    // result set the client is about to display — otherwise a shared link would paint the
+    // unfiltered catalogue and then replace it once the client re-read its own query string.
+    const [searchTerm, setSearchTerm] = useState(initialFilters?.searchTerm || '');
+    const [selectedLocation, setSelectedLocation] = useState(initialFilters?.location || '');
+    const [selectedDistrict, setSelectedDistrict] = useState(initialFilters?.district || '');
+    const [selectedState, setSelectedState] = useState(initialFilters?.state || '');
+    const [selectedTags, setSelectedTags] = useState(initialFilters?.tags || []);
+    const [selectedThemes, setSelectedThemes] = useState(initialFilters?.themes || []);
+    const [selectedDate, setSelectedDate] = useState(initialFilters?.date || 'any');
+    const [ratingFilter, setRatingFilter] = useState(initialFilters?.minRating || 0);
     const [recentSearches, setRecentSearches] = useState([]);
     const [collapsedSections, setCollapsedSections] = useState({
         themes: false,
@@ -178,15 +190,21 @@ function Browse() {
         tags: false
     });
 
-    // Stats for enhanced UI
-    const [stats, setStats] = useState({
-        totalPlaces: 0,
-        avgRating: 0,
-        topLocation: '',
-        locationCount: 0
-    });
+    // Catalogue statistics, computed by the server alongside the result count.
+    //
+    // These were derived in the browser by reducing over every place the API returned. That only
+    // worked while the browser held the entire catalogue; averaging a page of twelve under a
+    // label reading "Average Rating" would be a wrong number, not a stale one, so the aggregate
+    // moved into the same query that produces the total (`withStats`).
+    const [stats, setStats] = useState(() => ({
+        totalPlaces: initialResults?.stats?.total ?? 0,
+        avgRating: initialResults?.stats?.avgRating ?? 0,
+        topLocation: initialResults?.stats?.topLocation ?? '',
+        locationCount: initialResults?.stats?.topLocationCount ?? 0
+    }));
 
-    // When the places currently on screen were actually fetched (null until the first load resolves)
+    // When the places currently on screen were actually fetched. Set on the client only: rendering
+    // a server timestamp would mismatch the client's locale-formatted one and trip hydration.
     const [lastUpdated, setLastUpdated] = useState(null);
 
     // Infinite scroll
@@ -202,17 +220,14 @@ function Browse() {
         return window.innerWidth < 768;
     }, []);
 
-    // Detect screen size changes
+    // Detect screen size changes.
+    //
+    // The page size no longer varies with the viewport: it is a server `LIMIT` now, and changing
+    // it mid-session would shift every subsequent offset, which is how offset pagination starts
+    // duplicating and skipping rows. Infinite scroll made the responsive sizing moot anyway —
+    // it decided how many cards arrived before the next scroll, not how many fit.
     useEffect(() => {
         const handleResize = () => {
-            if (window.innerWidth < 640) {
-                setPlacesPerPage(6);
-            } else if (window.innerWidth < 1024) {
-                setPlacesPerPage(8);
-            } else {
-                setPlacesPerPage(12);
-            }
-
             if (window.innerWidth < 640 && viewMode === 'list') {
                 setViewMode('grid');
             }
@@ -224,122 +239,34 @@ function Browse() {
         return () => window.removeEventListener('resize', handleResize);
     }, [viewMode]);
 
-    // Load data and apply URL filters on initial load with better error handling
+    // Filter vocabularies. `getServerSideProps` normally supplies these; this covers the case
+    // where it could not reach the API and rendered the page anyway, so a transient outage costs
+    // the filter lists until the next load rather than permanently.
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                setInitialLoading(true);
+        if (initialFacets) return;
 
-                // Fetch places first since it's critical
-                let placesData;
-                try {
-                    placesData = await getAllPlaces();
-                    setLastUpdated(new Date());
+        let cancelled = false;
+        fetchFacets().then((facets) => {
+            if (cancelled) return;
+            setLocations(facets.locations);
+            setDistricts(facets.districts);
+            setStates(facets.states);
+            setTags(facets.tags);
+        });
 
-                    // Calculate stats
-                    if (placesData.length > 0) {
-                        // Average rating
-                        const avgRating = placesData.reduce((acc, place) => {
-                            const rating = place.rating_count > 0 ? place.rating_sum / place.rating_count : 0;
-                            return acc + rating;
-                        }, 0) / placesData.length;
+        return () => { cancelled = true; };
+    }, [initialFacets]);
 
-                        // Most common location
-                        const locationCounts = {};
-                        placesData.forEach(place => {
-                            locationCounts[place.location] = (locationCounts[place.location] || 0) + 1;
-                        });
-
-                        const topLocation = Object.entries(locationCounts)
-                            .sort((a, b) => b[1] - a[1])[0] || ['', 0];
-
-                        setStats({
-                            totalPlaces: placesData.length,
-                            avgRating: avgRating.toFixed(1),
-                            topLocation: topLocation[0],
-                            locationCount: topLocation[1]
-                        });
-                    }
-
-                } catch (error) {
-                    console.error('Failed to load places:', error);
-                    setError('Failed to load places. Please try again.');
-
-                    setLoading(false);
-                    setInitialLoading(false);
-                    return; // Exit early if places can't be loaded
-                }
-
-                // Fetch the rest in parallel with individual error handling
-                const [locationsData, districtsData, statesData, tagsData] = await Promise.all([
-                    getLocations().catch(err => {
-                        console.warn('Failed to load locations:', err);
-                        return [];
-                    }),
-                    getDistricts().catch(err => {
-                        console.warn('Failed to load districts:', err);
-                        return [];
-                    }),
-                    getStates().catch(err => {
-                        console.warn('Failed to load states:', err);
-                        return [];
-                    }),
-                    getTags().catch(err => {
-                        console.warn('Failed to load tags:', err);
-                        return [];
-                    })
-                ]);
-
-                // Update state with fetched data
-                setPlaces(placesData);
-                setLocations(locationsData);
-                setDistricts(districtsData);
-                setStates(statesData);
-                setTags(tagsData);
-
-                // Apply URL filters if any
-                if (q) setSearchTerm(q);
-                if (location) setSelectedLocation(location);
-                if (district) setSelectedDistrict(district);
-                if (state) setSelectedState(state);
-                if (rating) setRatingFilter(parseInt(rating) || 0);
-                if (date) setSelectedDate(date);
-
-                // Handle arrays
-                if (theme) {
-                    const themes = Array.isArray(theme) ? theme : [theme];
-                    setSelectedThemes(themes);
-                }
-
-                if (tag) {
-                    const tagArray = Array.isArray(tag) ? tag : [tag];
-                    setSelectedTags(tagArray);
-                }
-
-                // Load recent searches from localStorage
-                if (typeof window !== 'undefined') {
-                    const savedSearches = localStorage.getItem('recentSearches');
-                    if (savedSearches) {
-                        try {
-                            setRecentSearches(JSON.parse(savedSearches).slice(0, 5));
-                        } catch (e) {
-                            console.warn('Failed to parse recent searches:', e);
-                        }
-                    }
-                }
-
-            } catch (err) {
-                console.error('Error in data fetching process:', err);
-                setError('Failed to load data. Please try again.');
-            } finally {
-                setLoading(false);
-                setInitialLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [q, location, district, state, theme, tag, date, rating]);
+    // Recent searches are per-browser, so they can only be read after hydration.
+    useEffect(() => {
+        const saved = localStorage.getItem('recentSearches');
+        if (!saved) return;
+        try {
+            setRecentSearches(JSON.parse(saved).slice(0, 5));
+        } catch (e) {
+            console.warn('Failed to parse recent searches:', e);
+        }
+    }, []);
 
     // Debounced search handler
     const debouncedSearch = useCallback(
@@ -359,241 +286,169 @@ function Browse() {
         []
     );
 
-    // Apply filters whenever they change
+    // The filter set, in the shape the API takes. Everything downstream reads this rather than
+    // the eight individual pieces of state, so there is one definition of "the current query".
+    const criteria = useMemo(() => ({
+        searchTerm: searchTerm || undefined,
+        location: selectedLocation || undefined,
+        district: selectedDistrict || undefined,
+        state: selectedState || undefined,
+        themes: selectedThemes.length ? selectedThemes : undefined,
+        tags: selectedTags.length ? selectedTags : undefined,
+        minRating: ratingFilter > 0 ? ratingFilter : undefined,
+        date: selectedDate !== 'any' ? selectedDate : undefined
+    }), [searchTerm, selectedLocation, selectedDistrict, selectedState,
+         selectedThemes, selectedTags, ratingFilter, selectedDate]);
+
+    // A stable dependency for the effects below. `criteria` is rebuilt whenever any filter's
+    // identity changes — including the array literals — so depending on the object directly would
+    // refetch on renders where nothing actually changed.
+    const criteriaKey = useMemo(() => JSON.stringify(criteria), [criteria]);
+
+    const hasActiveFilters = useCallback(
+        () => Object.keys(criteria).some((key) => criteria[key] !== undefined),
+        [criteria]
+    );
+
+    // Keep the URL in step with the filters, without navigating. Separate from fetching because
+    // it is presentation: the address bar should describe the current view whether or not the
+    // request behind it succeeded.
     useEffect(() => {
-        const applyFilters = async () => {
-            // Skip if we don't have places yet
-            if (places.length === 0) return;
+        const params = new URLSearchParams();
+        if (searchTerm) params.set('q', searchTerm);
+        if (selectedLocation) params.set('location', selectedLocation);
+        if (selectedDistrict) params.set('district', selectedDistrict);
+        if (selectedState) params.set('state', selectedState);
+        if (selectedDate !== 'any') params.set('date', selectedDate);
+        if (ratingFilter > 0) params.set('rating', String(ratingFilter));
+        selectedThemes.forEach((t) => params.append('theme', t));
+        selectedTags.forEach((t) => params.append('tag', t));
 
-            // Show a loading indicator for filter changes
-            if (!initialLoading) setLoading(true);
+        const query = params.toString();
+        window.history.replaceState({}, '', query ? `${window.location.pathname}?${query}` : window.location.pathname);
+    }, [criteriaKey, searchTerm, selectedLocation, selectedDistrict, selectedState,
+        selectedDate, ratingFilter, selectedThemes, selectedTags]);
 
-            try {
-                // If we have active filters, perform filtering
-                if (hasActiveFilters()) {
-                    // Prepare search criteria
-                    const criteria = {
-                        searchTerm: searchTerm,
-                        location: selectedLocation,
-                        district: selectedDistrict,
-                        state: selectedState,
-                        themes: selectedThemes,
-                        tags: selectedTags,
-                        date: selectedDate !== 'any' ? selectedDate : null,
-                        minRating: ratingFilter
-                    };
-
-                    // Update URL with filters (without triggering navigation)
-                    updateUrlWithFilters();
-
-                    // Try server-side search first
-                    try {
-                        const results = await searchPlaces(criteria);
-                        setFilteredPlaces(results);
-                    } catch (searchError) {
-                        console.error('Server search failed, falling back to client filtering:', searchError);
-
-                        // Fallback to client-side filtering with optimized performance
-                        let results = clientSideFilter();
-                        setFilteredPlaces(results);
-                    }
-                } else {
-                    // Clear URL and show all places
-                    window.history.replaceState({}, '', window.location.pathname);
-                    setFilteredPlaces(places);
-                }
-
-                // Reset pagination
-                setCurrentPage(1);
-            } catch (err) {
-                console.error('Error applying filters:', err);
-                setFilteredPlaces(places);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        // Client-side filtering implementation
-        const clientSideFilter = () => {
-            let results = [...places];
-
-            // Apply search term filter
-            if (searchTerm) {
-                const term = searchTerm.toLowerCase();
-                results = results.filter(place =>
-                    place.name.toLowerCase().includes(term) ||
-                    (place.description && place.description.toLowerCase().includes(term))
-                );
-            }
-
-            // Apply location filters
-            if (selectedLocation) {
-                results = results.filter(place =>
-                    place.location.toLowerCase() === selectedLocation.toLowerCase()
-                );
-            }
-
-            if (selectedDistrict) {
-                results = results.filter(place =>
-                    place.district && place.district.toLowerCase() === selectedDistrict.toLowerCase()
-                );
-            }
-
-            if (selectedState) {
-                results = results.filter(place =>
-                    place.state && place.state.toLowerCase() === selectedState.toLowerCase()
-                );
-            }
-
-            // Apply theme filter
-            if (selectedThemes.length > 0) {
-                results = results.filter(place =>
-                    place.themes && selectedThemes.some(theme => place.themes.includes(theme))
-                );
-            }
-
-            // Apply tag filter
-            if (selectedTags.length > 0) {
-                results = results.filter(place =>
-                    place.tags && selectedTags.some(tag => place.tags.includes(tag))
-                );
-            }
-
-            // Apply date filter
-            if (selectedDate !== 'any') {
-                // Check if the place has best time to visit in its custom_keys
-                results = results.filter(place => {
-                    if (!place.custom_keys || !place.custom_keys['Best Time to Visit']) return true;
-
-                    const bestTime = place.custom_keys['Best Time to Visit'].toLowerCase();
-
-                    switch (selectedDate) {
-                        case 'summer':
-                            return bestTime.includes('april') || bestTime.includes('may') || bestTime.includes('june');
-                        case 'monsoon':
-                            return bestTime.includes('july') || bestTime.includes('august') || bestTime.includes('september');
-                        case 'winter':
-                            return bestTime.includes('october') || bestTime.includes('november') ||
-                                bestTime.includes('december') || bestTime.includes('january') ||
-                                bestTime.includes('february') || bestTime.includes('march');
-                        default:
-                            return true;
-                    }
-                });
-            }
-
-            // Apply rating filter
-            if (ratingFilter > 0) {
-                results = results.filter(place => {
-                    const avgRating = place.rating_count > 0
-                        ? place.rating_sum / place.rating_count
-                        : 0;
-                    return avgRating >= ratingFilter;
-                });
-            }
-
-            return results;
-        };
-
-        // Update URL with current filter state
-        const updateUrlWithFilters = () => {
-            const queryParams = new URLSearchParams();
-            if (searchTerm) queryParams.set('q', searchTerm);
-            if (selectedLocation) queryParams.set('location', selectedLocation);
-            if (selectedDistrict) queryParams.set('district', selectedDistrict);
-            if (selectedState) queryParams.set('state', selectedState);
-            if (selectedDate !== 'any') queryParams.set('date', selectedDate);
-            if (ratingFilter > 0) queryParams.set('rating', ratingFilter.toString());
-
-            // Add arrays
-            selectedThemes.forEach(theme => queryParams.append('theme', theme));
-            selectedTags.forEach(tag => queryParams.append('tag', tag));
-
-            // Update the URL without triggering a navigation
-            const url = `${window.location.pathname}?${queryParams.toString()}`;
-            window.history.replaceState({}, '', url);
-        };
-
-        // Execute filter logic
-        const timeoutId = setTimeout(() => {
-            applyFilters();
-        }, 100); // Small delay to batch filter changes
-
-        return () => clearTimeout(timeoutId);
-    }, [
-        places,
-        searchTerm,
-        selectedLocation,
-        selectedDistrict,
-        selectedState,
-        selectedThemes,
-        selectedTags,
-        selectedDate,
-        ratingFilter,
-        initialLoading
-    ]);
-
-    // Apply sorting with optimized performance
-    useEffect(() => {
-        if (filteredPlaces.length === 0) return;
-
-        // Create a new array to avoid modifying the original
-        const sortedPlaces = [...filteredPlaces];
-
-        // Sort in-place for better performance
-        switch (sortOrder) {
-            case 'newest':
-                sortedPlaces.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                break;
-            case 'rating':
-                sortedPlaces.sort((a, b) => {
-                    const ratingA = a.rating_count > 0 ? a.rating_sum / a.rating_count : 0;
-                    const ratingB = b.rating_count > 0 ? b.rating_sum / b.rating_count : 0;
-                    return ratingB - ratingA;
-                });
-                break;
-            case 'name':
-                sortedPlaces.sort((a, b) => a.name.localeCompare(b.name));
-                break;
-            case 'popular':
-                // "Most Popular" was offered in the sort menu but had no case here, so choosing it
-                // silently left the order untouched (IMP-017). Popularity is review volume; ties
-                // fall back to rating so two places with one review each still order sensibly.
-                sortedPlaces.sort((a, b) => {
-                    const countDiff = (b.rating_count || 0) - (a.rating_count || 0);
-                    if (countDiff !== 0) return countDiff;
-                    const ratingA = a.rating_count > 0 ? a.rating_sum / a.rating_count : 0;
-                    const ratingB = b.rating_count > 0 ? b.rating_sum / b.rating_count : 0;
-                    return ratingB - ratingA;
-                });
-                break;
-        }
-
-        // This comparison avoids an infinite loop if the order is already correct.
-        if (JSON.stringify(sortedPlaces) !== JSON.stringify(filteredPlaces)) {
-            setFilteredPlaces(sortedPlaces);
-        }
-    }, [sortOrder, filteredPlaces]);
-
-
-    // Update displayed places based on pagination with virtualization concepts
-    useEffect(() => {
-        const start = 0;
-        const end = currentPage * placesPerPage;
-
-        // Only render what's needed for current view
-        setDisplayedPlaces(filteredPlaces.slice(start, end));
-    }, [filteredPlaces, currentPage, placesPerPage]);
-
-    // Infinite scroll loading — pagination is a client-side slice, so the next page is
-    // available immediately and needs no interim loading state.
+    // Fetch the first page whenever the query changes.
     //
-    // The guard is load-bearing, not decoration. This effect re-runs every time
-    // displayedPlaces grows, and `inView` only flips back asynchronously when the
-    // observer next fires, so without it one sentinel sighting cascades through every
-    // remaining page in a single burst and pagination stops meaning anything. One page
-    // per in-view episode; the explicit "Load More Places" button below covers the case
-    // where the appended page is too short to push the sentinel back out of view.
+    // This replaces a pair of effects that fought each other: one asked the server for filtered
+    // results *and* kept a client-side reimplementation of the same filters as a fallback, the
+    // other re-sorted the result in the browser and compared old and new with `JSON.stringify`
+    // over the entire dataset to decide whether to write it back. Filtering, sorting and paging
+    // are one query now, so this is one request with one result.
+    //
+    // The client-side filter is gone rather than retained as a fallback: it could only ever see
+    // the page in memory, so after pagination it would answer a whole-catalogue question with
+    // whatever twelve rows happened to be loaded — confidently, and wrongly. A failed request
+    // reports a failure.
+    const skipNextFetchRef = useRef(Boolean(initialResults));
+
+    useEffect(() => {
+        // The server already rendered page one for these criteria; refetching it on mount would
+        // throw away the payload that was just embedded in the HTML.
+        if (skipNextFetchRef.current) {
+            skipNextFetchRef.current = false;
+            setLastUpdated(new Date());
+            return;
+        }
+
+        let cancelled = false;
+        const controller = new AbortController();
+        setLoading(true);
+
+        // Debounced so that typing in the search box issues one request, not one per keystroke.
+        const timer = setTimeout(async () => {
+            try {
+                const response = await fetchPlaces(
+                    { ...criteria, sort: sortOrder, limit: PLACES_PAGE_SIZE, offset: 0 },
+                    { signal: controller.signal }
+                );
+                if (cancelled) return;
+
+                setPlaces(response.data);
+                setTotal(response.pagination.total);
+                setHasMore(response.pagination.hasMore);
+                // `stats` is deliberately not requested here: it describes the catalogue, not
+                // the query, so it does not change when a filter does.
+                setError(null);
+                setLastUpdated(new Date());
+            } catch (err) {
+                // An abort is this effect superseding itself, not a failure to report.
+                if (cancelled || err.name === 'AbortError') return;
+                console.error('Failed to load places:', err);
+                setError('Failed to load places. Please try again.');
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                    setInitialLoading(false);
+                }
+            }
+        }, 250);
+
+        return () => {
+            cancelled = true;
+            controller.abort();
+            clearTimeout(timer);
+        };
+    }, [criteriaKey, sortOrder]);
+
+    // Append the next page. Offsets come from how many rows are already held rather than a page
+    // counter, so a short page or a concurrent insert cannot desynchronise the two.
+    const loadMore = useCallback(async () => {
+        if (loadingMore || !hasMore) return;
+
+        setLoadingMore(true);
+        try {
+            const response = await fetchPlaces({
+                ...criteria, sort: sortOrder, limit: PLACES_PAGE_SIZE, offset: places.length
+            });
+            setPlaces((prev) => [...prev, ...response.data]);
+            setTotal(response.pagination.total);
+            setHasMore(response.pagination.hasMore);
+        } catch (err) {
+            console.error('Failed to load more places:', err);
+            setHasMore(false);
+            setError('Could not load more places.');
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [criteria, sortOrder, places.length, hasMore, loadingMore]);
+
+    // Markers, fetched only while the map is open and thrown away when it closes. Unpaginated by
+    // design — a map showing twelve of a hundred pins is worse than no map — which is affordable
+    // only because `projection: 'map'` returns coordinates and a label rather than full rows.
+    useEffect(() => {
+        if (viewMode !== 'map') return;
+
+        let cancelled = false;
+        const controller = new AbortController();
+        setMapLoading(true);
+
+        fetchPlaces({ ...criteria, projection: 'map' }, { signal: controller.signal })
+            .then((response) => {
+                if (!cancelled) setMapPlaces(response.data);
+            })
+            .catch((err) => {
+                if (cancelled || err.name === 'AbortError') return;
+                console.error('Failed to load map places:', err);
+                setMapPlaces([]);
+            })
+            .finally(() => {
+                if (!cancelled) setMapLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [viewMode, criteriaKey]);
+
+    // Infinite scroll. Each page is now a real request, so the guard matters more than it did
+    // when the next page was a slice of memory: this effect re-runs every time `places` grows,
+    // and `inView` only clears asynchronously when the observer next fires, so without it one
+    // sentinel sighting would fan out into a burst of concurrent requests for the whole
+    // catalogue. One page per in-view episode; the explicit "Load More Places" button below
+    // covers the case where the appended page is too short to push the sentinel back out of view.
     const advancedForCurrentViewRef = useRef(false);
 
     useEffect(() => {
@@ -603,11 +458,11 @@ function Browse() {
         }
 
         if (advancedForCurrentViewRef.current) return;
-        if (displayedPlaces.length >= filteredPlaces.length) return;
+        if (!hasMore || loadingMore) return;
 
         advancedForCurrentViewRef.current = true;
-        setCurrentPage(prev => prev + 1);
-    }, [inView, displayedPlaces.length, filteredPlaces.length]);
+        loadMore();
+    }, [inView, hasMore, loadingMore, loadMore]);
 
     // Handle theme toggle with animation feedback
     const handleThemeToggle = (themeId) => {
@@ -654,35 +509,34 @@ function Browse() {
         window.history.replaceState({}, '', window.location.pathname);
     };
 
-    // Handle refresh with animation
+    // Re-run the current query from page one. It has to respect the active filters — the old
+    // version fetched the unfiltered catalogue and then only applied it when no filters were set,
+    // so pressing refresh with a filter active downloaded everything and displayed none of it.
     const handleRefresh = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-
-            const placesData = await getAllPlaces();
-            setLastUpdated(new Date());
-            setPlaces(placesData);
-
-            if (!hasActiveFilters()) {
-                setFilteredPlaces(placesData);
+            const response = await fetchPlaces({
+                ...criteria, sort: sortOrder, limit: PLACES_PAGE_SIZE, offset: 0, withStats: true
+            });
+            setPlaces(response.data);
+            setTotal(response.pagination.total);
+            setHasMore(response.pagination.hasMore);
+            if (response.stats) {
+                setStats({
+                    totalPlaces: response.stats.total,
+                    avgRating: response.stats.avgRating ?? 0,
+                    topLocation: response.stats.topLocation || '',
+                    locationCount: response.stats.topLocationCount
+                });
             }
-        } catch (error) {
-            console.error('Error refreshing places:', error);
+            setLastUpdated(new Date());
+            setError(null);
+        } catch (err) {
+            console.error('Error refreshing places:', err);
+            setError('Failed to refresh. Please try again.');
         } finally {
             setLoading(false);
         }
-    };
-
-    // Check if any filters are active
-    const hasActiveFilters = () => {
-        return searchTerm ||
-            selectedLocation ||
-            selectedDistrict ||
-            selectedState ||
-            selectedThemes.length > 0 ||
-            selectedTags.length > 0 ||
-            selectedDate !== 'any' ||
-            ratingFilter > 0;
     };
 
     // Count active filters for badge
@@ -1222,7 +1076,7 @@ function Browse() {
                                         </div>
 
                                         <div className="mt-3 text-xs text-center text-gray-500">
-                                            {filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'} found
+                                            {total} {total === 1 ? 'place' : 'places'} found
                                         </div>
                                     </div>
                                 </div>
@@ -1529,7 +1383,7 @@ function Browse() {
                             <div className="mt-2 flex justify-between items-center text-sm text-gray-500">
                                 <div className="flex items-center">
                                     <FiInfo className="mr-1 h-4 w-4 text-primary-500" />
-                                    Found {filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}
+                                    Found {total} {total === 1 ? 'place' : 'places'}
                                 </div>
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
@@ -1957,7 +1811,7 @@ function Browse() {
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-600">Filtered Results</span>
                                         <span className="text-sm font-medium bg-primary-100 text-primary-800 px-2 py-1 rounded">
-                                            {filteredPlaces.length}
+                                            {total}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center">
@@ -2009,7 +1863,7 @@ function Browse() {
                             <div className="hidden md:flex justify-between items-center mb-6 bg-white shadow-lg rounded-xl p-6 border border-gray-100">
                                 <div className="flex-1 max-w-md relative">
                                     <div className="text-sm text-gray-500">
-                                        {filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'} found
+                                        {total} {total === 1 ? 'place' : 'places'} found
                                     </div>
                                 </div>
 
@@ -2143,7 +1997,7 @@ function Browse() {
                                         </motion.button>
                                     </motion.div>
                                 </div>
-                            ) : filteredPlaces.length === 0 ? (
+                            ) : places.length === 0 ? (
                                 <div className="bg-white rounded-xl shadow-lg p-8 text-center">
                                     <motion.div
                                         initial={{ scale: 0.9, opacity: 0 }}
@@ -2179,15 +2033,19 @@ function Browse() {
                                         >
                                             <div className="h-full relative">
                                                 <ExploreMap
-                                                    places={filteredPlaces}
+                                                    places={mapPlaces}
                                                     className="h-full w-full rounded-xl"
                                                 />
 
-                                                {/* Map overlay with place count */}
+                                                {/* Map overlay with place count. Markers are their
+                                                    own request, so this reports its own state
+                                                    rather than borrowing the grid's. */}
                                                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
                                                     <div className="flex items-center text-sm font-medium text-gray-700">
                                                         <FiMapPin className="h-4 w-4 mr-2 text-primary-600" />
-                                                        {filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}
+                                                        {mapLoading
+                                                            ? 'Loading places…'
+                                                            : `${mapPlaces.length} ${mapPlaces.length === 1 ? 'place' : 'places'}`}
                                                     </div>
                                                 </div>
 
@@ -2205,45 +2063,48 @@ function Browse() {
                                     )}
 
                                     {/* Grid View */}
+                                    {/*
+                                        No `LayoutGroup` and no `layout` prop (IMP-045). Layout
+                                        animation makes Framer measure the bounding box of every
+                                        participating element on each list change, so a filter
+                                        toggle forced a synchronous layout read across the whole
+                                        grid — the most expensive thing on the page, spent
+                                        animating cards between positions nobody was tracking.
+                                        The entrance fade stays; it costs nothing to measure.
+                                    */}
                                     {viewMode === 'grid' && (
-                                        <LayoutGroup>
-                                            <motion.div
-                                                layout
-                                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                                                variants={staggerChildren}
-                                                initial="hidden"
-                                                animate="visible"
-                                            >
-                                                {displayedPlaces.map((place, index) => (
-                                                    <motion.div
-                                                        key={place.id}
-                                                        layout
-                                                        variants={fadeInUp}
-                                                        initial="hidden"
-                                                        animate="visible"
-                                                        transition={{
-                                                            duration: 0.4,
-                                                            delay: index % 3 * 0.1
-                                                        }}
-                                                    >
-                                                        <PlaceCard
-                                                            place={place}
-                                                            priority={index < 6}
-                                                        />
-                                                    </motion.div>
-                                                ))}
-                                            </motion.div>
-                                        </LayoutGroup>
+                                        <motion.div
+                                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                                            variants={staggerChildren}
+                                            initial="hidden"
+                                            animate="visible"
+                                        >
+                                            {places.map((place, index) => (
+                                                <motion.div
+                                                    key={place.id}
+                                                    variants={fadeInUp}
+                                                    initial="hidden"
+                                                    animate="visible"
+                                                    transition={{
+                                                        duration: 0.4,
+                                                        delay: index % 3 * 0.1
+                                                    }}
+                                                >
+                                                    <PlaceCard
+                                                        place={place}
+                                                        priority={index < 6}
+                                                    />
+                                                </motion.div>
+                                            ))}
+                                        </motion.div>
                                     )}
 
                                     {/* List View */}
                                     {viewMode === 'list' && (
-                                        <LayoutGroup>
-                                            <motion.div layout className="space-y-6">
-                                                {displayedPlaces.map((place, index) => (
+                                        <motion.div className="space-y-6">
+                                                {places.map((place, index) => (
                                                     <motion.div
                                                         key={place.id}
-                                                        layout
                                                         initial={{ opacity: 0, y: 20 }}
                                                         animate={{ opacity: 1, y: 0 }}
                                                         transition={{
@@ -2378,21 +2239,26 @@ function Browse() {
                                                         </div>
                                                     </motion.div>
                                                 ))}
-                                            </motion.div>
-                                        </LayoutGroup>
+                                        </motion.div>
                                     )}
 
-                                    {/* Load more */}
-                                    {displayedPlaces.length < filteredPlaces.length && viewMode !== 'map' && (
+                                    {/* Load more. The next page is a request now rather than a
+                                        slice of memory, so the button has to report that it is
+                                        working and refuse a second click while it does. */}
+                                    {hasMore && viewMode !== 'map' && (
                                         <div ref={loadMoreRef} className="flex justify-center py-8">
                                             <motion.button
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                onClick={() => setCurrentPage(currentPage + 1)}
-                                                className="inline-flex items-center px-8 py-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                                                whileHover={loadingMore ? undefined : { scale: 1.05 }}
+                                                whileTap={loadingMore ? undefined : { scale: 0.95 }}
+                                                onClick={loadMore}
+                                                disabled={loadingMore}
+                                                aria-busy={loadingMore}
+                                                className="inline-flex items-center px-8 py-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-wait"
                                             >
-                                                <span>Load More Places</span>
-                                                <FiChevronDown className="ml-2 h-4 w-4" />
+                                                <span>{loadingMore ? 'Loading…' : 'Load More Places'}</span>
+                                                {loadingMore
+                                                    ? <FiLoader className="ml-2 h-4 w-4 animate-spin" />
+                                                    : <FiChevronDown className="ml-2 h-4 w-4" />}
                                             </motion.button>
                                         </div>
                                     )}
@@ -2400,7 +2266,7 @@ function Browse() {
                                     {/* Results count */}
                                     {viewMode !== 'map' && (
                                         <div className="text-center text-sm text-gray-500 bg-white rounded-xl py-4 shadow-sm">
-                                            Showing {displayedPlaces.length} of {filteredPlaces.length} results
+                                            Showing {places.length} of {total} results
                                             {hasActiveFilters() && (
                                                 <span className="ml-2">
                                                     • <button
@@ -2524,5 +2390,69 @@ const EnhancedImage = ({ place, priority = false }) => {
         </div>
     );
 };
+
+/**
+ * Render the first page of results on the server (IMP-040).
+ *
+ * `getServerSideProps` rather than `getStaticProps`: this page's content is a function of its
+ * query string, and the filter space — free text crossed with eight dimensions — has no bounded
+ * set of paths to pre-render. It is also the page most often arrived at through a shared filtered
+ * link, which is exactly the case that was worst before: the client mounted, read the URL, fetched
+ * the unfiltered catalogue, then fetched again with filters applied.
+ *
+ * An unreachable API renders the page rather than failing the request: filters and chrome still
+ * work, and the client retries. A 500 here would take out the whole route.
+ */
+export async function getServerSideProps({ query, res }) {
+    const asArray = (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]);
+    const parsedRating = Number.parseInt(query.rating, 10);
+
+    const filters = {
+        searchTerm: query.q || '',
+        location: query.location || '',
+        district: query.district || '',
+        state: query.state || '',
+        themes: asArray(query.theme),
+        tags: asArray(query.tag),
+        date: query.date || 'any',
+        minRating: Number.isFinite(parsedRating) ? parsedRating : 0
+    };
+
+    // The rendered HTML depends only on the query string, so it is shareable between users, but
+    // it must not be held long — a new place should appear without waiting out a cache.
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+
+    try {
+        const [results, facets] = await Promise.all([
+            fetchPlaces({
+                searchTerm: filters.searchTerm || undefined,
+                location: filters.location || undefined,
+                district: filters.district || undefined,
+                state: filters.state || undefined,
+                themes: filters.themes.length ? filters.themes : undefined,
+                tags: filters.tags.length ? filters.tags : undefined,
+                date: filters.date !== 'any' ? filters.date : undefined,
+                minRating: filters.minRating > 0 ? filters.minRating : undefined,
+                sort: 'newest',
+                limit: PLACES_PAGE_SIZE,
+                offset: 0,
+                withStats: true
+            }),
+            fetchFacets()
+        ]);
+
+        return { props: { initialResults: results, initialFacets: facets, initialFilters: filters } };
+    } catch (error) {
+        console.error('[getServerSideProps] browse:', error.message);
+        return {
+            props: {
+                initialResults: null,
+                initialFacets: null,
+                initialFilters: filters,
+                initialError: 'Failed to load places. Please try again.'
+            }
+        };
+    }
+}
 
 export default Browse;

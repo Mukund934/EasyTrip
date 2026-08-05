@@ -11,9 +11,13 @@ module.exports = {
       // stylesheet the detail page downloaded was never applied — a paid-for request with no
       // visual effect. `font-inter` was worse: an undefined class, so it did nothing at all
       // (IMP-028). Declaring the families here is what makes the loaded fonts reachable.
+      // The families are resolved through the CSS variables `next/font` generates in `_app.jsx`
+      // (IMP-041) rather than by name. Naming them directly would still work in the browser but
+      // only because the fonts happened to be installed or already fetched; the variable points
+      // at the self-hosted, build-time file. System stacks stay as the fallback.
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        serif: ['"Playfair Display"', 'ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'serif'],
+        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        serif: ['var(--font-playfair)', 'ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'serif'],
       },
       colors: {
         primary: {

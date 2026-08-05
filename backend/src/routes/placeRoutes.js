@@ -125,6 +125,23 @@ const searchRules = [
     .withMessage('date must be one of: summer, monsoon, winter')
 ];
 
+// Pagination, sorting and projection (IMP-038). `limit` is capped in the model as well; this
+// rule exists so an out-of-range value is a 400 the caller can see rather than a silent clamp.
+// `sort` and `projection` are enumerations because both index into server-side SQL fragments —
+// rejecting anything unrecognised here keeps that lookup total.
+const listRules = [
+  query('limit').optional({ values: 'falsy' }).isInt({ min: 1, max: 100 })
+    .withMessage('limit must be between 1 and 100'),
+  query('offset').optional({ values: 'falsy' }).isInt({ min: 0 })
+    .withMessage('offset must be zero or greater'),
+  query('sort').optional({ values: 'falsy' }).isIn(['newest', 'oldest', 'rating', 'popular', 'name'])
+    .withMessage('sort must be one of: newest, oldest, rating, popular, name'),
+  query('projection').optional({ values: 'falsy' }).isIn(['list', 'map'])
+    .withMessage('projection must be one of: list, map'),
+  query('withStats').optional({ values: 'falsy' }).isIn(['true', '1', 'false', '0'])
+    .withMessage('withStats must be a boolean')
+];
+
 const reviewRules = [
   placeIdParam,
   body('rating')
@@ -176,8 +193,11 @@ const reportRules = [
 ];
 
 // Public routes
-router.get('/places', placeController.getAllPlaces);
-router.get('/places/search', searchRules, handleValidationErrors, placeController.searchPlaces);
+// One handler, two names. `/places` had no validation at all before — it took no parameters, so
+// there was nothing to validate; now that it accepts the full filter and pagination surface it
+// gets the same rules as `/places/search`, which is the point of routing them to one place.
+router.get('/places', searchRules, listRules, handleValidationErrors, placeController.listPlaces);
+router.get('/places/search', searchRules, listRules, handleValidationErrors, placeController.listPlaces);
 router.get('/places/locations', placeController.getAllLocations);
 router.get('/places/districts', placeController.getDistricts);
 router.get('/places/states', placeController.getStates);

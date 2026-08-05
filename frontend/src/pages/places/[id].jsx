@@ -16,6 +16,8 @@ import {
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview, deletePlaceReview, reportPlaceReview } from '../../services/placeService';
+// Server-side reads come from placesApi, which carries no Firebase import — see its header.
+import { fetchPlaces, fetchPlaceById, fetchPlaceImages, fetchPlaceReviews } from '../../services/placesApi';
 import ImageGallery from '../../components/ImageGallery';
 import MagazineGallery from '../../components/MagazineGallery';
 import ReviewForm from '../../components/ReviewForm';
@@ -960,19 +962,45 @@ const formatRelativeTime = (dateString) => {
 };
 
 
+/**
+ * Compose the gallery: the primary image first, then the gallery rows, de-duplicated by URL.
+ *
+ * Shared by `getStaticProps` and the client refresh path so the two cannot disagree about what
+ * the first image is — which matters, because the first image is the hero.
+ */
+const composeGallery = (place, galleryImages) => {
+  const all = [
+    { id: 'primary', image_url: place?.primary_image_url || place?.image_url || FALLBACK_IMAGE },
+    ...(galleryImages || [])
+  ].filter((img) => img.image_url);
+
+  const seen = new Set();
+  return all.filter((img) => {
+    if (seen.has(img.image_url)) return false;
+    seen.add(img.image_url);
+    return true;
+  });
+};
+
 // Main Component with enhanced magazine-style layout
-export default function PlaceDetails() {
+//
+// Place, gallery and reviews arrive as props from `getStaticProps` (IMP-040). This page used to
+// be a three-stage client waterfall behind a spinner — place, then images + reviews, then
+// related places — which meant a crawler saw an empty shell on the pages a travel site most
+// needs indexed, and a visitor saw a spinner until three round trips had resolved.
+export default function PlaceDetails({ initialPlace = null, initialImages = [], initialReviews = [] }) {
   const router = useRouter();
   const { id } = router.query;
   const { currentUser, isAuthenticated, getIdToken, loading: authLoading } = useAuth();
   const { scrollY } = useScroll();
 
-  // State management
-  const [place, setPlace] = useState(null);
-  const [images, setImages] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [contentLoading, setContentLoading] = useState(true);
+  // State management — seeded from the pre-rendered payload, so the first render already has
+  // content. The fetch path below survives for the retry button and for post-review refreshes.
+  const [place, setPlace] = useState(initialPlace);
+  const [images, setImages] = useState(initialImages);
+  const [reviews, setReviews] = useState(initialReviews);
+  const [loading, setLoading] = useState(!initialPlace);
+  const [contentLoading, setContentLoading] = useState(!initialPlace);
   const [error, setError] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeSection, setActiveSection] = useState('about');
@@ -1043,15 +1071,7 @@ export default function PlaceDetails() {
 
       // Handle images
       const imageResults = imagesData.status === 'fulfilled' ? imagesData.value : [];
-      const allImages = [
-        { id: 'primary', image_url: placeData.primary_image_url || placeData.image_url || FALLBACK_IMAGE },
-        ...(imageResults || []),
-      ].filter(img => img.image_url);
-
-      // Remove duplicates and set images
-      const uniqueImages = Array.from(new Set(allImages.map(img => img.image_url)))
-        .map(url => allImages.find(img => img.image_url === url));
-      setImages(uniqueImages);
+      setImages(composeGallery(placeData, imageResults));
 
       // Handle reviews
             // Handle reviews
@@ -1071,10 +1091,30 @@ export default function PlaceDetails() {
     }
   }, [id]);
 
-  // Effect for initial data loading
+  // Re-seed when the props change.
+  //
+  // `useState(initialPlace)` only runs its initialiser on mount, and Next re-renders this same
+  // component with new props when you navigate from one place to another. The keyed
+  // ErrorBoundary in `_app` happens to remount the whole page subtree on every route change, so
+  // this would be correct without the effect — but that makes this page's correctness depend on
+  // an unrelated component's `key`, and the failure mode if someone removes it is silently
+  // rendering the previous place's content under the new URL.
   useEffect(() => {
+    if (!initialPlace) return;
+    setPlace(initialPlace);
+    setImages(initialImages);
+    setReviews(initialReviews);
+    setError(null);
+    setLoading(false);
+    setContentLoading(false);
+  }, [initialPlace, initialImages, initialReviews]);
+
+  // Client fetch, only when the page was not pre-rendered with data. With `getStaticProps` in
+  // place that is the retry path rather than the normal one.
+  useEffect(() => {
+    if (initialPlace) return;
     fetchAllData();
-  }, [fetchAllData]);
+  }, [fetchAllData, initialPlace]);
 
   // The first reviews read happens at mount, usually a beat before Firebase restores the
   // session, so it goes out unauthenticated and the server cannot mark `is_own`. Re-read
@@ -1765,4 +1805,74 @@ export default function PlaceDetails() {
       </div>
     </>
   );
+}
+/**
+ * Which detail pages exist at build time (IMP-040).
+ *
+ * Only the most recent 20 are pre-built. `fallback: 'blocking'` means everything else is
+ * generated on its first request and then cached like any other static page, so the build stays
+ * fast and bounded no matter how large the catalogue grows — pre-building all of them would make
+ * deploy time a function of row count for pages nobody may visit.
+ *
+ * A failure here returns an empty path list rather than throwing. The API being unreachable
+ * during a build is an infrastructure state, not a reason to ship nothing; every page is still
+ * reachable through the fallback.
+ */
+export async function getStaticPaths() {
+  try {
+    const { data } = await fetchPlaces({ limit: 20, sort: 'newest' });
+    return {
+      paths: data.map((place) => ({ params: { id: String(place.id) } })),
+      fallback: 'blocking'
+    };
+  } catch (error) {
+    console.error('[getStaticPaths] places:', error.message);
+    return { paths: [], fallback: 'blocking' };
+  }
+}
+
+/**
+ * Render the place, its gallery and its reviews into the HTML.
+ *
+ * Reviews are included even though `is_own` cannot be resolved without a caller — this request
+ * has no user, so every review comes back marked as somebody else's. That is the correct answer
+ * for the cached copy, which is shared by every visitor and by crawlers; the page re-reads
+ * reviews with the user's token once Firebase restores the session, and that pass is what makes
+ * the edit affordance appear. The alternative — leaving reviews out of the static payload — would
+ * hide real review content from search engines to avoid a flag anonymous visitors never see.
+ */
+export async function getStaticProps({ params }) {
+  try {
+    const place = await fetchPlaceById(params.id);
+
+    // Neither of these should sink the page: a place with an unreachable gallery or review list
+    // is still worth rendering.
+    const [imagesResult, reviewsResult] = await Promise.allSettled([
+      fetchPlaceImages(params.id),
+      fetchPlaceReviews(params.id)
+    ]);
+
+    return {
+      props: {
+        initialPlace: place,
+        initialImages: composeGallery(
+          place,
+          imagesResult.status === 'fulfilled' ? imagesResult.value : []
+        ),
+        initialReviews: reviewsResult.status === 'fulfilled' ? reviewsResult.value : []
+      },
+      revalidate: 300
+    };
+  } catch (error) {
+    // A real 404 is a real 404 — but recheck periodically, since `fallback: 'blocking'` means
+    // this also covers a place created after the last build.
+    if (error.status === 404) {
+      return { notFound: true, revalidate: 300 };
+    }
+
+    // Anything else is an outage, not a missing page. Throwing keeps the last successfully
+    // generated copy being served during ISR instead of replacing it with a 404 that would then
+    // be cached and indexed.
+    throw error;
+  }
 }

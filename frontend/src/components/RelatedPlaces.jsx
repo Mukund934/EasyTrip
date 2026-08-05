@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { searchPlaces } from '../services/placeService';
+import { fetchPlaces } from '../services/placesApi';
 import PlaceCard from './PlaceCard';
 
 const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
@@ -17,19 +17,20 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
         setLoading(true);
         setFailed(false);
         
-        // Create search criteria
-        const criteria = {
+        // Ask for five and keep four. This used to download every place matching the theme —
+        // full rows, no limit — and slice to four in the browser, so a popular theme cost a
+        // whole-catalogue payload to render one strip of cards. The extra row covers the one
+        // case the server cannot: the current place matching its own criteria (IMP-038).
+        const { data } = await fetchPlaces({
           ...(themes && themes.length > 0 && { themes }),
-          ...(!themes?.length && location && { location })
-        };
-        
-        // Fetch related places
-        let results = await searchPlaces(criteria);
-        
-        // Filter out current place
-        results = results.filter(place => place.id.toString() !== currentPlaceId.toString());
-        
-        // Limit to 4 places
+          ...(!themes?.length && location && { location }),
+          limit: 5
+        });
+
+        const results = data.filter(
+          (place) => place.id.toString() !== currentPlaceId.toString()
+        );
+
         setRelatedPlaces(results.slice(0, 4));
       } catch (error) {
         console.error('Error fetching related places:', error);

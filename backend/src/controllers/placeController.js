@@ -58,29 +58,85 @@ const toPublicReview = (row, viewerUid) => {
   };
 };
 
-/**
- * Get all places
- */
-const getAllPlaces = async (req, res) => {
+// ---------------------------------------------------------------------------
+// Place lists (IMP-038)
+// ---------------------------------------------------------------------------
+//
+// `/api/places` and `/api/places/search` are the same read behind two names — the second one is
+// the first one with filters bound. They share this handler so pagination, sorting, projection
+// and the image fallback cannot behave differently depending on which URL the caller picked.
+//
+// Response contract, on both routes:
+//
+//   { data: [...], pagination: { total, limit, offset, hasMore, sort } }
+//
+// This replaced a bare array. Every consumer in this repo was migrated in the same change; the
+// envelope is not optional and there is no legacy shape to fall back to, because a list endpoint
+// that sometimes reports a total and sometimes does not is worse than either alternative.
+
+// Query arrays arrive either repeated (`?tags=a&tags=b`) or JSON-encoded, depending on the caller.
+const parseArrayParam = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (Array.isArray(value)) return value;
   try {
-    const timestamp = new Date().toISOString();
-    const user = getCurrentUser(req);
-    
-    console.log(`[${timestamp}] Getting all places - Requested by: ${user}`);
-    
-    const places = await placeModel.getAllPlaces();
-    
-    const formattedPlaces = places.map(({ fallback_image_url, ...place }) => ({
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [value];
+  } catch {
+    return [value];
+  }
+};
+
+const criteriaFromQuery = (query) => {
+  const parsedMinRating = Number.parseFloat(query.minRating);
+  return {
+    searchTerm: query.searchTerm?.trim() || undefined,
+    location: query.location?.trim() || undefined,
+    district: query.district?.trim() || undefined,
+    state: query.state?.trim() || undefined,
+    tags: parseArrayParam(query.tags),
+    themes: parseArrayParam(query.themes),
+    minRating: Number.isFinite(parsedMinRating) ? parsedMinRating : undefined,
+    date: query.date?.trim() || undefined
+  };
+};
+
+const listPlacesHandler = async (req, res) => {
+  try {
+    const { sort, limit, offset, projection, withStats } = req.query;
+    const filters = criteriaFromQuery(req.query);
+
+    const result = await placeModel.listPlaces({
+      filters,
+      sort,
+      limit,
+      offset,
+      projection: projection === 'map' ? 'map' : 'list',
+      withStats: withStats === 'true' || withStats === '1'
+    });
+
+    const data = result.rows.map(({ fallback_image_url, ...place }) => ({
       ...place,
       image_url: place.primary_image_url || fallback_image_url || null
     }));
-    
-    console.log(`[${timestamp}] Found ${places.length} places`);
-    
-    res.status(200).json(formattedPlaces);
+
+    const body = {
+      data,
+      pagination: {
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        hasMore: result.offset + data.length < result.total,
+        sort: placeModel.SORT_ORDERS[sort] ? sort : 'newest'
+      }
+    };
+
+    // Present only when asked for, so a caller cannot mistake its absence for zeroes.
+    if (result.stats) body.stats = result.stats;
+
+    res.status(200).json(body);
   } catch (error) {
-    console.error('[ERROR] Error getting places:', error);
-    res.status(500).json({ 
+    console.error('[ERROR] Error listing places:', error);
+    res.status(500).json({
       message: 'Error getting places',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -581,49 +637,6 @@ const deletePlace = async (req, res) => {
   }
 };
 
-// Search and metadata functions
-const searchPlaces = async (req, res) => {
-  try {
-    const { searchTerm, location, tags, themes, district, state, minRating, date } = req.query;
-    const timestamp = new Date().toISOString();
-    const user = getCurrentUser(req);
-
-    // themes/minRating/date were accepted by the route and silently dropped here before
-    // Phase 2, so every one of those filters was a no-op for the user (IMP-011).
-    const parsedMinRating = Number.parseFloat(minRating);
-
-    const criteria = {
-      searchTerm: searchTerm?.trim(),
-      location: location?.trim(),
-      district: district?.trim(),
-      state: state?.trim(),
-      tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : undefined,
-      themes: themes ? (Array.isArray(themes) ? themes : JSON.parse(themes)) : undefined,
-      minRating: Number.isFinite(parsedMinRating) ? parsedMinRating : undefined,
-      date: date?.trim()
-    };
-    
-    const places = await placeModel.searchPlaces(criteria);
-    
-    const formattedPlaces = places.map(({ fallback_image_url, ...place }) => ({
-      ...place,
-      image_url: place.primary_image_url || fallback_image_url || null
-    }));
-    
-    res.status(200).json(formattedPlaces);
-  } catch (error) {
-    console.error('[ERROR] Error searching places:', error);
-    res.status(500).json({ 
-      message: 'Error searching places',
-      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
-      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
-      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
-      timestamp: new Date().toISOString()
-    });
-  }
-};
-
 const getPlaceImages = async (req, res) => {
   try {
     const { id } = req.params;
@@ -961,7 +974,7 @@ const deletePlaceImage = async (req, res) => {
 };
 
 module.exports = {
-  getAllPlaces,
+  listPlaces: listPlacesHandler,
   getPlaceById,
   getPlaceImage,
   getPlaceImages,
@@ -970,7 +983,6 @@ module.exports = {
   createPlace,
   updatePlace,
   deletePlace,
-  searchPlaces,
   getAllLocations,
   getDistricts,
   getStates,

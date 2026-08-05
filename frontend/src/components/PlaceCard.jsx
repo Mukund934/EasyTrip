@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -455,4 +455,16 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
   );
 };
 
-export default PlaceCard;
+/**
+ * Memoised (IMP-045).
+ *
+ * The browse grid renders this component once per result, and each instance carries ~11
+ * motion elements, an IntersectionObserver and date formatting. Browse holds a lot of state that
+ * has nothing to do with any card — hover flags, the sort menu, the loading flag, the filter
+ * panel — and every one of those changes re-rendered every visible card, because there was no
+ * React.memo anywhere in the codebase.
+ *
+ * The default shallow comparison is the right one here: `place` is a row object replaced
+ * wholesale when the query changes, and the remaining props are primitives.
+ */
+export default memo(PlaceCard);

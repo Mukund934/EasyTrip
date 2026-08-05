@@ -1,7 +1,35 @@
 import axios from 'axios';
 import { auth } from '../config/firebase';
+import {
+  fetchPlaceById,
+  fetchPlaceImages,
+  fetchLocations,
+  fetchDistricts,
+  fetchStates,
+  fetchTags
+} from './placesApi';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+/**
+ * This module now holds only what needs a Firebase ID token. The public reads moved to
+ * `placesApi.js` so the server-rendering paths can call them without importing
+ * `../config/firebase`, which this file initialises at module scope (IMP-040).
+ *
+ * The read names below are re-exported rather than reimplemented: one implementation, one place
+ * for a bug to live, and no import churn in the admin pages that already call them.
+ *
+ * `getAllPlaces` and `searchPlaces` are deliberately *not* here any more. Both returned a bare
+ * array; the endpoint now returns `{ data, pagination }`, and a function that quietly discarded
+ * the pagination half would hand callers a page while letting them believe it was the catalogue.
+ * Callers use `fetchPlaces` from `placesApi` instead.
+ */
+const getPlaceById = fetchPlaceById;
+const getPlaceImages = fetchPlaceImages;
+const getLocations = fetchLocations;
+const getDistricts = fetchDistricts;
+const getStates = fetchStates;
+const getTags = fetchTags;
 
 /**
  * Build the Authorization header for an authenticated request.
@@ -23,152 +51,6 @@ const authHeaders = async (token) => {
   }
 
   return { Authorization: `Bearer ${idToken}` };
-};
-
-/**
- * Get all places
- */
-const getAllPlaces = async () => {
-  try {
-    console.log('Getting all places');
-
-    const response = await axios.get(`${API_URL}/places`);
-
-    console.log(`Places fetched successfully: ${response.data.length} items`);
-    if (response.data.length > 0) {
-      console.log(`First place preview:`, {
-        id: response.data[0].id,
-        name: response.data[0].name,
-        location: response.data[0].location,
-        hasImage: !!response.data[0].primary_image_url,
-        tagsCount: response.data[0].tags ? response.data[0].tags.length : 0
-      });
-    }
-
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching places:', error.response?.data || error.message);
-    throw new Error('Failed to fetch places');
-  }
-};
-
-/**
- * Get place by ID
- */
-const getPlaceById = async (id) => {
-  try {
-    console.log(`Getting place ID ${id}`);
-
-    const response = await axios.get(`${API_URL}/places/${id}`);
-
-    console.log(`Place ID ${id} fetched successfully: ${response.data.name}`);
-    console.log(`Image source: ${response.data.primary_image_url ? 'Cloudinary' : 'API Endpoint'}`);
-
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching place ${id}:`, error.response?.data || error.message);
-    throw {
-      message: error.response?.data?.message || 'Place not found',
-      status: error.response?.status || 404
-    };
-  }
-};
-
-/**
- * Search places
- */
-const searchPlaces = async (criteria) => {
-  try {
-    console.log('Searching places with criteria:', criteria);
-
-    // Build query string
-    const params = new URLSearchParams();
-    Object.entries(criteria).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        if (Array.isArray(value)) {
-          params.append(key, JSON.stringify(value));
-        } else {
-          params.append(key, value);
-        }
-      }
-    });
-
-    const response = await axios.get(`${API_URL}/places/search?${params.toString()}`);
-
-    console.log(`Search returned ${response.data.length} places`);
-    return response.data;
-  } catch (error) {
-    console.error('Error searching places:', error.response?.data || error.message);
-    throw new Error('Failed to search places');
-  }
-};
-
-/**
- * Get locations
- */
-const getLocations = async () => {
-  try {
-    console.log('Getting locations');
-
-    const response = await axios.get(`${API_URL}/places/locations`);
-
-    console.log(`Locations fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching locations:', error.response?.data || error.message);
-    throw new Error('Failed to fetch locations');
-  }
-};
-
-/**
- * Get districts
- */
-const getDistricts = async () => {
-  try {
-    console.log('Getting districts');
-
-    const response = await axios.get(`${API_URL}/places/districts`);
-
-    console.log(`Districts fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching districts:', error.response?.data || error.message);
-    throw new Error('Failed to fetch districts');
-  }
-};
-
-/**
- * Get states
- */
-const getStates = async () => {
-  try {
-    console.log('Getting states');
-
-    const response = await axios.get(`${API_URL}/places/states`);
-
-    console.log(`States fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching states:', error.response?.data || error.message);
-    throw new Error('Failed to fetch states');
-  }
-};
-
-/**
- * Get tags
- */
-const getTags = async () => {
-  try {
-    console.log('Getting tags');
-
-    const response = await axios.get(`${API_URL}/places/tags`);
-
-    console.log(`Tags fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching tags:', error.response?.data || error.message);
-    throw new Error('Failed to fetch tags');
-  }
 };
 
 /**
@@ -509,28 +391,9 @@ const deletePlaceImage = async (id, imageId, token) => {
   }
 };
 
-/**
- * Get place images
- */
-const getPlaceImages = async (id) => {
-  try {
-    console.log(`Getting images for place ${id}`);
-
-    const response = await axios.get(`${API_URL}/places/${id}/images`);
-
-    console.log(`Images fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching images for place ${id}:`, error.response?.data || error.message);
-    throw new Error('Failed to fetch images');
-  }
-};
-
 // Export all functions
 export default {
-  getAllPlaces,
   getPlaceById,
-  searchPlaces,
   getLocations,
   getDistricts,
   getStates,
@@ -549,9 +412,7 @@ export default {
 
 // Named exports for direct imports
 export {
-  getAllPlaces,
   getPlaceById,
-  searchPlaces,
   getLocations,
   getDistricts,
   getStates,

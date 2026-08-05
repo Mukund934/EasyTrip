@@ -20,7 +20,8 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import ImageWithFallback from '../../components/ImageWithFallback';
-import { getAllPlaces, deletePlace } from '../../services/placeService';
+import { deletePlace } from '../../services/placeService';
+import { fetchPlaces } from '../../services/placesApi';
 
 // Utility function to format dates
 const formatDate = (dateString) => {
@@ -72,11 +73,35 @@ export default function ManagePlaces() {
 
   // Fetch places
   useEffect(() => {
-    const fetchPlaces = async () => {
+    const loadAllPlaces = async () => {
       try {
         setLoadingPlaces(true);
         setLoadError(null);
-        const data = await getAllPlaces();
+
+        // This table searches, sorts and filters entirely in the browser, so unlike the public
+        // browse grid it genuinely wants the whole catalogue — but the endpoint now caps a
+        // single response at 100 rows (IMP-038). Walk the pages instead of asking for a limit
+        // the server will silently clamp, which would show an admin a truncated list that looks
+        // complete. PAGE_CAP is a runaway guard, not a product limit; hitting it is reported.
+        const PAGE_SIZE = 100;
+        const PAGE_CAP = 50;
+        const data = [];
+        let offset = 0;
+        let truncated = false;
+
+        for (let page = 0; ; page += 1) {
+          if (page >= PAGE_CAP) { truncated = true; break; }
+          const { data: rows, pagination } = await fetchPlaces({ limit: PAGE_SIZE, offset });
+          data.push(...rows);
+          if (!pagination.hasMore || rows.length === 0) break;
+          offset += rows.length;
+        }
+
+        if (truncated) {
+          console.warn(`Place list truncated at ${data.length} rows (${PAGE_CAP} pages).`);
+          toast.warn(`Showing the first ${data.length} places.`);
+        }
+
         console.log('Places fetched:', {
           count: data.length,
           firstPlace: data[0] ? { id: data[0].id, name: data[0].name, updatedByName: data[0].updated_by_name } : null,
@@ -101,7 +126,7 @@ export default function ManagePlaces() {
     };
 
     if (!loading && currentUser && isAdmin) {
-      fetchPlaces();
+      loadAllPlaces();
     }
   }, [loading, currentUser, isAdmin]);
 
