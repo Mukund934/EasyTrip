@@ -30,8 +30,17 @@ const getPlaceById = async (id) => {
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
         ELSE NULL
-      END AS average_rating
-    FROM places WHERE id = $1`,
+      END AS average_rating,
+      first_image.image_url AS fallback_image_url
+    FROM places
+    LEFT JOIN LATERAL (
+      SELECT pi.image_url
+      FROM place_images pi
+      WHERE pi.place_id = places.id
+      ORDER BY pi.display_order, pi.created_at
+      LIMIT 1
+    ) first_image ON TRUE
+    WHERE places.id = $1`,
     [id]
   );
   return result.rows[0] || null;
@@ -45,8 +54,16 @@ const getAllPlaces = async () => {
            CASE
              WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
              ELSE NULL
-           END AS average_rating
+           END AS average_rating,
+      first_image.image_url AS fallback_image_url
     FROM places
+    LEFT JOIN LATERAL (
+      SELECT pi.image_url
+      FROM place_images pi
+      WHERE pi.place_id = places.id
+      ORDER BY pi.display_order, pi.created_at
+      LIMIT 1
+    ) first_image ON TRUE
     ORDER BY created_at DESC`
   );
   return result.rows;
@@ -110,8 +127,17 @@ const searchPlaces = async (criteria) => {
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
         ELSE NULL
-      END AS average_rating
-    FROM places WHERE 1=1
+      END AS average_rating,
+      first_image.image_url AS fallback_image_url
+    FROM places
+    LEFT JOIN LATERAL (
+      SELECT pi.image_url
+      FROM place_images pi
+      WHERE pi.place_id = places.id
+      ORDER BY pi.display_order, pi.created_at
+      LIMIT 1
+    ) first_image ON TRUE
+    WHERE 1=1
   `;
   const params = [];
 

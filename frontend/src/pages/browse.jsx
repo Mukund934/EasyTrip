@@ -2480,15 +2480,14 @@ const EnhancedImage = ({ place, priority = false }) => {
     const [status, setStatus] = useState('loading');
     const fallbackImage = '/images/placeholder.jpg';
 
-    // Get proper image URL with cache busting in development
+    // The API returns an absolute CDN url or null, so the proxy fallback is gone (IMP-037), and
+    // with it the `?t=${Date.now()}` cache-buster — it ran on every render, not just in
+    // development builds as intended, so each re-render produced a new URL and re-fetched.
     const getImageUrl = () => {
-        const cacheBuster = process.env.NODE_ENV === 'development' ? `?t=${Date.now()}` : '';
-
         // Card-sized delivery transform: never pull the full-resolution original into a ~400px slot
-        if (place.primary_image_url) return `${getCloudinaryThumbnail(place.primary_image_url)}${cacheBuster}`;
-        if (place.image_url) return `${getCloudinaryThumbnail(place.image_url)}${cacheBuster}`;
-
-        return `/api/places/${place.id}/image${cacheBuster}`;
+        if (place.primary_image_url) return getCloudinaryThumbnail(place.primary_image_url);
+        if (place.image_url) return getCloudinaryThumbnail(place.image_url);
+        return '/images/placeholder.jpg';
     };
 
     return (

@@ -15,7 +15,9 @@ const CarouselImage = ({ place, isActive }) => {
   const getImageUrl = () => {
     if (place?.primary_image_url) return place.primary_image_url;
     if (place?.image_url) return place.image_url;
-    return `/api/places/${place?.id}/image`;
+    // Local placeholder rather than the proxy: the API already resolved the fallback, so a
+    // missing image means there is none to fetch (IMP-037).
+    return '/images/placeholder.jpg';
   };
 
   return (

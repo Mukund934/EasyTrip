@@ -29,18 +29,17 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
   const isValidPlace = place && place.id && place.name;
 
   // Get proper image URL for main image with optional cache busting in development
+  // The API now returns an absolute CDN url or null, so there is no proxy hop left to take
+  // (IMP-037). When there is no image, render the local placeholder directly — previously this
+  // fell through to `/api/places/:id/image`, which cost three server hops and two database
+  // queries only to end up serving that same placeholder.
+  //
+  // The `?t=${Date.now()}` cache-buster is gone with it. It was meant to be development-only, but
+  // it was evaluated on every render, so any re-render produced a new URL and re-downloaded the
+  // image — and it made the browser cache useless for the whole session.
   const getImageUrl = () => {
-    const cacheBuster = process.env.NODE_ENV === 'development' ? `?t=${Date.now()}` : '';
-    
-    // Prefer Cloudinary URLs or primary_image_url first
-    if (place.primary_image_url && !imageError) return `${place.primary_image_url}${cacheBuster}`;
-    if (place.image_url && !imageError) return `${place.image_url}${cacheBuster}`;
-    
-    // Fallback to API endpoint
-    if (isValidPlace && !imageError) return `/api/places/${place.id}/image${cacheBuster}`;
-    
-    // Ultimate fallback
-    return defaultImage;
+    if (imageError) return defaultImage;
+    return place.primary_image_url || place.image_url || defaultImage;
   };
 
   // Handle image error with advanced retry logic

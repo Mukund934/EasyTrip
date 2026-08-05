@@ -17,7 +17,7 @@ const PlaceList = ({ places }) => {
           place={{
             ...place,
             // Ensure image_url is always set
-            image_url: place.image_url || `/api/places/${place.id}/image`
+            image_url: place.image_url || '/images/placeholder.jpg'
           }} 
         />
       ))}

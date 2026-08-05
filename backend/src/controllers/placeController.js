@@ -70,9 +70,9 @@ const getAllPlaces = async (req, res) => {
     
     const places = await placeModel.getAllPlaces();
     
-    const formattedPlaces = places.map(place => ({
+    const formattedPlaces = places.map(({ fallback_image_url, ...place }) => ({
       ...place,
-      image_url: place.primary_image_url || `/api/places/${place.id}/image`
+      image_url: place.primary_image_url || fallback_image_url || null
     }));
     
     console.log(`[${timestamp}] Found ${places.length} places`);
@@ -116,9 +116,10 @@ const getPlaceById = async (req, res) => {
       });
     }
 
+    const { fallback_image_url, ...placeFields } = place;
     const formattedPlace = {
-      ...place,
-      image_url: place.primary_image_url || `/api/places/${id}/image`
+      ...placeFields,
+      image_url: place.primary_image_url || fallback_image_url || null
     };
     
     console.log(`[${timestamp}] Found place: ID=${place.id}, Name=${place.name}`);
@@ -169,6 +170,9 @@ const getPlaceImage = async (req, res) => {
         
         if (image.rows.length > 0 && image.rows[0].image_url) {
           console.log(`[${timestamp}] Redirecting to specific image: ${image.rows[0].image_url}`);
+        // A 302 with no cache policy is re-requested every time. The destination for a given
+        // place/image id is stable, so let the browser remember it.
+        res.set('Cache-Control', 'public, max-age=3600');
           return res.redirect(image.rows[0].image_url);
         }
       } catch (err) {
@@ -179,6 +183,9 @@ const getPlaceImage = async (req, res) => {
     // Use primary image URL if available
     if (place.primary_image_url) {
       console.log(`[${timestamp}] Redirecting to primary image: ${place.primary_image_url}`);
+        // A 302 with no cache policy is re-requested every time. The destination for a given
+        // place/image id is stable, so let the browser remember it.
+        res.set('Cache-Control', 'public, max-age=3600');
       return res.redirect(place.primary_image_url);
     }
     
@@ -191,6 +198,9 @@ const getPlaceImage = async (req, res) => {
       
       if (fallbackImage.rows.length > 0 && fallbackImage.rows[0].image_url) {
         console.log(`[${timestamp}] Redirecting to fallback image: ${fallbackImage.rows[0].image_url}`);
+        // A 302 with no cache policy is re-requested every time. The destination for a given
+        // place/image id is stable, so let the browser remember it.
+        res.set('Cache-Control', 'public, max-age=3600');
         return res.redirect(fallbackImage.rows[0].image_url);
       }
     } catch (err) {
@@ -368,7 +378,7 @@ const createPlace = async (req, res) => {
     
     const response = {
       ...newPlace,
-      image_url: newPlace.primary_image_url || `/api/places/${newPlace.id}/image`,
+      image_url: newPlace.primary_image_url || null,
       success: true
     };
     
@@ -487,7 +497,7 @@ const updatePlace = async (req, res) => {
     
     const response = {
       ...updatedPlace,
-      image_url: updatedPlace.primary_image_url || `/api/places/${id}/image`
+      image_url: updatedPlace.primary_image_url || null
     };
     
     res.status(200).json(response);
@@ -595,9 +605,9 @@ const searchPlaces = async (req, res) => {
     
     const places = await placeModel.searchPlaces(criteria);
     
-    const formattedPlaces = places.map(place => ({
+    const formattedPlaces = places.map(({ fallback_image_url, ...place }) => ({
       ...place,
-      image_url: place.primary_image_url || `/api/places/${place.id}/image`
+      image_url: place.primary_image_url || fallback_image_url || null
     }));
     
     res.status(200).json(formattedPlaces);
