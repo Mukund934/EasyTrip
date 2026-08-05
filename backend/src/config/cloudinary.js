@@ -84,13 +84,6 @@ const uploadImage = async (filePath, options = {}) => {
       );
     });
     
-    // Clean up the temporary file
-    try {
-      fs.unlinkSync(filePath);
-    } catch (cleanupError) {
-      console.warn('Error cleaning up temporary file:', cleanupError);
-    }
-    
     return {
       url: result.secure_url,
       public_id: result.public_id,
@@ -101,6 +94,117 @@ const uploadImage = async (filePath, options = {}) => {
   } catch (error) {
     console.error('Cloudinary upload error:', error);
     throw error;
+  } finally {
+    // In a `finally`, because the cleanup used to sit after the upload resolved: a rejected upload
+    // skipped it and left the file in backend/tmp/ forever. Since every failed upload leaked, the
+    // directory grew without bound on exactly the path that gets retried (IMP-024).
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (cleanupError) {
+      console.warn('Error cleaning up temporary file:', cleanupError);
+    }
+  }
+};
+
+/**
+ * Recover a Cloudinary public_id from a delivery URL.
+ *
+ * Only for rows written before `public_id` was stored — new uploads persist it directly, which is
+ * exact. A Cloudinary URL looks like:
+ *
+ *   https://res.cloudinary.com/<cloud>/image/upload/v1712345678/easytrip/places/9/place_9_x.jpg
+ *                                                  ^version(optional)  ^-------- public_id -------^
+ *
+ * so the id is everything after `/upload/` (minus an optional `v<digits>/` segment) with the file
+ * extension removed. Transformation segments would also appear there, but this project never puts
+ * them in stored URLs — transformations are applied at read time.
+ *
+ * @returns {String|null} the public_id, or null if the URL is not a recognisable Cloudinary upload
+ */
+const publicIdFromUrl = (url) => {
+  if (typeof url !== 'string') return null;
+
+  const marker = '/upload/';
+  const start = url.indexOf(marker);
+  if (start === -1) return null;
+
+  let rest = url.slice(start + marker.length);
+  if (!rest) return null;
+
+  // Drop the version segment when present.
+  rest = rest.replace(/^v\d+\//, '');
+
+  // Drop the extension from the last path segment only — folder names may contain dots.
+  const lastSlash = rest.lastIndexOf('/');
+  const dir = lastSlash === -1 ? '' : rest.slice(0, lastSlash + 1);
+  const file = lastSlash === -1 ? rest : rest.slice(lastSlash + 1);
+  const withoutExt = file.replace(/\.[^./]+$/, '');
+
+  const publicId = `${dir}${withoutExt}`;
+  return publicId || null;
+};
+
+/**
+ * Delete a single Cloudinary asset.
+ *
+ * Never throws: the database row is the source of truth, and an orphaned remote asset is a storage
+ * cost, not a correctness problem. Failing a user's delete because a third-party cleanup call
+ * failed would trade a cheap problem for an expensive one.
+ *
+ * @returns {Boolean} whether Cloudinary reported the asset as removed
+ */
+const destroyImage = async (publicId) => {
+  if (!publicId) return false;
+
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { invalidate: true });
+    // 'not found' is a success for our purposes — the goal is "this asset is gone".
+    const ok = result?.result === 'ok' || result?.result === 'not found';
+    if (!ok) {
+      console.warn(`Cloudinary destroy returned '${result?.result}' for ${publicId}`);
+    }
+    return ok;
+  } catch (error) {
+    console.error(`Cloudinary destroy failed for ${publicId}:`, error.message);
+    return false;
+  }
+};
+
+/**
+ * Delete every asset belonging to a place.
+ *
+ * Uses prefix deletion rather than a list of stored ids, because every upload has always gone to
+ * `easytrip/places/<id>/` — so this also collects assets uploaded before `public_id` was recorded,
+ * which a column-driven cleanup would miss entirely.
+ *
+ * The trailing slash matters: without it the prefix for place 1 would also match place 10.
+ *
+ * Never throws, for the same reason as destroyImage.
+ */
+const destroyPlaceAssets = async (placeId) => {
+  const prefix = `easytrip/places/${placeId}/`;
+
+  try {
+    const result = await cloudinary.api.delete_resources_by_prefix(prefix);
+    const deleted = Object.keys(result?.deleted || {});
+    console.log(`Cloudinary: removed ${deleted.length} asset(s) under ${prefix}`);
+
+    // Tidy the now-empty folder. Cloudinary 404s when the folder never existed (a place with no
+    // uploads), which is not an error worth surfacing.
+    try {
+      await cloudinary.api.delete_folder(prefix);
+    } catch (folderError) {
+      if (folderError?.error?.http_code !== 404 && folderError?.http_code !== 404) {
+        console.warn(`Could not remove Cloudinary folder ${prefix}:`, folderError.message);
+      }
+    }
+
+    return deleted.length;
+  } catch (error) {
+    console.error(`Cloudinary prefix delete failed for ${prefix}:`, error.message);
+    return 0;
   }
 };
 
@@ -136,5 +240,8 @@ module.exports = {
   cloudinary,
   uploadMiddleware,
   uploadImage,
+  destroyImage,
+  destroyPlaceAssets,
+  publicIdFromUrl,
   testCloudinary
 };

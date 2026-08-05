@@ -127,6 +127,8 @@ app.post('/api/places/:id/reviews/:reviewId/report', reportLimiter);
 app.post('/api/newsletter', newsletterLimiter);
 app.post('/api/admin/places', uploadLimiter);
 app.put('/api/admin/places/:id', uploadLimiter);
+// Gallery uploads are the same cost as a primary-image upload, so they share its budget.
+app.post('/api/admin/places/:id/images', uploadLimiter);
 app.use('/api/admin', onWrites(adminWriteLimiter));
 
 app.use(express.json({ limit: '10mb' }));

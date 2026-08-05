@@ -17,6 +17,7 @@ import {
     FiCamera, FiFeather, FiGlobe, FiNavigation, FiActivity
 } from 'react-icons/fi';
 import PlaceCard from '../components/PlaceCard';
+import { THEMES, SEASONS } from '../constants/themes';
 import { getAllPlaces, searchPlaces, getLocations, getDistricts, getStates, getTags } from '../services/placeService';
 import { useAuth } from '../context/AuthContext';
 import debounce from 'lodash/debounce';
@@ -37,29 +38,44 @@ const ExploreMap = dynamic(() => import('../components/ExploreMap'), {
 });
 
 // Enhanced theme options with better styling
-const themeOptions = [
-    { id: 'hot', label: 'Hot Weather', icon: <FiSun />, color: 'orange', bgColor: 'bg-orange-500' },
-    { id: 'cold', label: 'Cold Weather', icon: <FiCloud />, color: 'blue', bgColor: 'bg-blue-500' },
-    { id: 'rainy', label: 'Rainy Season', icon: <FiCloudRain />, color: 'indigo', bgColor: 'bg-indigo-500' },
-    { id: 'romantic', label: 'Romantic', icon: <FiHeart />, color: 'pink', bgColor: 'bg-pink-500' },
-    { id: 'religious', label: 'Religious', icon: <FiBook />, color: 'purple', bgColor: 'bg-purple-500' },
-    { id: 'historical', label: 'Historical', icon: <FiClock />, color: 'amber', bgColor: 'bg-amber-600' },
-    { id: 'science', label: 'Science', icon: <FiCpu />, color: 'cyan', bgColor: 'bg-cyan-500' },
-    { id: 'tech', label: 'Technology', icon: <FiMonitor />, color: 'slate', bgColor: 'bg-slate-500' },
-    { id: 'adventure', label: 'Adventure', icon: <FiCompass />, color: 'green', bgColor: 'bg-green-500' },
-    { id: 'nature', label: 'Nature', icon: <FiGlobe />, color: 'emerald', bgColor: 'bg-emerald-500' },
-    { id: 'beach', label: 'Beach', icon: <FiUmbrella />, color: 'sky', bgColor: 'bg-sky-500' },
-    { id: 'mountain', label: 'Mountain', icon: <FiTriangle />, color: 'stone', bgColor: 'bg-stone-600' },
-    { id: 'family', label: 'Family-Friendly', icon: <FiUsers />, color: 'teal', bgColor: 'bg-teal-500' }
-];
+// Presentation only. The ids and labels come from the shared vocabulary so this page cannot drift
+// from what the admin forms can actually assign (IMP-118) — the bug this replaces was `beach` and
+// `mountain` being filterable here but assignable nowhere.
+const THEME_PRESENTATION = {
+    hot: { icon: <FiSun />, color: 'orange', bgColor: 'bg-orange-500' },
+    cold: { icon: <FiCloud />, color: 'blue', bgColor: 'bg-blue-500' },
+    rainy: { icon: <FiCloudRain />, color: 'indigo', bgColor: 'bg-indigo-500' },
+    romantic: { icon: <FiHeart />, color: 'pink', bgColor: 'bg-pink-500' },
+    religious: { icon: <FiBook />, color: 'purple', bgColor: 'bg-purple-500' },
+    historical: { icon: <FiClock />, color: 'amber', bgColor: 'bg-amber-600' },
+    science: { icon: <FiCpu />, color: 'cyan', bgColor: 'bg-cyan-500' },
+    tech: { icon: <FiMonitor />, color: 'slate', bgColor: 'bg-slate-500' },
+    adventure: { icon: <FiCompass />, color: 'green', bgColor: 'bg-green-500' },
+    nature: { icon: <FiGlobe />, color: 'emerald', bgColor: 'bg-emerald-500' },
+    beach: { icon: <FiUmbrella />, color: 'sky', bgColor: 'bg-sky-500' },
+    mountain: { icon: <FiTriangle />, color: 'stone', bgColor: 'bg-stone-600' },
+    family: { icon: <FiUsers />, color: 'teal', bgColor: 'bg-teal-500' },
+    weekend: { icon: <FiCalendar />, color: 'violet', bgColor: 'bg-violet-500' }
+};
 
-// Enhanced date options with icons
-const dateOptions = [
-    { id: 'any', label: 'Anytime', icon: <FiCalendar />, color: 'gray' },
-    { id: 'summer', label: 'Summer (Apr-Jun)', icon: <FiSun />, color: 'yellow' },
-    { id: 'monsoon', label: 'Monsoon (Jul-Sep)', icon: <FiCloudRain />, color: 'blue' },
-    { id: 'winter', label: 'Winter (Oct-Mar)', icon: <FiCloud />, color: 'cyan' }
-];
+const themeOptions = THEMES.map((theme) => ({
+    id: theme.id,
+    label: theme.label,
+    ...THEME_PRESENTATION[theme.id]
+}));
+
+const SEASON_PRESENTATION = {
+    any: { icon: <FiCalendar />, color: 'gray' },
+    summer: { icon: <FiSun />, color: 'yellow' },
+    monsoon: { icon: <FiCloudRain />, color: 'blue' },
+    winter: { icon: <FiCloud />, color: 'cyan' }
+};
+
+const dateOptions = SEASONS.map((season) => ({
+    id: season.id,
+    label: season.label,
+    ...SEASON_PRESENTATION[season.id]
+}));
 
 // View modes with enhanced options
 const viewModes = [

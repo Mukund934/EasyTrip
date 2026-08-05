@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const placeModel = require('../models/placeModel');
-const { uploadImage } = require('../config/cloudinary');
+const { uploadImage, destroyImage, destroyPlaceAssets, publicIdFromUrl } = require('../config/cloudinary');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -445,11 +445,21 @@ const updatePlace = async (req, res) => {
           context: `place_id=${id}|user=${user}|updated=true|name=${encodeURIComponent(currentPlace.name)}`
         });
         
+        const previousImageUrl = imageUrl;
         imageUrl = result.url;
         console.log(`[${timestamp}] Updated image uploaded successfully, URL: ${imageUrl}`);
-        
-        // Explicitly log and verify URL is properly set
-        console.log(`[${timestamp}] Setting primary_image_url to: ${imageUrl}`);
+
+        // Replacing the primary image orphans the old asset. Every upload uses a fresh
+        // timestamped public_id, so the replacement never overwrites its predecessor — without
+        // this, editing a place's photo N times left N-1 assets paid for and unreachable.
+        // Only after the new upload succeeded, so a failed replace keeps the existing image.
+        const previousPublicId = publicIdFromUrl(previousImageUrl);
+        if (previousPublicId && previousPublicId !== result.public_id) {
+          const wasRemoved = await destroyImage(previousPublicId);
+          console.log(
+            `[${timestamp}] Previous image ${previousPublicId}: ${wasRemoved ? 'removed' : 'left in place'}`
+          );
+        }
       } catch (uploadError) {
         console.error(`[${timestamp}] Cloudinary upload error:`, uploadError);
         console.error('Error details:', uploadError);
@@ -539,7 +549,14 @@ const deletePlace = async (req, res) => {
     if (!success) {
       throw new Error('Failed to delete place');
     }
-    
+
+    // Remote media is cleaned up only AFTER the row is gone. Doing it first would risk destroying
+    // the images of a place that then fails to delete. The call never throws — an orphaned asset
+    // costs storage, whereas failing the request after the row is already deleted would leave the
+    // caller believing the delete failed when it succeeded (IMP-024).
+    const removed = await destroyPlaceAssets(id);
+    console.log(`[${timestamp}] Cloudinary cleanup for place ${id}: ${removed} asset(s) removed`);
+
     console.log(`[${timestamp}] Place deleted successfully: ID=${id}`);
     
     res.status(200).json({ 
@@ -854,11 +871,102 @@ const reportPlaceReview = async (req, res) => {
   }
 };
 
+/**
+ * Add a gallery image to a place (admin).
+ *
+ * `place_images` has existed since the original schema, along with its read endpoint and the
+ * lightbox that renders it — but nothing ever wrote to it, so the gallery has always been an
+ * empty table behind working UI (IMP-014).
+ */
+const addPlaceImage = async (req, res) => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    const { id } = req.params;
+    const { caption } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'An image file is required' });
+    }
+
+    const place = await placeModel.getPlaceById(id);
+    if (!place) {
+      return res.status(404).json({ message: 'Place not found' });
+    }
+
+    if (!req.file.path || !fs.existsSync(req.file.path)) {
+      return res.status(400).json({ message: 'Uploaded file could not be read' });
+    }
+
+    // Same folder convention as the primary image, which is what lets destroyPlaceAssets clean up
+    // an entire place by prefix without tracking individual ids.
+    const result = await uploadImage(req.file.path, {
+      folder: `easytrip/places/${id}`,
+      public_id: `place_${id}_gallery_${Date.now()}`,
+      tags: ['place', `id_${id}`, 'gallery'],
+      context: `place_id=${id}|user=${getCurrentUser(req)}`
+    });
+
+    // New images go last. COALESCE handles the first image, where MAX over no rows is NULL.
+    const inserted = await pool.query(
+      `INSERT INTO place_images (place_id, image_url, caption, display_order, created_at)
+       VALUES ($1, $2, $3,
+               (SELECT COALESCE(MAX(display_order), -1) + 1 FROM place_images WHERE place_id = $1),
+               NOW())
+       RETURNING id, place_id, image_url, caption, display_order, created_at`,
+      [id, result.url, caption?.trim() || null]
+    );
+
+    console.log(`[${timestamp}] Gallery image added to place ${id}: ${result.public_id}`);
+    res.status(201).json(inserted.rows[0]);
+  } catch (error) {
+    console.error('[ERROR] Error adding gallery image:', error);
+    res.status(500).json({ message: 'Error adding gallery image' });
+  }
+};
+
+/**
+ * Remove a gallery image from a place (admin).
+ *
+ * Deletes the row first, then the remote asset — the row is the source of truth, and an orphaned
+ * asset is a storage cost rather than a broken gallery. The reverse order risks destroying an
+ * image that is still referenced.
+ */
+const deletePlaceImage = async (req, res) => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    const { id, imageId } = req.params;
+
+    const deleted = await pool.query(
+      'DELETE FROM place_images WHERE id = $1 AND place_id = $2 RETURNING image_url',
+      [imageId, id]
+    );
+
+    if (deleted.rowCount === 0) {
+      return res.status(404).json({ message: 'Image not found for this place' });
+    }
+
+    const publicId = publicIdFromUrl(deleted.rows[0].image_url);
+    if (publicId) {
+      const wasRemoved = await destroyImage(publicId);
+      console.log(`[${timestamp}] Gallery asset ${publicId}: ${wasRemoved ? 'removed' : 'left in place'}`);
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('[ERROR] Error deleting gallery image:', error);
+    res.status(500).json({ message: 'Error deleting gallery image' });
+  }
+};
+
 module.exports = {
   getAllPlaces,
   getPlaceById,
   getPlaceImage,
   getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage,
   createPlace,
   updatePlace,
   deletePlace,

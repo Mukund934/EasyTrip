@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { toast } from 'react-toastify';
 import { FiSave, FiPlus, FiMinus, FiArrowLeft, FiX } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
 import ImageUpload from '../../../components/ImageUpload';
-import { getPlaceById, updatePlace } from '../../../services/placeService';
+import { getPlaceById, updatePlace, getPlaceImages, addPlaceImage, deletePlaceImage } from '../../../services/placeService';
+import { THEMES, isValidThemeId } from '../../../constants/themes';
 
 // Utility function to format dates
 const formatDate = (dateString) => {
@@ -50,7 +51,6 @@ export default function EditPlace() {
 
   const [currentImageUrl, setCurrentImageUrl] = useState(null);
   const [newTag, setNewTag] = useState('');
-  const [newTheme, setNewTheme] = useState('');
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,6 +59,15 @@ export default function EditPlace() {
   const [createdAt, setCreatedAt] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
   const [previousUpdate, setPreviousUpdate] = useState('');
+
+  // Gallery state is separate from formData: these changes hit the server immediately rather than
+  // travelling with the form submit (IMP-014).
+  const [gallery, setGallery] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
+  const [galleryError, setGalleryError] = useState(null);
+  const [galleryCaption, setGalleryCaption] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [deletingImageId, setDeletingImageId] = useState(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -155,12 +164,85 @@ export default function EditPlace() {
     });
   };
 
-  const handleAddTheme = () => {
-    if (newTheme.trim() && !formData.themes.includes(newTheme.trim())) {
-      setFormData({ ...formData, themes: [...formData.themes, newTheme.trim()] });
-      setNewTheme('');
+  const refreshGallery = useCallback(async () => {
+    if (!id) return;
+    setGalleryLoading(true);
+    try {
+      const images = await getPlaceImages(id);
+      setGallery(images || []);
+      setGalleryError(null);
+    } catch (err) {
+      // Non-fatal: the rest of the edit form still works without the gallery list.
+      setGalleryError('Could not load the gallery.');
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    refreshGallery();
+  }, [refreshGallery]);
+
+  const handleAddGalleryImage = async (e) => {
+    const file = e.target.files?.[0];
+    // Reset the input immediately so re-selecting the same file still fires a change event.
+    e.target.value = '';
+    if (!file) return;
+
+    setUploadingImage(true);
+    setGalleryError(null);
+
+    try {
+      const token = await getIdToken();
+      const created = await addPlaceImage(id, file, galleryCaption.trim() || undefined, token);
+      // Append the server's row rather than refetching: it already carries the assigned
+      // display_order and id, so a round-trip would tell us nothing new.
+      setGallery((current) => [...current, created]);
+      setGalleryCaption('');
+      toast.success('Gallery image added');
+    } catch (err) {
+      setGalleryError(err?.message || 'Could not add the image.');
+    } finally {
+      setUploadingImage(false);
     }
   };
+
+  const handleDeleteGalleryImage = async (imageId) => {
+    if (!window.confirm('Remove this image from the gallery? This also deletes the stored file.')) {
+      return;
+    }
+
+    setDeletingImageId(imageId);
+    setGalleryError(null);
+
+    try {
+      const token = await getIdToken();
+      await deletePlaceImage(id, imageId, token);
+      setGallery((current) => current.filter((image) => image.id !== imageId));
+      toast.success('Gallery image removed');
+    } catch (err) {
+      setGalleryError(err?.message || 'Could not remove the image.');
+    } finally {
+      setDeletingImageId(null);
+    }
+  };
+
+  // Themes are a fixed vocabulary, not free text (IMP-020). This form used to accept any string,
+  // so an edit could write a theme no browse filter would ever match — and because editing is how
+  // most places get corrected, free text here quietly undid the taxonomy addPlace enforced.
+  const handleToggleTheme = (themeId) => {
+    setFormData((current) => ({
+      ...current,
+      themes: current.themes.includes(themeId)
+        ? current.themes.filter((theme) => theme !== themeId)
+        : [...current.themes, themeId],
+    }));
+  };
+
+  // A place saved before the vocabulary was enforced may carry ids that are no longer offered.
+  // They are shown separately rather than dropped silently, so an admin can see and clear them —
+  // deleting someone's data on page load because the taxonomy changed would be worse.
+  const unknownThemes = formData.themes.filter((theme) => !isValidThemeId(theme));
 
   const handleRemoveTheme = (themeToRemove) => {
     setFormData({
@@ -488,51 +570,133 @@ export default function EditPlace() {
               />
             </div>
 
-            {/* Themes */}
+            {/* Gallery (IMP-014) — `place_images` had a read endpoint and a lightbox but no writer,
+                so the gallery rendered from a permanently empty table. Uploads here are immediate
+                rather than part of the form submit: they are their own request, and pretending
+                otherwise would mean holding files in memory until an unrelated save succeeds. */}
             <div className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Themes</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-1">Gallery</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Additional photos shown in the lightbox on the place page. Changes here save
+                immediately — they are not part of the form below.
+              </p>
 
-              <div className="flex flex-wrap gap-2 mb-3">
-                {formData.themes.map((theme, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center bg-primary-50 text-primary-700 px-3 py-1 rounded-full"
-                  >
-                    <span>{theme}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTheme(theme)}
-                      className="ml-2 text-primary-500 hover:text-primary-700"
-                    >
-                      <FiX className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              {galleryError && (
+                <p role="alert" className="mb-3 text-sm text-red-600">{galleryError}</p>
+              )}
 
-              <div className="flex">
+              {galleryLoading ? (
+                <p className="text-sm text-gray-500">Loading gallery…</p>
+              ) : gallery.length === 0 ? (
+                <p className="text-sm text-gray-500 mb-4">No gallery images yet.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+                  {gallery.map((image) => (
+                    <div key={image.id} className="relative group border border-gray-200 rounded-lg overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={image.image_url}
+                        alt={image.caption || 'Gallery image'}
+                        className="w-full h-28 object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGalleryImage(image.id)}
+                        disabled={deletingImageId === image.id}
+                        aria-label={`Remove gallery image${image.caption ? `: ${image.caption}` : ''}`}
+                        className="absolute top-1 right-1 bg-white/90 text-red-600 hover:text-red-800 rounded-full p-1 disabled:opacity-50"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                      {image.caption && (
+                        <p className="px-2 py-1 text-xs text-gray-600 truncate">{image.caption}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
-                  value={newTheme}
-                  onChange={(e) => setNewTheme(e.target.value)}
-                  className="block w-full border-gray-300 rounded-l-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Add a theme (e.g., adventure, cultural, nature)"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddTheme();
-                    }
-                  }}
+                  value={galleryCaption}
+                  onChange={(e) => setGalleryCaption(e.target.value)}
+                  maxLength={255}
+                  placeholder="Caption (optional)"
+                  aria-label="Caption for the next gallery image"
+                  className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 />
-                <button
-                  type="button"
-                  onClick={handleAddTheme}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-r-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
-                >
+                <label className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 cursor-pointer disabled:opacity-50">
                   <FiPlus className="mr-1" />
-                  Add
-                </button>
+                  {uploadingImage ? 'Uploading…' : 'Add image'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={handleAddGalleryImage}
+                  />
+                </label>
               </div>
+            </div>
+
+            {/* Themes — curated picker, matching addPlace (IMP-020) */}
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold text-gray-800 mb-1">Themes</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Select from the shared vocabulary. These are the exact themes visitors can filter by,
+                so free text would make a place unfindable.
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {THEMES.map((theme) => {
+                  const selected = formData.themes.includes(theme.id);
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => handleToggleTheme(theme.id)}
+                      aria-pressed={selected}
+                      title={theme.description}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors ${
+                        selected
+                          ? 'bg-primary-50 border-primary-500 text-primary-700'
+                          : 'bg-white border-gray-300 text-gray-700 hover:border-primary-300'
+                      }`}
+                    >
+                      <span className="block text-sm font-medium">{theme.label}</span>
+                      <span className="block text-xs text-gray-500 truncate">{theme.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {unknownThemes.length > 0 && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800 mb-2">
+                    This place carries {unknownThemes.length === 1 ? 'a theme' : 'themes'} that {unknownThemes.length === 1 ? 'is' : 'are'} no
+                    longer offered, so {unknownThemes.length === 1 ? 'it is' : 'they are'} not filterable. Remove or replace:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {unknownThemes.map((theme) => (
+                      <span
+                        key={theme}
+                        className="flex items-center bg-white text-amber-800 border border-amber-300 px-3 py-1 rounded-full text-sm"
+                      >
+                        {theme}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTheme(theme)}
+                          aria-label={`Remove theme ${theme}`}
+                          className="ml-2 text-amber-600 hover:text-amber-900"
+                        >
+                          <FiX className="w-4 h-4" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Tags */}

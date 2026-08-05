@@ -13,94 +13,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
 import { createPlace } from '../../services/placeService';
+import { THEMES } from '../../constants/themes';
 
 // Enhanced theme options with icons and descriptions
-const themeOptions = [
-  { 
-    id: 'hot', 
-    label: 'Hot Weather', 
-    icon: <FiSun className="mr-2" />, 
-    description: 'Perfect for summer visits',
-    color: 'orange'
-  },
-  { 
-    id: 'cold', 
-    label: 'Cold Weather', 
-    icon: <FiThermometer className="mr-2" />, 
-    description: 'Ideal for winter experiences',
-    color: 'blue'
-  },
-  { 
-    id: 'rainy', 
-    label: 'Rainy Season', 
-    icon: <FiCloudRain className="mr-2" />, 
-    description: 'Beautiful during monsoons',
-    color: 'gray'
-  },
-  { 
-    id: 'romantic', 
-    label: 'Romantic', 
-    icon: <FiHeart className="mr-2" />, 
-    description: 'Perfect for couples',
-    color: 'pink'
-  },
-  { 
-    id: 'religious', 
-    label: 'Religious', 
-    icon: <FiBook className="mr-2" />, 
-    description: 'Spiritual destinations',
-    color: 'purple'
-  },
-  { 
-    id: 'historical', 
-    label: 'Historical', 
-    icon: <FiClock className="mr-2" />, 
-    description: 'Rich in history',
-    color: 'amber'
-  },
-  { 
-    id: 'science', 
-    label: 'Science', 
-    icon: <FiCpu className="mr-2" />, 
-    description: 'Educational and scientific',
-    color: 'green'
-  },
-  { 
-    id: 'tech', 
-    label: 'Technology', 
-    icon: <FiCpu className="mr-2" />, 
-    description: 'Modern tech hubs',
-    color: 'indigo'
-  },
-  { 
-    id: 'adventure', 
-    label: 'Adventure', 
-    icon: <FiMap className="mr-2" />, 
-    description: 'Thrilling activities',
-    color: 'red'
-  },
-  { 
-    id: 'nature', 
-    label: 'Nature', 
-    icon: <FiGlobe className="mr-2" />, 
-    description: 'Natural beauty',
-    color: 'green'
-  },
-  { 
-    id: 'family', 
-    label: 'Family Friendly', 
-    icon: <FiHome className="mr-2" />, 
-    description: 'Great for families',
-    color: 'blue'
-  },
-  { 
-    id: 'weekend', 
-    label: 'Weekend Getaway', 
-    icon: <FiClock className="mr-2" />, 
-    description: 'Perfect for short trips',
-    color: 'teal'
-  }
-];
+// Presentation only — ids/labels/descriptions come from the shared vocabulary so this form can
+// always assign every theme the browse filters offer (IMP-118).
+const THEME_PRESENTATION = {
+  hot:        { icon: <FiSun className="mr-2" />,       color: 'orange' },
+  cold:       { icon: <FiThermometer className="mr-2" />, color: 'blue' },
+  rainy:      { icon: <FiCloudRain className="mr-2" />,  color: 'gray' },
+  romantic:   { icon: <FiHeart className="mr-2" />,      color: 'pink' },
+  religious:  { icon: <FiBook className="mr-2" />,       color: 'purple' },
+  historical: { icon: <FiClock className="mr-2" />,      color: 'amber' },
+  science:    { icon: <FiCpu className="mr-2" />,        color: 'green' },
+  tech:       { icon: <FiCpu className="mr-2" />,        color: 'indigo' },
+  adventure:  { icon: <FiMap className="mr-2" />,        color: 'red' },
+  nature:     { icon: <FiGlobe className="mr-2" />,      color: 'green' },
+  beach:      { icon: <FiGlobe className="mr-2" />,      color: 'sky' },
+  mountain:   { icon: <FiMap className="mr-2" />,        color: 'stone' },
+  family:     { icon: <FiHome className="mr-2" />,       color: 'blue' },
+  weekend:    { icon: <FiClock className="mr-2" />,      color: 'teal' }
+};
+
+const themeOptions = THEMES.map((theme) => ({
+  id: theme.id,
+  label: theme.label,
+  description: theme.description,
+  ...THEME_PRESENTATION[theme.id]
+}));
 
 // Common tag suggestions
 const tagSuggestions = [

@@ -148,6 +148,18 @@ const reviewIdParam = param('reviewId')
   .isInt({ min: 1 })
   .withMessage('Review id must be a positive integer');
 
+const imageIdParam = param('imageId')
+  .isInt({ min: 1 })
+  .withMessage('Image id must be a positive integer');
+
+// Caption arrives as multipart alongside the file, so it is optional and length-capped to the
+// column width rather than validated as structured input.
+const galleryCaptionRule = body('caption')
+  .optional({ values: 'falsy' })
+  .trim()
+  .isLength({ max: 255 })
+  .withMessage('Caption must be at most 255 characters');
+
 const reportRules = [
   placeIdParam,
   reviewIdParam,
@@ -231,6 +243,24 @@ router.delete(
   placeIdParam,
   handleValidationErrors,
   placeController.deletePlace
+);
+
+// Gallery write path (IMP-014). The read endpoint and lightbox already existed; `place_images`
+// simply had no writer, so the gallery rendered from a permanently empty table.
+router.post(
+  '/admin/places/:id/images',
+  isAdmin,
+  uploadMiddleware('image'),
+  [placeIdParam, galleryCaptionRule],
+  handleValidationErrors,
+  placeController.addPlaceImage
+);
+router.delete(
+  '/admin/places/:id/images/:imageId',
+  isAdmin,
+  [placeIdParam, imageIdParam],
+  handleValidationErrors,
+  placeController.deletePlaceImage
 );
 
 module.exports = router;

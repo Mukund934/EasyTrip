@@ -455,6 +455,61 @@ const reportPlaceReview = async (id, reviewId, reason, token) => {
 };
 
 /**
+ * Add a gallery image to a place (admin).
+ *
+ * @param {Number|String} id - Place ID
+ * @param {File} file - Image file
+ * @param {String} [caption] - Optional caption
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const addPlaceImage = async (id, file, caption, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (caption) formData.append('caption', caption);
+
+    const response = await axios.post(`${API_URL}/admin/places/${id}/images`, formData, { headers });
+
+    console.log(`Gallery image added to place ${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error adding gallery image to place ${id}:`, error.response?.data || error.message);
+    throw {
+      message:
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.message ||
+        'Error adding gallery image',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
+ * Remove a gallery image from a place (admin).
+ *
+ * @param {Number|String} id - Place ID
+ * @param {Number|String} imageId - Image ID
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const deletePlaceImage = async (id, imageId, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+    await axios.delete(`${API_URL}/admin/places/${id}/images/${imageId}`, { headers });
+    console.log(`Gallery image ${imageId} removed from place ${id}`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting gallery image ${imageId}:`, error.response?.data || error.message);
+    throw {
+      message: error.response?.data?.message || 'Error deleting gallery image',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
  * Get place images
  */
 const getPlaceImages = async (id) => {
@@ -487,7 +542,9 @@ export default {
   createPlaceReview,
   deletePlaceReview,
   reportPlaceReview,
-  getPlaceImages
+  getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage
 };
 
 // Named exports for direct imports
@@ -506,5 +563,7 @@ export {
   createPlaceReview,
   deletePlaceReview,
   reportPlaceReview,
-  getPlaceImages
+  getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage
 };
