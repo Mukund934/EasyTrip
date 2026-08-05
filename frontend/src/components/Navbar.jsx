@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiInfo, FiCompass, FiSearch } from 'react-icons/fi';
+import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiCompass } from 'react-icons/fi';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -127,18 +127,6 @@ const Navbar = () => {
                 Browse
               </span>
             </Link>
-            <Link
-              href="/search"
-              className={`px-3 py-2 text-sm font-medium ${router.pathname === '/search'
-                  ? 'text-primary-600 border-b-2 border-primary-600'
-                  : scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
-                } transition-colors`}
-            >
-              <span className="flex items-center">
-                <FiSearch className="mr-2" />
-                Search
-              </span>
-            </Link>
 
             {authUser ? (
               <div className="relative ml-3">
@@ -201,16 +189,6 @@ const Navbar = () => {
                             </Link>
                           </motion.div>
                         )}
-
-                        <motion.div variants={itemVariants}>
-                          <Link
-                            href="/activity"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            <FiInfo className="mr-3 h-4 w-4 text-gray-500" />
-                            Activity Log
-                          </Link>
-                        </motion.div>
 
                         <div className="border-t border-gray-100 my-1"></div>
 
@@ -307,19 +285,6 @@ const Navbar = () => {
                     Browse
                   </div>
                 </Link>
-
-                <Link
-                  href="/search"
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${router.pathname === '/search'
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                    }`}
-                >
-                  <div className="flex items-center">
-                    <FiSearch className="mr-3 h-5 w-5" />
-                    Search
-                  </div>
-                </Link>
               </div>
 
               <div className="py-2">
@@ -337,16 +302,6 @@ const Navbar = () => {
                       <div className="flex items-center">
                         <FiUser className="mr-3 h-5 w-5" />
                         My Profile
-                      </div>
-                    </Link>
-
-                    <Link
-                      href="/activity"
-                      className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-primary-600"
-                    >
-                      <div className="flex items-center">
-                        <FiInfo className="mr-3 h-5 w-5" />
-                        Activity Log
                       </div>
                     </Link>
 

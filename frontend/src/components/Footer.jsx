@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { FiMapPin, FiMail, FiPhone, FiFacebook, FiInstagram, FiTwitter, FiLinkedin, FiYoutube, FiArrowRight } from 'react-icons/fi';
+import { FiArrowRight } from 'react-icons/fi';
 import { subscribeToNewsletter } from '../services/newsletterService';
 
 const Footer = () => {
@@ -32,29 +32,23 @@ const Footer = () => {
     }
   };
 
-  const socialLinks = [
-    { icon: <FiFacebook className="h-5 w-5" />, href: "#", name: "Facebook" },
-    { icon: <FiInstagram className="h-5 w-5" />, href: "#", name: "Instagram" },
-    { icon: <FiTwitter className="h-5 w-5" />, href: "#", name: "Twitter" },
-    { icon: <FiLinkedin className="h-5 w-5" />, href: "#", name: "LinkedIn" },
-    { icon: <FiYoutube className="h-5 w-5" />, href: "#", name: "YouTube" },
-  ];
+  // Social icons used to be five `href="#"` placeholders. EasyTrip has no social accounts, so the
+  // whole row is gone rather than linking nowhere (IMP-025). Restore it when accounts exist.
 
   const quickLinks = [
     { name: "Home", href: "/" },
-    { name: "Destinations", href: "/destinations" },
+    { name: "Destinations", href: "/browse" },
     { name: "About Us", href: "/about" },
-    { name: "Contact", href: "/contact" },
-    { name: "Privacy Policy", href: "/privacy" },
-    { name: "Terms of Service", href: "/terms" },
   ];
 
+  // These were `href="#"`. Browse reads a `location` query param, so they now run a real search
+  // instead of doing nothing.
   const popularDestinations = [
-    { name: "Agra", href: "#" },
-    { name: "Jaipur", href: "#" },
-    { name: "Goa", href: "#" },
-    { name: "Mumbai", href: "#" },
-    { name: "Delhi", href: "#" },
+    { name: "Agra", href: "/browse?location=Agra" },
+    { name: "Jaipur", href: "/browse?location=Jaipur" },
+    { name: "Goa", href: "/browse?location=Goa" },
+    { name: "Mumbai", href: "/browse?location=Mumbai" },
+    { name: "Delhi", href: "/browse?location=Delhi" },
   ];
 
   return (
@@ -78,24 +72,8 @@ const Footer = () => {
               <h2 className="text-2xl font-bold text-white">EasyTrip</h2>
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              Discover amazing destinations around the world with EasyTrip. We help you find the perfect places to visit, with detailed information and beautiful imagery.
+              Discover destinations across India with EasyTrip — curated places to visit, with real traveller ratings and detailed information.
             </p>
-            
-            {/* Social Media Links */}
-            <div className="flex space-x-4">
-              {socialLinks.map((social, index) => (
-                <motion.a
-                  key={index}
-                  href={social.href}
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-800 text-gray-300 hover:bg-primary-600 hover:text-white transition-colors"
-                  whileHover={{ y: -5, backgroundColor: "#0EA5E9", color: "#FFFFFF" }}
-                  whileTap={{ scale: 0.9 }}
-                  title={social.name}
-                >
-                  {social.icon}
-                </motion.a>
-              ))}
-            </div>
           </div>
 
           {/* Quick Links */}
@@ -172,38 +150,19 @@ const Footer = () => {
                 )}
               </form>
             )}
-            
-            {/* Contact Info */}
-            <div className="mt-6 space-y-4">
-              <div className="flex items-start">
-                <FiMapPin className="h-5 w-5 mr-3 text-primary-500 mt-0.5" />
-                <span className="text-gray-300 text-sm">
-                  123 Travel Street, Tourism City, 12345
-                </span>
-              </div>
-              <div className="flex items-center">
-                <FiPhone className="h-5 w-5 mr-3 text-primary-500" />
-                <span className="text-gray-300 text-sm">+1 (123) 456-7890</span>
-              </div>
-              <div className="flex items-center">
-                <FiMail className="h-5 w-5 mr-3 text-primary-500" />
-                <span className="text-gray-300 text-sm">info@easytrip.com</span>
-              </div>
-            </div>
           </div>
         </div>
 
         {/* Footer Bottom */}
         <div className="mt-12 pt-8 border-t border-gray-800">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-400 text-sm mb-4 md:mb-0">
+            {/* Privacy / Terms / Cookie links lived here and all three 404'd. They are removed
+                rather than written, because a fabricated privacy policy is a worse problem than a
+                missing one — and this same sprint is deleting invented content elsewhere (IMP-027).
+                They return when there are real documents to link to. */}
+            <p className="text-gray-400 text-sm">
               &copy; {new Date().getFullYear()} EasyTrip. All rights reserved.
             </p>
-            <div className="flex space-x-6">
-              <Link href="/privacy" className="text-gray-400 hover:text-primary-400 text-sm">Privacy Policy</Link>
-              <Link href="/terms" className="text-gray-400 hover:text-primary-400 text-sm">Terms of Service</Link>
-              <Link href="/cookies" className="text-gray-400 hover:text-primary-400 text-sm">Cookie Policy</Link>
-            </div>
           </div>
         </div>
       </div>

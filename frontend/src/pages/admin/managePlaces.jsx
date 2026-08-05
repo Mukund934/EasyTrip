@@ -14,7 +14,9 @@ import {
   FiMapPin,
   FiClock,
   FiUser,
-  FiEye
+  FiEye,
+  FiAlertCircle,
+  FiRefreshCw
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import ImageWithFallback from '../../components/ImageWithFallback';
@@ -46,6 +48,11 @@ export default function ManagePlaces() {
   const [places, setPlaces] = useState([]);
   const [filteredPlaces, setFilteredPlaces] = useState([]);
   const [loadingPlaces, setLoadingPlaces] = useState(true);
+  // An empty list and a failed request are different facts. Without this the catch below fell
+  // through to the same "No places yet - add your first place" panel, so an API outage looked
+  // like an empty database and an admin could be told to re-create content that still exists
+  // (IMP-031).
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [locations, setLocations] = useState([]);
@@ -68,6 +75,7 @@ export default function ManagePlaces() {
     const fetchPlaces = async () => {
       try {
         setLoadingPlaces(true);
+        setLoadError(null);
         const data = await getAllPlaces();
         console.log('Places fetched:', {
           count: data.length,
@@ -86,6 +94,7 @@ export default function ManagePlaces() {
           message: error.message,
           status: error.status,
         });
+        setLoadError(error.message || 'Could not reach the server.');
         toast.error(error.message || 'Failed to load places');
         setLoadingPlaces(false);
       }
@@ -302,7 +311,31 @@ export default function ManagePlaces() {
           </div>
 
           {/* Places List */}
-          {filteredPlaces.length === 0 ? (
+          {loadError ? (
+            /* An outage must never render as "No places yet" — that tells an admin their data is
+               gone and invites them to re-create it (IMP-031). */
+            <div className="bg-white shadow-sm rounded-xl border border-red-200 p-8 text-center">
+              <div className="max-w-md mx-auto">
+                <FiAlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Couldn&apos;t load places
+                </h3>
+                <p className="text-gray-500 mb-2">{loadError}</p>
+                <p className="text-gray-500 mb-6 text-sm">
+                  Your places are still there — this is a problem reaching the server, not an empty
+                  database.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.reload()}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  <FiRefreshCw className="mr-2 h-4 w-4" />
+                  Try again
+                </button>
+              </div>
+            </div>
+          ) : filteredPlaces.length === 0 ? (
             <div className="bg-white shadow-sm rounded-xl border border-gray-200 p-8 text-center">
               <div className="max-w-md mx-auto">
                 <FiMapPin className="mx-auto h-12 w-12 text-gray-400 mb-4" />

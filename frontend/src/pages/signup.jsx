@@ -59,13 +59,16 @@ export default function Signup() {
       const result = await signInWithGoogle();
       
       if (result.success) {
-        toast.success('Account created with Google successfully!');
+        // `signInWithGoogle` is the same call the login page makes: an existing Google user is
+        // simply signed in, and nothing here can tell the two apart. Claiming "Account created"
+        // was therefore wrong for every returning user (IMP-031). "Signed in" is true either way.
+        toast.success('Signed in with Google');
         router.push('/');
       } else {
-        toast.error(result.error || 'Failed to sign up with Google');
+        toast.error(result.error || 'Failed to sign in with Google');
       }
     } catch (error) {
-      toast.error(error.message || 'An error occurred during Google sign up');
+      toast.error(error.message || 'An error occurred during Google sign-in');
     } finally {
       setLoading(false);
     }

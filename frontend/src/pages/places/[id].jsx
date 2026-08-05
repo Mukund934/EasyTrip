@@ -6,17 +6,18 @@ import NextImage from 'next/image';
 import {
   FiArrowLeft, FiMapPin, FiStar, FiTag, FiMap, FiShare2, FiHeart,
   FiMessageSquare, FiInfo, FiCalendar, FiChevronDown, FiGlobe, FiCloud,
-  FiThermometer, FiDroplet, FiWind, FiSun, FiCamera, FiNavigation,
+  FiThermometer, FiDroplet, FiWind, FiCamera, FiNavigation,
   FiExternalLink, FiClock, FiUser, FiEdit3, FiEye, FiX, FiLoader,
   FiAlertCircle, FiRefreshCw, FiCheckCircle, FiBookmark, FiLink,
   FiChevronRight, FiChevronUp, FiList, FiMenu, FiArrowDown, FiArrowUp,
-  FiFeather, FiAward, FiCoffee, FiShield, FiThumbsUp, FiGrid, FiCompass,
+  FiFeather, FiCoffee, FiShield, FiThumbsUp, FiGrid, FiCompass,
   FiChevronLeft, FiFlag, FiTrash2
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview, deletePlaceReview, reportPlaceReview } from '../../services/placeService';
 import { subscribeToNewsletter } from '../../services/newsletterService';
+import { themeLabel } from '../../constants/themes';
 import ImageGallery from '../../components/ImageGallery';
 import MagazineGallery from '../../components/MagazineGallery';
 import ReviewForm from '../../components/ReviewForm';
@@ -105,12 +106,6 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
 
       {/* Hero overlay with gradient */}
       <motion.div style={{ opacity }} className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30 z-10" />
-      
-      {/* Decorative patterns */}
-      <div className="absolute inset-0 z-5 opacity-10 mix-blend-overlay" style={{ 
-        backgroundImage: "url('/images/pattern-dots.svg')",
-        backgroundSize: "30px 30px"
-      }}></div>
       
       {/* Top navigation bar */}
       <div className="absolute top-0 left-0 right-0 px-6 md:px-12 pt-8 md:pt-10 z-30 flex justify-between items-start">
@@ -285,10 +280,6 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
           <FiCalendar className="mr-1 h-3 w-3" />
           <span>Published: {formatDate(place.created_at) || 'September 2025'}</span>
         </div>
-        <div className="flex items-center">
-          <FiUser className="mr-1 h-3 w-3" />
-          <span>EasyTrip Editorial</span>
-        </div>
         {place.updated_at && (
           <div className="hidden md:flex items-center">
             <FiClock className="mr-1 h-3 w-3" />
@@ -345,33 +336,6 @@ const TableOfContents = ({ sections }) => {
         )}
       </AnimatePresence>
     </div>
-  );
-};
-
-// Pull Quote component
-const PullQuote = ({ quote, author, color = "indigo" }) => {
-  const colorClasses = {
-    indigo: "border-indigo-500 text-indigo-800 bg-indigo-50",
-    amber: "border-amber-500 text-amber-800 bg-amber-50",
-    emerald: "border-emerald-500 text-emerald-800 bg-emerald-50",
-    rose: "border-rose-500 text-rose-800 bg-rose-50",
-    violet: "border-violet-500 text-violet-800 bg-violet-50"
-  };
-  
-  return (
-    <blockquote className={`my-8 mx-auto max-w-2xl p-6 border-l-4 ${colorClasses[color]} rounded-r-xl font-serif italic relative`}>
-      <div className="absolute top-0 left-0 transform -translate-x-4 -translate-y-1/2 text-6xl opacity-20 font-serif">
-        "
-      </div>
-      <p className="text-xl md:text-2xl leading-relaxed relative z-10">
-        {quote}
-      </p>
-      {author && (
-        <footer className="mt-2 font-sans text-sm not-italic font-medium">
-          — {author}
-        </footer>
-      )}
-    </blockquote>
   );
 };
 
@@ -443,7 +407,7 @@ const MagazineImage = ({ src, alt, caption, credit, className, fullWidth = false
 };
 
 // Magazine-style Sidebar with progressive loading
-const MagazineSidebar = ({ place, isLoading = false }) => (
+const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
   <aside className="lg:sticky lg:top-24 space-y-8">
     {/* Editor's Note */}
     <motion.div
@@ -527,7 +491,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
       )}
       
       {/* Ratings Breakdown */}
-      {place.rating_count > 0 && (
+      {reviews.length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -539,46 +503,33 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
             Ratings Breakdown
           </h4>
           
+          {/* Was four invented sub-scores (4.7 Overall / 4.2 Value / 3.9 Accessibility / 4.5
+              Facilities) with a comment admitting it was a mockup. Those dimensions do not exist in
+              the data model — a review carries one 1-5 rating — so they could never be computed.
+              This is the distribution that CAN be computed, from the reviews actually loaded. */}
           <div className="space-y-2">
-            {/* This is a mockup - would need actual breakdown data */}
-            {[
-              { label: 'Overall Experience', value: 4.7 },
-              { label: 'Value for Money', value: 4.2 },
-              { label: 'Accessibility', value: 3.9 },
-              { label: 'Facilities', value: 4.5 }
-            ].map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">{item.label}</span>
-                <div className="flex items-center">
-                  <div className="w-24 h-2 bg-gray-200 rounded-full mr-2 overflow-hidden">
-                    <div 
-                      className="h-full bg-yellow-500 rounded-full" 
-                      style={{ width: `${(item.value / 5) * 100}%` }}
-                    ></div>
+            {[5, 4, 3, 2, 1].map((star) => {
+              const count = reviews.filter((review) => review.rating === star).length;
+              const share = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+              return (
+                <div key={star} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">{star} star{star === 1 ? '' : 's'}</span>
+                  <div className="flex items-center">
+                    <div className="w-24 h-2 bg-gray-200 rounded-full mr-2 overflow-hidden">
+                      <div
+                        className="h-full bg-yellow-500 rounded-full"
+                        style={{ width: `${share}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-medium w-6 text-right">{count}</span>
                   </div>
-                  <span className="text-sm font-medium">{item.value}</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
       )}
       
-      {/* Weather Widget */}
-      {place.latitude && place.longitude && (
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mt-6 pt-6 border-t border-gray-100"
-        >
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-            <FiSun className="mr-2 h-4 w-4" />
-            Current Weather
-          </h4>
-          <WeatherWidget lat={place.latitude} lon={place.longitude} />
-        </motion.div>
-      )}
     </motion.div>
 
     {/* Map Card with Magazine Styling */}
@@ -645,80 +596,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
       </motion.div>
     ) : null}
     
-    {/* Travel Tips Card */}
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.3 }}
-      className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-xl p-6 border border-amber-100"
-    >
-      <h3 className="text-xl font-serif font-bold text-amber-900 mb-4 flex items-center">
-        <div className="p-2 bg-amber-200 rounded-lg mr-3">
-          <FiAward className="text-amber-700 h-5 w-5" />
-        </div>
-        Travel Tips
-      </h3>
-      
-      <ul className="space-y-3">
-        {/* These tips would ideally come from the place data */}
-        {[
-          "Best time to visit is during early morning to avoid crowds",
-          "Don't forget to carry water and comfortable walking shoes",
-          "Photography is allowed, but tripods may require special permission",
-          "Local guides can enhance your experience with historical insights"
-        ].map((tip, index) => (
-          <li key={index} className="flex">
-            <span className="text-amber-500 mr-2">•</span>
-            <span className="text-amber-900">{tip}</span>
-          </li>
-        ))}
-      </ul>
-      
-      <div className="mt-4 pt-4 border-t border-amber-200">
-        <p className="text-amber-800 text-sm font-medium italic">
-          Tips updated on {formatDate(place.updated_at) || 'September 2025'}
-        </p>
-      </div>
-    </motion.div>
     
-    {/* Magazine Issue Card */}
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.4 }}
-      className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-    >
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 text-white">
-        <h3 className="font-serif font-bold text-lg">In This Issue</h3>
-        <p className="text-white/80 text-sm">September 2025 • Vol. 12 Issue 9</p>
-      </div>
-      
-      <div className="p-4">
-        <ul className="space-y-3">
-          {[
-            "Top 10 Hidden Beaches in South Asia",
-            "The Ultimate Foodie's Guide to Street Cuisine",
-            "Sustainable Travel: Eco-friendly Destinations",
-            "Photography Special: Capturing Culture"
-          ].map((article, index) => (
-            <li key={index} className="border-b border-gray-100 pb-2 last:border-0 last:pb-0">
-              <a href="#" className="text-gray-700 hover:text-indigo-600 transition-colors flex items-center">
-                <span className="font-serif text-indigo-500 mr-2">{index + 1}</span>
-                <span>{article}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-        
-        <a 
-          href="#"
-          className="mt-4 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800"
-        >
-          Browse all articles
-          <FiChevronRight className="ml-1 h-4 w-4" />
-        </a>
-      </div>
-    </motion.div>
   </aside>
 );
 
@@ -1065,81 +943,6 @@ const formatRelativeTime = (dateString) => {
   }
 };
 
-// Enhanced Weather Widget Component with better loading
-const WeatherWidget = ({ lat, lon }) => {
-  const [weather, setWeather] = useState({
-    temp_c: 24,
-    condition: "Partly cloudy",
-    icon: "/images/weather/partly-cloudy.svg",
-    humidity: 65,
-    wind_kph: 12,
-    feels_like: 25,
-    uv: 5
-  });
-  const [loadingWeather, setLoadingWeather] = useState(false);
-  
-  // Note: We're using mock data to keep it simple in this example
-  
-  if (loadingWeather) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-blue-50 rounded-xl p-4 flex items-center justify-center min-h-[120px]"
-      >
-        <div className="text-center">
-          <FiLoader className="h-6 w-6 text-blue-600 animate-spin mx-auto mb-2" />
-          <span className="text-blue-700 text-sm">Loading weather...</span>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="relative w-12 h-12">
-            <img
-              src={weather.icon}
-              alt={weather.condition}
-              className="rounded-lg"
-            />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-blue-900">{weather.temp_c}°C</div>
-            <div className="text-blue-700 text-sm font-medium truncate max-w-[120px]">
-              {weather.condition}
-            </div>
-          </div>
-        </div>
-        <div className="text-right text-xs text-blue-600 space-y-1">
-          <div className="flex items-center justify-end">
-            <FiDroplet className="mr-1 h-3 w-3" />
-            {weather.humidity}%
-          </div>
-          <div className="flex items-center justify-end">
-            <FiWind className="mr-1 h-3 w-3" />
-            {weather.wind_kph} kph
-          </div>
-        </div>
-      </div>
-      
-      <div className="mt-3 pt-3 border-t border-blue-100 grid grid-cols-2 gap-2 text-xs">
-        <div className="text-blue-800">
-          <span className="text-blue-500">Feels like:</span> {weather.feels_like}°C
-        </div>
-        <div className="text-blue-800">
-          <span className="text-blue-500">UV Index:</span> {weather.uv}
-        </div>
-      </div>
-    </motion.div>
-  );
-};
 
 // Main Component with enhanced magazine-style layout
 export default function PlaceDetails() {
@@ -1559,7 +1362,7 @@ export default function PlaceDetails() {
               Try Again
             </motion.button>
             <Link 
-              href="/explore" 
+              href="/browse" 
               className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors text-center flex items-center justify-center"
             >
               <FiArrowLeft className="mr-2 h-4 w-4" />
@@ -1732,22 +1535,12 @@ export default function PlaceDetails() {
                         {editorialExcerpt}
                       </p>
                       
-                      {/* Additional descriptive content */}
-                      <div className="prose prose-lg max-w-none text-gray-700 leading-relaxed">
-                        {/* Add more detailed description - this would normally come from the backend */}
-                        <p>
-                          Nestled in the heart of {place.district || place.location}, this {place.themes?.[0] || 'amazing'} destination attracts visitors from all around the world. The perfect balance of natural beauty and cultural heritage makes it a must-visit for travelers seeking authentic experiences.
-                        </p>
-                        
-                        <PullQuote 
-                          quote={`${place.name} represents the perfect blend of tradition and natural beauty that defines the essence of ${place.state || 'this region'}.`} 
-                          author="EasyTrip Editorial Team"
-                        />
-                        
-                        <p>
-                          Whether you're an adventure enthusiast, a cultural explorer, or simply looking for a peaceful retreat, {place.name} offers something special for every type of traveler. The local hospitality adds to the charm, ensuring visitors leave with unforgettable memories.
-                        </p>
-                      </div>
+                      {/* Three paragraphs of templated prose lived here, generated from the
+                          place's own fields and rendered as editorial copy — including a pull quote
+                          attributed to an "EasyTrip Editorial Team" that does not exist. Removed in
+                          Sprint 3.1 (IMP-027): the admin-written description above is the real
+                          content, and padding it with generated sentences made a short entry look
+                          researched rather than short. */}
                       
                       {/* Quick Facts Box */}
                       <FactBox 
@@ -1976,7 +1769,7 @@ export default function PlaceDetails() {
 
             {/* Sidebar */}
             <div className="mt-12 lg:mt-0">
-              <MagazineSidebar place={place} isLoading={contentLoading} />
+              <MagazineSidebar place={place} reviews={reviews} isLoading={contentLoading} />
             </div>
           </div>
         </main>
@@ -1986,34 +1779,24 @@ export default function PlaceDetails() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               <div>
-                <h3 className="text-2xl font-serif font-bold mb-6">EasyTrip Magazine</h3>
+                <h3 className="text-2xl font-serif font-bold mb-6">EasyTrip</h3>
                 <p className="text-gray-300 mb-6 leading-relaxed">
-                  Inspiring travelers with expertly curated destinations, insider tips, and immersive cultural experiences since 2022.
+                  Curated destinations across India, with real traveller ratings.
                 </p>
-                <div className="flex space-x-4">
-                  <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                    <span className="sr-only">Twitter</span>
-                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                    </svg>
-                  </a>
-                  <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                    <span className="sr-only">Instagram</span>
-                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clipRule="evenodd" />
-                    </svg>
-                  </a>
-                </div>
               </div>
               
               <div>
                 <h4 className="font-medium text-lg font-serif mb-6">Popular Categories</h4>
                 <ul className="space-y-3">
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Adventure Travel</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Cultural Experiences</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Food & Cuisine</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Eco Tourism</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Luxury Getaways</a></li>
+                  {/* Were five href="#" links naming categories that do not exist in the theme
+                      vocabulary at all. Now real filters, built from the shared list (IMP-025). */}
+                  {['adventure', 'historical', 'nature', 'beach', 'family'].map((id) => (
+                    <li key={id}>
+                      <Link href={`/browse?theme=${id}`} className="text-gray-300 hover:text-white transition-colors">
+                        {themeLabel(id)}
+                      </Link>
+                    </li>
+                  ))}
                 </ul>
               </div>
               
@@ -2055,13 +1838,8 @@ export default function PlaceDetails() {
             
             <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between">
               <p className="text-gray-400 text-sm mb-4 md:mb-0">
-                © 2025 EasyTrip Magazine. All rights reserved.
+                {`© ${new Date().getFullYear()} EasyTrip. All rights reserved.`}
               </p>
-              <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-400">
-                <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
-              </div>
             </div>
           </div>
         </footer>
