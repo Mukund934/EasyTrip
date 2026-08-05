@@ -2,19 +2,48 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/router';
 import { useInView } from 'react-intersection-observer';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    FiFilter, FiMap, FiMapPin, FiStar, FiTag, FiList, FiGrid,
-    FiArrowRight, FiX, FiSearch, FiSliders, FiChevronDown,
-    FiChevronUp, FiCalendar, FiCheck, FiInfo, FiHome,
-    FiRefreshCw, FiClock, FiTarget, FiLayers, FiFlag,
-    FiSun, FiCloud, FiCloudRain, FiHeart, FiBook, FiCompass,
-    FiCpu, FiTriangle, FiMonitor, FiUmbrella, FiUsers,
-    FiZap, FiEye, FiAward, FiMessageCircle, FiShare2,
-    FiUser, FiAlertCircle, FiLoader, FiMaximize2, FiMinimize2,
-    FiCamera, FiFeather, FiGlobe, FiNavigation, FiActivity
+    FiFilter,
+    FiMap,
+    FiMapPin,
+    FiStar,
+    FiTag,
+    FiList,
+    FiGrid,
+    FiArrowRight,
+    FiX,
+    FiSearch,
+    FiSliders,
+    FiChevronDown,
+    FiCalendar,
+    FiCheck,
+    FiInfo,
+    FiRefreshCw,
+    FiClock,
+    FiTarget,
+    FiLayers,
+    FiFlag,
+    FiSun,
+    FiCloud,
+    FiCloudRain,
+    FiHeart,
+    FiBook,
+    FiCompass,
+    FiCpu,
+    FiTriangle,
+    FiMonitor,
+    FiUmbrella,
+    FiUsers,
+    FiMessageCircle,
+    FiUser,
+    FiAlertCircle,
+    FiLoader,
+    FiMaximize2,
+    FiMinimize2,
+    FiGlobe,
+    FiActivity
 } from 'react-icons/fi';
 import PlaceCard from '../components/PlaceCard';
 import { THEMES, SEASONS } from '../constants/themes';
@@ -110,8 +139,6 @@ const staggerChildren = {
 };
 
 function Browse({ initialResults, initialFacets, initialFilters, initialError }) {
-    const router = useRouter();
-    const { q, location, district, state, theme, tag, date, rating } = router.query;
     const { currentUser } = useAuth();
     const scrollPosition = useRef(0);
 
@@ -214,12 +241,6 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
         rootMargin: '400px 0px'
     });
 
-    // Check if we're on a mobile device
-    const isMobile = useMemo(() => {
-        if (typeof window === 'undefined') return false;
-        return window.innerWidth < 768;
-    }, []);
-
     // Detect screen size changes.
     //
     // The page size no longer varies with the viewport: it is a server `LIMIT` now, and changing
@@ -268,9 +289,13 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
         }
     }, []);
 
-    // Debounced search handler
-    const debouncedSearch = useCallback(
-        debounce((term) => {
+    // Debounced search handler.
+    //
+    // useMemo, not useCallback: the debounce() call was evaluated on every render and handed to
+    // useCallback, which — with an empty dependency array — kept the first one and discarded the
+    // rest. A fresh timer object allocated per render for nothing.
+    const debouncedSearch = useMemo(
+        () => debounce((term) => {
             setSearchTerm(term);
             // Save search term to recent searches
             if (term && term.trim() !== '') {
@@ -285,6 +310,10 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
         }, 300),
         []
     );
+
+    // Cancel a pending search on unmount: without this the trailing call can land after the
+    // component is gone and set state on it.
+    useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch]);
 
     // The filter set, in the shape the API takes. Everything downstream reads this rather than
     // the eight individual pieces of state, so there is one definition of "the current query".
@@ -390,6 +419,9 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
             controller.abort();
             clearTimeout(timer);
         };
+        // criteriaKey IS criteria, serialised. Depending on the object would refetch on every
+        // render, which is exactly what the key exists to prevent.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [criteriaKey, sortOrder]);
 
     // Append the next page. Offsets come from how many rows are already held rather than a page
@@ -441,6 +473,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
             cancelled = true;
             controller.abort();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- see above: criteriaKey stands in for criteria.
     }, [viewMode, criteriaKey]);
 
     // Infinite scroll. Each page is now a real request, so the guard matters more than it did
@@ -568,7 +601,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     };
 
     // Use a search suggestion from history
-    const useSearchSuggestion = (term) => {
+    const applySearchSuggestion = (term) => {
         setSearchTerm(term);
         setSearchActive(false);
 
@@ -704,7 +737,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
                                                                 <button
                                                                     type="button"
                                                                     className="flex flex-1 items-center px-3 py-1 text-gray-600 text-sm text-left"
-                                                                    onClick={() => useSearchSuggestion(term)}
+                                                                    onClick={() => applySearchSuggestion(term)}
                                                                 >
                                                                     <FiClock className="h-3 w-3 mr-2 text-gray-400" />
                                                                     <span>{term}</span>
@@ -2372,7 +2405,6 @@ const EnhancedImage = ({ place, priority = false }) => {
                 className={`w-full h-full object-cover transition-opacity duration-500 ${status === 'loaded' ? 'opacity-100' : 'opacity-0'}`}
                 onLoad={() => setStatus('loaded')}
                 onError={() => {
-                    console.log(`Image failed to load for ${place.name} (ID: ${place.id})`);
                     setStatus('error');
                 }}
                 loading={priority ? 'eager' : 'lazy'}

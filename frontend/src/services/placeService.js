@@ -62,14 +62,12 @@ const createPlace = async (placeData, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Creating place: ${placeData.name}`);
 
     const formData = new FormData();
 
     // Add image if present
     if (placeData.image) {
       formData.append('image', placeData.image);
-      console.log(`Uploading primary image: ${placeData.image.name}, ${placeData.image.type}, ${Math.round(placeData.image.size/1024)} KB`);
     }
 
     // Add all other fields to formData
@@ -80,24 +78,11 @@ const createPlace = async (placeData, token) => {
         } else {
           formData.append(key, value);
         }
-        console.log(`Form field - ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
       }
     });
 
-    // Upload progress tracking
-    const onUploadProgress = (progressEvent) => {
-      if (placeData.image && progressEvent.total) {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        console.log(`Upload progress: ${percentCompleted}%`);
-      }
-    };
+    const response = await axios.post(`${API_URL}/admin/places`, formData, { headers });
 
-    const response = await axios.post(`${API_URL}/admin/places`, formData, {
-      headers,
-      onUploadProgress
-    });
-
-    console.log(`Place created successfully: ID=${response.data.id}, Name=${response.data.name}`);
     return response.data;
   } catch (error) {
     console.error('Error creating place:', {
@@ -125,14 +110,12 @@ const updatePlace = async (id, placeData, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Updating place ${id}`);
 
     const formData = new FormData();
 
     // Add image if present
     if (placeData.image) {
       formData.append('image', placeData.image);
-      console.log(`Uploading updated image: ${placeData.image.name}, ${Math.round(placeData.image.size/1024)} KB`);
     }
 
     // Add all other fields to formData
@@ -146,20 +129,8 @@ const updatePlace = async (id, placeData, token) => {
       }
     });
 
-    // Upload progress tracking
-    const onUploadProgress = (progressEvent) => {
-      if (placeData.image && progressEvent.total) {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        console.log(`Update upload progress: ${percentCompleted}%`);
-      }
-    };
+    const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, { headers });
 
-    const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, {
-      headers,
-      onUploadProgress
-    });
-
-    console.log(`Place updated successfully: ID=${response.data.id}, Name=${response.data.name}`);
     return response.data;
   } catch (error) {
     console.error(`Error updating place ${id}:`, {
@@ -185,11 +156,9 @@ const deletePlace = async (id, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Deleting place ${id}`);
 
     const response = await axios.delete(`${API_URL}/admin/places/${id}`, { headers });
 
-    console.log(`Place deleted successfully: ID=${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting place ${id}:`, error.response?.data || error.message);
@@ -213,7 +182,6 @@ const deletePlace = async (id, token) => {
  */
 const getPlaceReviews = async (id, token) => {
   try {
-    console.log(`Getting reviews for place ${id}`);
 
     let idToken = token;
     if (!idToken && auth.currentUser) {
@@ -225,7 +193,6 @@ const getPlaceReviews = async (id, token) => {
       idToken ? { headers: { Authorization: `Bearer ${idToken}` } } : undefined
     );
 
-    console.log(`Reviews fetched: ${response.data.length} items`);
     return response.data;
   } catch (error) {
     console.error(`Error fetching reviews for place ${id}:`, error.response?.data || error.message);
@@ -243,7 +210,6 @@ const createPlaceReview = async (id, reviewData, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Creating review for place ${id}`);
 
     // Only the review itself travels on the wire; the author is derived from the
     // verified token server-side, so any client-supplied identity is dropped here.
@@ -254,7 +220,6 @@ const createPlaceReview = async (id, reviewData, token) => {
 
     const response = await axios.post(`${API_URL}/places/${id}/reviews`, payload, { headers });
 
-    console.log(`Review created successfully for place ${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error creating review for place ${id}:`, error.response?.data || error.message);
@@ -285,11 +250,9 @@ const deletePlaceReview = async (id, reviewId, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Deleting review ${reviewId} for place ${id}`);
 
     await axios.delete(`${API_URL}/places/${id}/reviews/${reviewId}`, { headers });
 
-    console.log(`Review ${reviewId} deleted`);
     return true;
   } catch (error) {
     console.error(`Error deleting review ${reviewId}:`, error.response?.data || error.message);
@@ -315,7 +278,6 @@ const reportPlaceReview = async (id, reviewId, reason, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Reporting review ${reviewId} for place ${id}`);
 
     const response = await axios.post(
       `${API_URL}/places/${id}/reviews/${reviewId}/report`,
@@ -354,7 +316,6 @@ const addPlaceImage = async (id, file, caption, token) => {
 
     const response = await axios.post(`${API_URL}/admin/places/${id}/images`, formData, { headers });
 
-    console.log(`Gallery image added to place ${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error adding gallery image to place ${id}:`, error.response?.data || error.message);
@@ -380,7 +341,6 @@ const deletePlaceImage = async (id, imageId, token) => {
 
   try {
     await axios.delete(`${API_URL}/admin/places/${id}/images/${imageId}`, { headers });
-    console.log(`Gallery image ${imageId} removed from place ${id}`);
     return true;
   } catch (error) {
     console.error(`Error deleting gallery image ${imageId}:`, error.response?.data || error.message);
@@ -392,7 +352,7 @@ const deletePlaceImage = async (id, imageId, token) => {
 };
 
 // Export all functions
-export default {
+const placeService = {
   getPlaceById,
   getLocations,
   getDistricts,
@@ -409,6 +369,8 @@ export default {
   addPlaceImage,
   deletePlaceImage
 };
+
+export default placeService;
 
 // Named exports for direct imports
 export {

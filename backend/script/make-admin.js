@@ -14,7 +14,6 @@ function fileExists(filePath) {
 }
 
 // Initialize Firebase Admin
-let app;
 try {
   // First, check if a service account file exists
   const serviceAccountPath = path.join(__dirname, '../service-account.json');
@@ -22,7 +21,7 @@ try {
   if (fileExists(serviceAccountPath)) {
     // Use service account file if it exists
     const serviceAccount = require(serviceAccountPath);
-    app = admin.initializeApp({
+    admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
     console.log('Firebase initialized with service account file.');
@@ -30,7 +29,7 @@ try {
             process.env.FIREBASE_CLIENT_EMAIL && 
             process.env.FIREBASE_PRIVATE_KEY) {
     // Use environment variables if service account file doesn't exist
-    app = admin.initializeApp({
+    admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,

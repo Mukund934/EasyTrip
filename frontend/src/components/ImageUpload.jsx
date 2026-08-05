@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { FiUpload, FiX, FiImage, FiAlertCircle, FiCheck } from 'react-icons/fi';
+import { FiUpload, FiX, FiAlertCircle, FiCheck } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ACCEPTED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -93,7 +93,7 @@ export default function ImageUpload({
         setUploading(false);
       });
     }
-  }, [validateFile, multiple, onImageSelect, selectedImages]);
+  }, [validateFile, multiple, handleImageSelection, selectedImages]);
 
   // Handle drag events
   const handleDrag = useCallback((e) => {

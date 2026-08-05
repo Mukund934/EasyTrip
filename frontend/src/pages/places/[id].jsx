@@ -2,26 +2,48 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import NextImage from 'next/image'; 
 import {
-  FiArrowLeft, FiMapPin, FiStar, FiTag, FiMap, FiShare2, FiHeart,
-  FiMessageSquare, FiInfo, FiCalendar, FiChevronDown, FiGlobe, FiCloud,
-  FiThermometer, FiDroplet, FiWind, FiCamera, FiNavigation,
-  FiExternalLink, FiClock, FiUser, FiEdit3, FiEye, FiX, FiLoader,
-  FiAlertCircle, FiRefreshCw, FiCheckCircle, FiBookmark, FiLink,
-  FiChevronRight, FiChevronUp, FiList, FiMenu, FiArrowDown, FiArrowUp,
-  FiFeather, FiCoffee, FiShield, FiThumbsUp, FiGrid, FiCompass,
-  FiChevronLeft, FiFlag, FiTrash2
+  FiArrowLeft,
+  FiMapPin,
+  FiStar,
+  FiTag,
+  FiMap,
+  FiShare2,
+  FiHeart,
+  FiMessageSquare,
+  FiInfo,
+  FiCalendar,
+  FiChevronDown,
+  FiGlobe,
+  FiCamera,
+  FiNavigation,
+  FiExternalLink,
+  FiClock,
+  FiUser,
+  FiEdit3,
+  FiEye,
+  FiX,
+  FiLoader,
+  FiAlertCircle,
+  FiRefreshCw,
+  FiCheckCircle,
+  FiLink,
+  FiChevronRight,
+  FiList,
+  FiMenu,
+  FiArrowDown,
+  FiFeather,
+  FiCompass,
+  FiFlag,
+  FiTrash2
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview, deletePlaceReview, reportPlaceReview } from '../../services/placeService';
 // Server-side reads come from placesApi, which carries no Firebase import — see its header.
 import { fetchPlaces, fetchPlaceById, fetchPlaceImages, fetchPlaceReviews } from '../../services/placesApi';
-import ImageGallery from '../../components/ImageGallery';
 import MagazineGallery from '../../components/MagazineGallery';
 import ReviewForm from '../../components/ReviewForm';
-import ReviewList from '../../components/ReviewList';
 import RelatedPlaces from '../../components/RelatedPlaces';
 import { useAuth } from '../../context/AuthContext';
 import { useDismissable } from '../../hooks/useDismissable';
@@ -41,7 +63,6 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
   const scale = useTransform(scrollY, [0, 300], [1, 1.1]);
   const titleY = useTransform(scrollY, [0, 300], [0, 100]);
-  const parallaxY = useTransform(scrollY, [0, 300], [0, -150]);
   
   // Load hero image with JavaScript
   useEffect(() => {
@@ -381,49 +402,6 @@ const FactBox = ({ title, facts }) => {
   );
 };
 
-// Enhanced Image Component with magazine styling
-const MagazineImage = ({ src, alt, caption, credit, className, fullWidth = false }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  
-  return (
-    <figure className={`my-8 ${fullWidth ? 'w-full' : 'max-w-3xl mx-auto'} ${className || ''}`}>
-      <div className="relative overflow-hidden bg-gray-100 rounded-xl shadow-lg">
-        {!isLoaded && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <LoadingSpinner color="primary" />
-          </div>
-        )}
-        
-        {hasError ? (
-          <div className="flex items-center justify-center h-64 bg-gray-100 text-gray-500">
-            <FiAlertCircle className="mr-2 h-5 w-5" />
-            <span>Image unavailable</span>
-          </div>
-        ) : (
-          <img
-            src={src}
-            alt={alt}
-            className={`w-full transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setIsLoaded(true)}
-            onError={() => {
-              setIsLoaded(true);
-              setHasError(true);
-            }}
-          />
-        )}
-      </div>
-      
-      {(caption || credit) && (
-        <figcaption className="mt-2 text-gray-600 text-sm italic flex justify-between border-b border-gray-200 pb-2">
-          {caption && <span>{caption}</span>}
-          {credit && <span className="text-gray-400 text-xs">Credit: {credit}</span>}
-        </figcaption>
-      )}
-    </figure>
-  );
-};
-
 // Magazine-style Sidebar with progressive loading
 const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
   <aside className="lg:sticky lg:top-24 space-y-8">
@@ -438,7 +416,7 @@ const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
         <div className="p-2 bg-yellow-500/20 rounded-lg mr-3">
           <FiFeather className="text-yellow-500 h-5 w-5" />
         </div>
-        Editor's Note
+        Editor&apos;s Note
       </h3>
       
       <p className="text-gray-300 italic font-serif mb-4 leading-relaxed">
@@ -619,7 +597,7 @@ const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
 );
 
 // Magazine-style Review Section
-const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingReview = false, currentUserId, isLoading = false }) => {
+const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingReview = false, isLoading = false }) => {
   const [viewMode, setViewMode] = useState('curated');
   
   // Filter out some of the most positive reviews for "curated" view
@@ -683,7 +661,7 @@ const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingRe
                 : 'text-gray-700 hover:text-gray-900'
             }`}
           >
-            Editor's Picks
+            Editor&apos;s Picks
           </button>
           <button
             onClick={() => setViewMode('all')}
@@ -943,25 +921,6 @@ const formatDate = (dateString) => {
   }
 };
 
-const formatRelativeTime = (dateString) => {
-  if (!dateString) return null;
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
-    if (diffInDays === 0) return 'Today';
-    if (diffInDays === 1) return 'Yesterday';
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} months ago`;
-    return `${Math.floor(diffInDays / 365)} years ago`;
-  } catch {
-    return null;
-  }
-};
-
-
 /**
  * Compose the gallery: the primary image first, then the gallery rows, de-duplicated by URL.
  *
@@ -1016,14 +975,15 @@ export default function PlaceDetails({ initialPlace = null, initialImages = [], 
   // Scroll progress
   const scrollProgress = useTransform(scrollY, [0, 2000], [0, 100]);
   
-  // Content sections for table of contents
-  const sections = [
+  // Content sections for table of contents. Memoised because the scroll-observer effect below
+  // depends on it, and a fresh array literal each render re-registered the observer every time.
+  const sections = useMemo(() => [
     { id: 'about', title: 'About This Place' },
     { id: 'details', title: 'Essential Details' },
     { id: 'gallery', title: 'Photo Gallery' },
     { id: 'reviews', title: 'Traveler Reviews' },
     { id: 'related', title: 'Similar Places' }
-  ];
+  ], []);
 
   // Memoized calculation for average rating
   const avgRating = useMemo(() => {
@@ -1055,7 +1015,6 @@ export default function PlaceDetails({ initialPlace = null, initialImages = [], 
     setError(null);
     
     try {
-      console.log(`[${new Date().toISOString()}] Fetching data for place ID: ${id}`);
 
       // Fetch place data first (critical)
       const placeData = await getPlaceById(id);
@@ -1078,7 +1037,6 @@ export default function PlaceDetails({ initialPlace = null, initialImages = [], 
       const reviewResults = reviewsData.status === 'fulfilled' ? reviewsData.value : [];
       setReviews(reviewResults || []);
 
-      console.log(`[${new Date().toISOString()}] Successfully loaded data for place: ${placeData.name}`);
       
     } catch (err) {
       console.error('Error loading page data:', {
@@ -1707,7 +1665,6 @@ export default function PlaceDetails({ initialPlace = null, initialImages = [], 
                         onReportReview={handleReportReview}
                         onDeleteReview={handleDeleteReview}
                         isDeletingReview={isDeletingReview}
-                        currentUserId={currentUser?.uid}
                         isLoading={contentLoading}
                       />
                       

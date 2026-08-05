@@ -31,5 +31,7 @@ const subscribeToNewsletter = async (email, source) => {
   }
 };
 
-export default { subscribeToNewsletter };
+const newsletterService = { subscribeToNewsletter };
+
+export default newsletterService;
 export { subscribeToNewsletter };

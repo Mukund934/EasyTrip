@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDismissable } from '../hooks/useDismissable';
-import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiCompass } from 'react-icons/fi';
+import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiCompass } from 'react-icons/fi';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);

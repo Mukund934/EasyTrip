@@ -3,11 +3,30 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { toast } from 'react-toastify';
 import {
-  FiSave, FiMapPin, FiTag, FiPlus, FiMinus, FiImage,
-  FiArrowLeft, FiX, FiThermometer, FiSun, FiCloudRain,
-  FiHeart, FiBook, FiClock, FiCpu, FiMap, FiUpload,
-  FiAlertCircle, FiInfo, FiNavigation, FiEye, FiCheck,
-  FiLoader, FiCamera, FiGlobe, FiHome, FiMapPin as FiLocation
+  FiSave,
+  FiMapPin,
+  FiTag,
+  FiPlus,
+  FiMinus,
+  FiArrowLeft,
+  FiX,
+  FiThermometer,
+  FiSun,
+  FiCloudRain,
+  FiHeart,
+  FiBook,
+  FiClock,
+  FiCpu,
+  FiMap,
+  FiAlertCircle,
+  FiInfo,
+  FiNavigation,
+  FiCheck,
+  FiLoader,
+  FiCamera,
+  FiGlobe,
+  FiHome,
+  FiMapPin as FiLocation
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
@@ -79,7 +98,6 @@ export default function AddPlace() {
   const [errors, setErrors] = useState({});
   const [step, setStep] = useState(1);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
-  const [imagePreview, setImagePreview] = useState(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -218,7 +236,6 @@ export default function AddPlace() {
       
       // Create preview
       const reader = new FileReader();
-      reader.onload = (e) => setImagePreview(e.target.result);
       reader.readAsDataURL(file);
     }
   };
@@ -309,13 +326,6 @@ export default function AddPlace() {
         image: primaryImage
       };
 
-      console.log('Submitting place data:', {
-        name: placeData.name,
-        location: placeData.location,
-        hasImage: !!placeData.image,
-        themes: placeData.themes,
-        tags: placeData.tags
-      });
       
       // Submit the form - let the service handle FormData creation
       const response = await createPlace(placeData, token);
@@ -788,7 +798,6 @@ export default function AddPlace() {
                           handleImageChange(file);
                         } else {
                           setPrimaryImage(null);
-                          setImagePreview(null);
                           toast.info('Image removed');
                         }
                       }}

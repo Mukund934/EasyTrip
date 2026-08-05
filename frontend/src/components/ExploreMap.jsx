@@ -5,13 +5,32 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
-import { createRoot } from 'react-dom/client';
+
 import {
-  FiMapPin, FiStar, FiNavigation, FiLayers, FiPlus, FiMinus,
-  FiMaximize2, FiMinimize2, FiFilter, FiX, FiSearch, FiRefreshCw,
-  FiCrosshair, FiChevronRight, FiChevronLeft, FiInfo, FiAlertCircle,
-  FiSettings, FiCompass, FiArrowRight, FiEye, FiGlobe, FiTarget,
-  FiCheck, FiSun, FiMoon
+  FiMapPin,
+  FiStar,
+  FiNavigation,
+  FiLayers,
+  FiPlus,
+  FiMinus,
+  FiMaximize2,
+  FiMinimize2,
+  FiX,
+  FiSearch,
+  FiRefreshCw,
+  FiCrosshair,
+  FiChevronRight,
+  FiChevronLeft,
+  FiInfo,
+  FiAlertCircle,
+  FiCompass,
+  FiArrowRight,
+  FiEye,
+  FiGlobe,
+  FiTarget,
+  FiCheck,
+  FiSun,
+  FiMoon
 } from 'react-icons/fi';
 
 // Leaflet icon setup
@@ -134,7 +153,6 @@ const ExploreMap = ({
     bearing: 0,
     pitch: 0
   });
-  const [hoveredPlace, setHoveredPlace] = useState(null);
 
   // PostgreSQL returns DECIMAL columns as strings, so every `typeof place.latitude === 'number'`
   // guard below rejected every row and the map rendered zero markers (IMP-007). Coordinates are
@@ -188,8 +206,7 @@ const ExploreMap = ({
             setNearbyPlaces(placesWithDistance.sort((a, b) => a.distance - b.distance));
           }
         },
-        (error) => {
-          console.log('Geolocation error:', error);
+        () => {
           // If geolocation fails, use all places
           const validPlaces = places.filter(place => 
             typeof place.latitude === 'number' && typeof place.longitude === 'number'
@@ -278,7 +295,7 @@ const ExploreMap = ({
       }).addTo(map);
       
       // Add custom attribution
-      const attribution = L.control.attribution({
+      L.control.attribution({
         position: 'bottomright',
         prefix: 'EasyTrip'
       }).addTo(map);
@@ -427,6 +444,9 @@ const ExploreMap = ({
     if (mapRef.current && mapLoaded) {
       updateMarkers(filteredPlaces, selectedPlace);
     }
+    // updateMarkers is declared below; naming it here would read it in its temporal dead zone.
+    // See the note above this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPlaces, selectedPlace, mapLoaded, clusterMode]);
   
   // Update tile layer when it changes
@@ -466,6 +486,7 @@ const ExploreMap = ({
     } catch (err) {
       console.error('Error flying to selected place:', err);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateSelectedMarker is declared below.
   }, [selectedPlace, mapLoaded]);
   
   // Markers currently on the map, keyed by place id, so an update can be a diff (IMP-048).
@@ -768,7 +789,6 @@ const ExploreMap = ({
                   className="clear-search"
                   onClick={() => setSearchQuery('')}
                   aria-label="Clear search"
-                  aria-label="Clear search"
                 >
                   <FiX />
                 </button>
@@ -812,8 +832,6 @@ const ExploreMap = ({
                       className={`place-item ${isCurrentlySelected ? 'selected' : ''} ${isVisible ? 'visible' : 'not-visible'}`}
                       aria-pressed={isCurrentlySelected}
                       onClick={() => onSelectPlace(place)}
-                      onMouseEnter={() => setHoveredPlace(place)}
-                      onMouseLeave={() => setHoveredPlace(null)}
                     >
                       <div className="place-icon">
                         {isVisible ? (
@@ -878,7 +896,6 @@ const ExploreMap = ({
                 <button
                   className="clear-search"
                   onClick={() => setSearchQuery('')}
-                  aria-label="Clear search"
                   aria-label="Clear search"
                 >
                   <FiX />

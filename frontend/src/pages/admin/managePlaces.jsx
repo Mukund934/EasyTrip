@@ -3,14 +3,13 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-import { 
-  FiEdit, 
-  FiTrash2, 
-  FiPlus, 
-  FiArrowLeft, 
-  FiSearch, 
-  FiFilter, 
-  FiMoreVertical,
+import {
+  FiEdit,
+  FiTrash2,
+  FiPlus,
+  FiArrowLeft,
+  FiSearch,
+  FiFilter,
   FiMapPin,
   FiClock,
   FiUser,
@@ -102,10 +101,6 @@ export default function ManagePlaces() {
           toast.warn(`Showing the first ${data.length} places.`);
         }
 
-        console.log('Places fetched:', {
-          count: data.length,
-          firstPlace: data[0] ? { id: data[0].id, name: data[0].name, updatedByName: data[0].updated_by_name } : null,
-        });
         setPlaces(data);
         setFilteredPlaces(data);
 
@@ -715,7 +710,7 @@ export default function ManagePlaces() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500">
-                        Are you sure you want to delete <span className="font-medium">"{placeToDelete?.name}"</span>? This
+                        Are you sure you want to delete <span className="font-medium">&quot;{placeToDelete?.name}&quot;</span>? This
                         action cannot be undone and will permanently remove all associated data.
                       </p>
                     </div>

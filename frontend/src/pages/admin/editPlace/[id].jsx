@@ -88,18 +88,6 @@ export default function EditPlace() {
 
         const data = await getPlaceById(id);
 
-        console.log('Place data received:', {
-          id: data.id,
-          name: data.name,
-          location: data.location,
-          hasImage: !!data.image_url,
-          tagsCount: data.tags?.length || 0,
-          themesCount: data.themes?.length || 0,
-          createdBy: data.created_by,
-          createdByName: data.created_by_name,
-          updatedBy: data.updated_by,
-          updatedByName: data.updated_by_name,
-        });
 
         setFormData({
           name: data.name || '',
@@ -309,14 +297,6 @@ export default function EditPlace() {
         updated_at: new Date().toISOString(),
       };
 
-      console.log('Update data:', {
-        id,
-        ...updatedFormData,
-        hasImage: !!formData.image,
-        customKeysCount: Object.keys(formData.custom_keys).length,
-        tagsCount: formData.tags.length,
-        themesCount: formData.themes.length,
-      });
 
       await updatePlace(id, updatedFormData, token);
 

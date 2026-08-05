@@ -1,5 +1,4 @@
 const pool = require('../config/db');
-const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const placeModel = require('../models/placeModel');

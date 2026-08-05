@@ -8,7 +8,6 @@ import Footer from '../components/Footer';
 import ErrorBoundary from '../components/ErrorBoundary';
 import 'react-toastify/dist/ReactToastify.css';
 import '../styles/globals.css';
-import { UserProvider } from '../context/UserContext';
 
 /**
  * Self-hosted fonts (IMP-041).
@@ -51,42 +50,40 @@ function MyApp({ Component, pageProps }) {
        which is the behaviour vestibular-disorder guidance actually asks for. */
     <MotionConfig reducedMotion="user">
       <AuthProvider>
-        <UserProvider>
-          {/* The variables have to land on an element that wraps everything, including portalled
-              toasts, so every `font-sans` / `font-serif` in the tree can resolve them. */}
-          <div className={`${inter.variable} ${playfair.variable} flex flex-col min-h-screen`}>
-            {/* Lets keyboard and screen-reader users jump past the nav to the page content
-                instead of tabbing the whole menu on every navigation (IMP-077). */}
-            <a
-              href="#main-content"
-              className="sr-only-focusable absolute left-4 top-4 z-[100] rounded-lg bg-primary-600 px-4 py-2 text-white font-medium shadow-lg"
-            >
-              Skip to main content
-            </a>
-            <Navbar />
-          {/* Wraps the page only, not the chrome: a crash inside a page leaves the navbar and
-              footer intact, so the user can still navigate away instead of losing the whole app.
-              Keyed on the route so recovering from an error on one page does not carry the error
-              state onto the next one (IMP-074). */}
-            <main id="main-content" tabIndex={-1} className="flex-grow">
-              <ErrorBoundary key={router.asPath}>
-                {getLayout(<Component {...pageProps} />)}
-              </ErrorBoundary>
-            </main>
-            <Footer />
-          </div>
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-          />
-        </UserProvider>
+        {/* The variables have to land on an element that wraps everything, including portalled
+            toasts, so every `font-sans` / `font-serif` in the tree can resolve them. */}
+        <div className={`${inter.variable} ${playfair.variable} flex flex-col min-h-screen`}>
+          {/* Lets keyboard and screen-reader users jump past the nav to the page content
+              instead of tabbing the whole menu on every navigation (IMP-077). */}
+          <a
+            href="#main-content"
+            className="sr-only-focusable absolute left-4 top-4 z-[100] rounded-lg bg-primary-600 px-4 py-2 text-white font-medium shadow-lg"
+          >
+            Skip to main content
+          </a>
+          <Navbar />
+        {/* Wraps the page only, not the chrome: a crash inside a page leaves the navbar and
+            footer intact, so the user can still navigate away instead of losing the whole app.
+            Keyed on the route so recovering from an error on one page does not carry the error
+            state onto the next one (IMP-074). */}
+          <main id="main-content" tabIndex={-1} className="flex-grow">
+            <ErrorBoundary key={router.asPath}>
+              {getLayout(<Component {...pageProps} />)}
+            </ErrorBoundary>
+          </main>
+          <Footer />
+        </div>
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
       </AuthProvider>
     </MotionConfig>
   );

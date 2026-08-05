@@ -1,8 +1,5 @@
 const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const multer = require('multer');
 const fs = require('fs');
-const path = require('path');
 
 // Configure Cloudinary
 cloudinary.config({
@@ -12,38 +9,6 @@ cloudinary.config({
 });
 
 console.log('Cloudinary configured with cloud name:', process.env.CLOUDINARY_CLOUD_NAME);
-
-// Create temporary directory for file uploads if it doesn't exist
-const tmpDir = path.join(__dirname, '../../tmp');
-if (!fs.existsSync(tmpDir)) {
-  fs.mkdirSync(tmpDir, { recursive: true });
-}
-
-// Create multer storage with disk storage first, then upload to Cloudinary
-const diskStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, tmpDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// Create multer upload middleware
-const uploadMiddleware = multer({
-  storage: diskStorage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  }
-});
 
 // Direct upload function for programmatic use
 const uploadImage = async (filePath, options = {}) => {
@@ -208,40 +173,10 @@ const destroyPlaceAssets = async (placeId) => {
   }
 };
 
-// Test Cloudinary connection
-const testCloudinary = async () => {
-  try {
-    console.log('Testing Cloudinary connection...');
-    
-    // Create a test file
-    const testFilePath = path.join(tmpDir, `test_${Date.now()}.png`);
-    
-    // Create a simple 1x1 pixel transparent PNG image
-    const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-    fs.writeFileSync(testFilePath, Buffer.from(base64Image, 'base64'));
-    
-    console.log(`Test file created at: ${testFilePath}`);
-    
-    const result = await uploadImage(testFilePath, {
-      folder: 'easytrip/test',
-      public_id: `test_${Date.now()}`
-    });
-    
-    console.log('✅ Cloudinary is working!');
-    console.log('Image URL:', result.url);
-    return { success: true, url: result.url };
-  } catch (error) {
-    console.error('❌ Cloudinary test failed:', error);
-    return { success: false, error: error.message || error };
-  }
-};
-
 module.exports = {
   cloudinary,
-  uploadMiddleware,
   uploadImage,
   destroyImage,
   destroyPlaceAssets,
-  publicIdFromUrl,
-  testCloudinary
+  publicIdFromUrl
 };

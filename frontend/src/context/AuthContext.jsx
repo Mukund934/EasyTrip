@@ -252,26 +252,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Debug auth state for development - safe for SSR
-  const debugAuthState = (user, adminStatus) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('--- Auth State Update ---');
-      console.log('Current Date/Time:', new Date().toISOString());
-      
-      if (user) {
-        console.log('User:', {
-          uid: user.uid,
-          email: user.email,
-          name: user.displayName,
-          isAdmin: adminStatus
-        });
-      } else {
-        console.log('User: Not authenticated');
-      }
-
-      console.log('------------------------');
-    }
-  };
 
   // Listen for auth state changes - only after initial render.
   // The Firebase SDK's own persistence is the single source of session truth:
@@ -305,7 +285,6 @@ export const AuthProvider = ({ children }) => {
           setCurrentUser(formattedUser);
 
           // Debug for development
-          debugAuthState(formattedUser, adminStatus);
         } else {
           // User is signed out
           syncTokenCookie(null);
@@ -313,7 +292,6 @@ export const AuthProvider = ({ children }) => {
           setIsAdmin(false);
 
           // Debug for development
-          debugAuthState(null, false);
         }
       } catch (error) {
         console.error('Error in auth state change handler:', error);
@@ -329,7 +307,6 @@ export const AuthProvider = ({ children }) => {
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          console.log("Signed in with redirect", result.user);
         }
       })
       .catch((error) => {

@@ -3,13 +3,13 @@ require('dotenv').config();
 // Initialize configurations first. Firebase Admin must be initialized before any
 // route is mounted, otherwise admin.auth() throws on every authenticated request.
 require('./src/config/firebase-admin');
-const { testCloudinary } = require('./src/config/cloudinary');
+// Cloudinary configures itself on require; the controllers import the helpers they need.
+require('./src/config/cloudinary');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
 const pool = require('./src/config/db');
 const { errorHandler } = require('./src/utils/errorHandler');
 

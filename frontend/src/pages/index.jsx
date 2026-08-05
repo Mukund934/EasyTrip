@@ -2,14 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FiArrowRight, FiArrowLeft, FiMapPin, FiStar, FiCalendar, 
-  FiCompass, FiChevronRight, FiClock, FiHeart, FiImage 
+import {
+  FiArrowRight,
+  FiArrowLeft,
+  FiMapPin,
+  FiStar,
+  FiCompass,
+  FiChevronRight,
+  FiHeart,
+  FiImage
 } from 'react-icons/fi';
-import { fetchPlaces, fetchLocations } from '../services/placesApi';
+import { fetchPlaces } from '../services/placesApi';
 
 // CarouselImage component with better loading states
-const CarouselImage = ({ place, isActive }) => {
+const CarouselImage = ({ place }) => {
   const [imageState, setImageState] = useState('loading');
 
   const getImageUrl = () => {
@@ -103,7 +109,7 @@ const CategoryCard = ({ category, gradient }) => (
 // Data arrives as props from `getStaticProps` below, so the carousel is in the HTML the server
 // sends rather than three stages behind it (IMP-040). There is no loading state left to model:
 // by the time this component runs, `places` is already populated.
-const Home = ({ places = [], locations = [], loadError = null }) => {
+const Home = ({ places = [], loadError = null }) => {
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0);
   const error = loadError;
   const [autoplay, setAutoplay] = useState(true);
@@ -851,10 +857,7 @@ const Home = ({ places = [], locations = [], loadError = null }) => {
  */
 export async function getStaticProps() {
   try {
-    const [placesResult, locations] = await Promise.all([
-      fetchPlaces({ sort: 'rating', limit: 4 }),
-      fetchLocations().catch(() => [])
-    ]);
+    const placesResult = await fetchPlaces({ sort: 'rating', limit: 4 });
 
     const places = placesResult.data.map((place) => ({
       ...place,
@@ -863,7 +866,7 @@ export async function getStaticProps() {
     }));
 
     return {
-      props: { places, locations },
+      props: { places },
       revalidate: 300
     };
   } catch (error) {
@@ -872,7 +875,7 @@ export async function getStaticProps() {
     // a failed deploy, or a stale page with no way to recover on its own.
     console.error('[getStaticProps] home:', error.message);
     return {
-      props: { places: [], locations: [], loadError: 'Failed to load destinations. Please try again.' },
+      props: { places: [], loadError: 'Failed to load destinations. Please try again.' },
       revalidate: 30
     };
   }

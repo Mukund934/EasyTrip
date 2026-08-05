@@ -14,7 +14,7 @@ import {
   FiCheck
 } from 'react-icons/fi';
 
-const PlaceCard = ({ place, timestamp, username, priority = false }) => {
+const PlaceCard = ({ place, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -122,11 +122,7 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
     
     observer.observe(cardRef.current);
     
-    return () => {
-      if (cardRef.current) {
-        observer.disconnect();
-      }
-    };
+    return () => observer.disconnect();
   }, []);
 
   // Shorten long text with ellipsis
