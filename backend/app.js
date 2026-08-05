@@ -16,6 +16,7 @@ const { errorHandler } = require('./src/utils/errorHandler');
 const placeRoutes = require('./src/routes/placeRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const newsletterRoutes = require('./src/routes/newsletterRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -107,6 +108,13 @@ const globalLimiter = rateLimit(
 const reviewWriteLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 10, 'Too many reviews submitted, please try again later'));
 const uploadLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 30, 'Too many uploads, please try again later'));
 const adminWriteLimiter = rateLimit(limiterOptions(15 * 60 * 1000, 60, 'Too many admin requests, please try again later'));
+// The newsletter endpoint is the only unauthenticated write in the API, so the rate limit is the
+// only thing bounding it. Deliberately tighter than the review limiter: a person subscribes once,
+// not ten times an hour.
+const newsletterLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 5, 'Too many subscription attempts, please try again later'));
+// Reporting is authenticated and idempotent per review, but one account can still report many
+// different reviews; this bounds that without getting in a genuine user's way.
+const reportLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 20, 'Too many reports submitted, please try again later'));
 
 const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const onWrites = (limiter) => (req, res, next) => (
@@ -115,6 +123,8 @@ const onWrites = (limiter) => (req, res, next) => (
 
 app.use(globalLimiter);
 app.post('/api/places/:id/reviews', reviewWriteLimiter);
+app.post('/api/places/:id/reviews/:reviewId/report', reportLimiter);
+app.post('/api/newsletter', newsletterLimiter);
 app.post('/api/admin/places', uploadLimiter);
 app.put('/api/admin/places/:id', uploadLimiter);
 app.use('/api/admin', onWrites(adminWriteLimiter));
@@ -216,6 +226,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api', placeRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

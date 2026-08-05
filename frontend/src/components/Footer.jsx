@@ -2,19 +2,33 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { FiMapPin, FiMail, FiPhone, FiFacebook, FiInstagram, FiTwitter, FiLinkedin, FiYoutube, FiArrowRight } from 'react-icons/fi';
+import { subscribeToNewsletter } from '../services/newsletterService';
 
 const Footer = () => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSubscribe = (e) => {
+  // This form used to set `subscribed` and drop the address on the floor (IMP-023). It now posts
+  // to a real endpoint, and the confirmation only appears once the server has stored the address.
+  const handleSubscribe = async (e) => {
     e.preventDefault();
-    if (email) {
-      // Here you would normally send the email to your API
+    if (!email || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await subscribeToNewsletter(email, 'footer');
       setSubscribed(true);
       setEmail('');
-      // Reset the subscribed state after 5 seconds
+      // The form returns after a few seconds so the same visitor can subscribe another address.
       setTimeout(() => setSubscribed(false), 5000);
+    } catch (err) {
+      setError(err?.message || 'Could not complete your subscription. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -135,20 +149,27 @@ const Footer = () => {
                   <input
                     type="email"
                     placeholder="Your email"
-                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-l-lg text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    aria-label="Email address for newsletter"
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-l-lg text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-60"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={submitting}
                     required
                   />
                   <motion.button
                     type="submit"
-                    className="px-3 py-2 bg-primary-600 text-white rounded-r-lg"
+                    disabled={submitting}
+                    aria-label="Subscribe to newsletter"
+                    className="px-3 py-2 bg-primary-600 text-white rounded-r-lg disabled:opacity-60"
                     whileHover={{ backgroundColor: "#0284C7" }}
                     whileTap={{ scale: 0.95 }}
                   >
                     <FiArrowRight />
                   </motion.button>
                 </div>
+                {error && (
+                  <p role="alert" className="text-red-400 text-sm">{error}</p>
+                )}
               </form>
             )}
             

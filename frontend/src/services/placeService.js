@@ -389,6 +389,72 @@ const createPlaceReview = async (id, reviewData, token) => {
 };
 
 /**
+ * Delete the caller's own review.
+ *
+ * There is no `PUT` counterpart by design: re-submitting through `createPlaceReview` upserts,
+ * so editing already has exactly one path. Ownership is enforced server-side from the token —
+ * the client cannot pass an author, and a review belonging to someone else returns 403.
+ *
+ * @param {Number|String} id - Place ID
+ * @param {Number|String} reviewId - Review ID (the `id` field of the review payload)
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const deletePlaceReview = async (id, reviewId, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+    console.log(`Deleting review ${reviewId} for place ${id}`);
+
+    await axios.delete(`${API_URL}/places/${id}/reviews/${reviewId}`, { headers });
+
+    console.log(`Review ${reviewId} deleted`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting review ${reviewId}:`, error.response?.data || error.message);
+    throw {
+      message: error.response?.data?.message || 'Error deleting review',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
+ * Report a review for moderation.
+ *
+ * Reporting the same review twice is a no-op server-side rather than an error, so the caller
+ * does not need to track whether it has already been reported.
+ *
+ * @param {Number|String} id - Place ID
+ * @param {Number|String} reviewId - Review ID
+ * @param {String} [reason] - Optional free-text reason; no UI sends one yet
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const reportPlaceReview = async (id, reviewId, reason, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+    console.log(`Reporting review ${reviewId} for place ${id}`);
+
+    const response = await axios.post(
+      `${API_URL}/places/${id}/reviews/${reviewId}/report`,
+      reason ? { reason } : {},
+      { headers }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error(`Error reporting review ${reviewId}:`, error.response?.data || error.message);
+    throw {
+      message:
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.message ||
+        'Error reporting review',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
  * Get place images
  */
 const getPlaceImages = async (id) => {
@@ -419,6 +485,8 @@ export default {
   deletePlace,
   getPlaceReviews,
   createPlaceReview,
+  deletePlaceReview,
+  reportPlaceReview,
   getPlaceImages
 };
 
@@ -436,5 +504,7 @@ export {
   deletePlace,
   getPlaceReviews,
   createPlaceReview,
+  deletePlaceReview,
+  reportPlaceReview,
   getPlaceImages
 };

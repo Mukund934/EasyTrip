@@ -53,12 +53,6 @@ const getProfile = async (req, res) => {
       accessed_by: uid
     };
 
-    // Log access to user profile
-    await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [result.rows[0].id, 'profile_access', `Profile accessed by ${uid}`, uid]
-    ).catch(err => console.error('Error logging audit:', err));
-    
     res.status(200).json(userData);
   } catch (error) {
     console.error('Error getting profile:', error);
@@ -95,12 +89,6 @@ const updateProfile = async (req, res) => {
       updated_by: uid
     };
 
-    // Log profile update
-    await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [result.rows[0].id, 'profile_update', `Profile updated by ${uid}`, uid]
-    ).catch(err => console.error('Error logging audit:', err));
-    
     console.log(`Profile updated successfully for ${result.rows[0].email}`);
     res.status(200).json(userData);
   } catch (error) {
@@ -131,12 +119,6 @@ const checkAdmin = async (req, res) => {
       return res.status(200).json({ isAdmin: false });
     }
 
-    // Log admin check for audit purposes
-    await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [user.id, 'admin_check', `Admin status checked (result: ${isAdmin})`, uid]
-    ).catch(err => console.error('Error logging audit:', err));
-
     console.log(`Admin check for ${uid}: ${isAdmin ? 'Is admin' : 'Not admin'}`);
     res.status(200).json({
       isAdmin: isAdmin,
@@ -149,45 +131,14 @@ const checkAdmin = async (req, res) => {
   }
 };
 
-/**
- * Admin activity log
- */
-const logAdminActivity = async (req, res) => {
-  try {
-    const { uid } = req.user;
-    const { action, details } = req.body;
-
-    // Verify user is admin
-    const userResult = await pool.query(
-      'SELECT id, is_admin FROM users WHERE firebase_uid = $1',
-      [uid]
-    );
-    
-    if (userResult.rows.length === 0 || !userResult.rows[0].is_admin) {
-      return res.status(403).json({ message: 'Unauthorized: Admin access required' });
-    }
-    
-    // Log admin activity
-    await pool.query(
-      'INSERT INTO admin_logs (user_id, action, details, timestamp) VALUES ($1, $2, $3, NOW())',
-      [userResult.rows[0].id, action, details]
-    );
-
-    console.log(`Admin activity logged for ${uid}: ${action}`);
-    res.status(200).json({
-      success: true,
-      logged_at: new Date().toISOString(),
-      action: action
-    });
-  } catch (error) {
-    console.error('Error logging admin activity:', error);
-    res.status(500).json({ message: 'Error logging admin activity' });
-  }
-};
+// `logAdminActivity` was removed in Sprint 2.3 (IMP-010). It was exported but never routed, and it
+// wrote to an `admin_logs` table that has never existed — so it could only ever have 500'd. The
+// three `audit_logs` inserts alongside it are gone for the same reason: nothing read them, and one
+// fired on every profile page load. When moderation and admin analytics arrive (IMP-111) they bring
+// a real reader, and the audit schema should be designed around that rather than guessed at now.
 
 module.exports = {
   getProfile,
   updateProfile,
-  checkAdmin,
-  logAdminActivity
+  checkAdmin
 };

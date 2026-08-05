@@ -757,6 +757,103 @@ const createPlaceReview = async (req, res) => {
   }
 };
 
+// Editing a review is the POST upsert above - re-submitting replaces the existing row. There is
+// deliberately no PUT: a second edit path would be one more way to do the same thing, and this
+// codebase has spent two phases deleting exactly that.
+const deletePlaceReview = async (req, res) => {
+  try {
+    const { id, reviewId } = req.params;
+
+    const userId = req.user?.uid;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // The security boundary is this single statement: the DELETE is scoped to the caller's uid,
+    // so a non-owner cannot remove a row no matter what happens concurrently. Checking ownership
+    // in a separate query first and then deleting would leave a window between the two.
+    const deleted = await pool.query(
+      'DELETE FROM place_reviews WHERE id = $1 AND place_id = $2 AND user_id = $3 RETURNING id',
+      [reviewId, id, userId]
+    );
+
+    if (deleted.rowCount === 0) {
+      // Nothing was removed. Reviews are public, so their ids are not a secret - there is no
+      // reason to blur 404 into 403, and an accurate answer is far easier to debug.
+      const existing = await pool.query(
+        'SELECT user_id FROM place_reviews WHERE id = $1 AND place_id = $2',
+        [reviewId, id]
+      );
+
+      if (existing.rowCount === 0) {
+        return res.status(404).json({ message: 'Review not found' });
+      }
+      return res.status(403).json({ message: 'You can only delete your own review' });
+    }
+
+    // update_place_rating_trigger fires AFTER DELETE and recomputes rating_sum/rating_count from
+    // the remaining rows, so the place aggregate needs no work here.
+    res.status(204).send();
+  } catch (error) {
+    console.error('[ERROR] Error deleting review:', error);
+    res.status(500).json({ message: 'Error deleting review' });
+  }
+};
+
+const reportPlaceReview = async (req, res) => {
+  try {
+    const { id, reviewId } = req.params;
+    const { reason } = req.body;
+
+    const reporterUid = req.user?.uid;
+    if (!reporterUid) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const existing = await pool.query(
+      'SELECT user_id FROM place_reviews WHERE id = $1 AND place_id = $2',
+      [reviewId, id]
+    );
+
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: 'Review not found' });
+    }
+
+    if (existing.rows[0].user_id === reporterUid) {
+      return res.status(400).json({ message: 'You cannot report your own review' });
+    }
+
+    // UNIQUE (review_id, reporter_uid) makes a repeat report a no-op rather than a duplicate row,
+    // so one person cannot inflate a future moderation queue by clicking twice.
+    await pool.query(
+      `INSERT INTO review_reports (review_id, reporter_uid, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (review_id, reporter_uid) DO NOTHING`,
+      [reviewId, reporterUid, reason || null]
+    );
+
+    // Same response whether the row was new or already there. Whether they had reported it before
+    // is not information the reporter needs, and reporting twice should feel identical.
+    res.status(200).json({ message: 'Thanks - this review has been reported for moderation.' });
+  } catch (error) {
+    console.error('[ERROR] Error reporting review:', error);
+
+    // 42P01: undefined_table. The endpoint is useless until 003 is applied, so say why rather
+    // than returning a bare 500 - this is the same failure mode 001 had with place_reviews.
+    if (error.code === '42P01') {
+      console.error(
+        '   review_reports does not exist. Run: ' +
+        'psql "$DATABASE_URL" -f backend/src/config/migrations/003_sprint23.sql'
+      );
+      return res.status(500).json({
+        message: 'Reporting is temporarily unavailable - the server is missing a required table'
+      });
+    }
+
+    res.status(500).json({ message: 'Error reporting review' });
+  }
+};
+
 module.exports = {
   getAllPlaces,
   getPlaceById,
@@ -771,5 +868,7 @@ module.exports = {
   getStates,
   getTags,
   getPlaceReviews,
-  createPlaceReview
+  createPlaceReview,
+  deletePlaceReview,
+  reportPlaceReview
 };

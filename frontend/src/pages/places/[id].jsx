@@ -11,11 +11,12 @@ import {
   FiAlertCircle, FiRefreshCw, FiCheckCircle, FiBookmark, FiLink,
   FiChevronRight, FiChevronUp, FiList, FiMenu, FiArrowDown, FiArrowUp,
   FiFeather, FiAward, FiCoffee, FiShield, FiThumbsUp, FiGrid, FiCompass,
-  FiChevronLeft, FiFlag
+  FiChevronLeft, FiFlag, FiTrash2
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview } from '../../services/placeService';
+import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview, deletePlaceReview, reportPlaceReview } from '../../services/placeService';
+import { subscribeToNewsletter } from '../../services/newsletterService';
 import ImageGallery from '../../components/ImageGallery';
 import MagazineGallery from '../../components/MagazineGallery';
 import ReviewForm from '../../components/ReviewForm';
@@ -722,7 +723,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
 );
 
 // Magazine-style Review Section
-const MagazineReviews = ({ reviews, onReportReview, currentUserId, isLoading = false }) => {
+const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingReview = false, currentUserId, isLoading = false }) => {
   const [viewMode, setViewMode] = useState('curated');
   
   // Filter out some of the most positive reviews for "curated" view
@@ -852,13 +853,28 @@ const MagazineReviews = ({ reviews, onReportReview, currentUserId, isLoading = f
                 <span>Was this helpful?</span>
               </div>
               
-              <button
-                onClick={() => onReportReview(review.id)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <span className="sr-only">Report</span>
-                <FiFlag className="w-4 h-4" />
-              </button>
+              {/* `is_own` is set server-side: the payload carries an opaque author digest rather
+                  than a uid, so this flag is the only way the client can identify its own review.
+                  Owners get delete; everyone else gets report. Offering someone the option to
+                  report their own review would be noise, and the API rejects it anyway. */}
+              {review.is_own ? (
+                <button
+                  onClick={() => onDeleteReview(review.id)}
+                  disabled={isDeletingReview}
+                  className="text-red-500 hover:text-red-700 disabled:opacity-50 flex items-center gap-1"
+                >
+                  <FiTrash2 className="w-4 h-4" />
+                  <span>{isDeletingReview ? 'Deleting…' : 'Delete'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => onReportReview(review.id)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">Report this review</span>
+                  <FiFlag className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
@@ -1147,7 +1163,10 @@ export default function PlaceDetails() {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isDeletingReview, setIsDeletingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterState, setNewsletterState] = useState({ status: 'idle', message: null });
 
   // Scroll progress
   const scrollProgress = useTransform(scrollY, [0, 2000], [0, 100]);
@@ -1390,18 +1409,101 @@ export default function PlaceDetails() {
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   }, [place?.name]);
 
-  // Handler for reporting reviews
+  // This form had no onSubmit at all until Sprint 2.3 (IMP-023) — submitting it reloaded the page,
+  // which looked like the address had been accepted and lost it instead.
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    if (!newsletterEmail || newsletterState.status === 'submitting') return;
+
+    setNewsletterState({ status: 'submitting', message: null });
+
+    try {
+      const result = await subscribeToNewsletter(newsletterEmail, 'place_page');
+      setNewsletterEmail('');
+      setNewsletterState({
+        status: 'success',
+        message: result?.message || "Thanks for subscribing! We'll be in touch."
+      });
+    } catch (err) {
+      setNewsletterState({
+        status: 'error',
+        message: err?.message || 'Could not complete your subscription. Please try again.'
+      });
+    }
+  };
+
+  // Handler for reporting reviews. This faked success with a setTimeout until Sprint 2.3
+  // (IMP-023/019) — the button told users their report was filed and nothing was recorded.
   const handleReportReview = async (reviewId) => {
     if (!isAuthenticated) {
       toast.error('You must be logged in to report a review.');
       return;
     }
+
     try {
-      // Mock implementation - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success('Review reported successfully.');
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      // Reporting the same review twice is a no-op server-side, so there is nothing to guard
+      // against here beyond the in-flight state.
+      const result = await reportPlaceReview(id, reviewId, undefined, token);
+      toast.success(result?.message || 'Thanks — this review has been reported for moderation.');
     } catch (err) {
-      toast.error('Failed to report review.');
+      toast.error(err?.message || 'Failed to report review.');
+    }
+  };
+
+  // Handler for deleting the signed-in user's own review. Editing stays on the upsert path in
+  // handleReviewSubmit; this covers the one operation that had no route at all (IMP-019).
+  const handleDeleteReview = async (reviewId) => {
+    if (!isAuthenticated) {
+      toast.error('You must be logged in to delete a review.');
+      return;
+    }
+
+    // Deleting a review also drops the rating it contributed, and there is no undo — so this is
+    // one of the few places a confirm is genuinely warranted rather than reflexive.
+    if (!window.confirm('Delete your review? This will also remove your rating for this place.')) {
+      return;
+    }
+
+    setIsDeletingReview(true);
+
+    try {
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      await deletePlaceReview(id, reviewId, token);
+
+      // The delete trigger recomputes the place's rating aggregate, so re-read the place as well
+      // as the list — patching counts client-side would drift from what the database now holds.
+      const [reviewsResult, placeResult] = await Promise.allSettled([
+        getPlaceReviews(id),
+        getPlaceById(id),
+      ]);
+
+      if (reviewsResult.status === 'fulfilled') {
+        setReviews(reviewsResult.value || []);
+      }
+      if (placeResult.status === 'fulfilled' && placeResult.value) {
+        setPlace(placeResult.value);
+      }
+
+      // Clear the form too: with the review gone the section reverts to "Share Your Experience",
+      // and leaving the old text in the inputs would look like it had not been deleted.
+      setReviewRating(0);
+      setReviewComment('');
+      setReviewError(null);
+
+      toast.success('Your review has been deleted.');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to delete review.');
+    } finally {
+      setIsDeletingReview(false);
     }
   };
 
@@ -1782,15 +1884,34 @@ export default function PlaceDetails() {
                       <MagazineReviews
                         reviews={reviews}
                         onReportReview={handleReportReview}
+                        onDeleteReview={handleDeleteReview}
+                        isDeletingReview={isDeletingReview}
                         currentUserId={currentUser?.uid}
                         isLoading={contentLoading}
                       />
                       
                       {/* Review form */}
                       <div id="review-form" className="mt-12 pt-8 border-t border-gray-200">
-                        <h3 className="text-2xl font-serif font-bold text-gray-900 mb-6">
-                          {existingReview ? 'Edit Your Review' : 'Share Your Experience'}
-                        </h3>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                          <h3 className="text-2xl font-serif font-bold text-gray-900">
+                            {existingReview ? 'Edit Your Review' : 'Share Your Experience'}
+                          </h3>
+                          {/* Also offered here, not just on the review card: the list defaults to
+                              the "curated" view, which only shows 4-star-and-up reviews, so an
+                              owner who rated a place lower could not otherwise reach their own
+                              delete control without switching views. */}
+                          {existingReview && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReview(existingReview.id)}
+                              disabled={isDeletingReview}
+                              className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              <FiTrash2 className="w-4 h-4" />
+                              {isDeletingReview ? 'Deleting…' : 'Delete my review'}
+                            </button>
+                          )}
+                        </div>
                         {authLoading ? (
                           // Firebase resolves the session a beat after mount; without this
                           // a signed-in user sees the "Sign in to review" panel flash first.
@@ -1899,19 +2020,36 @@ export default function PlaceDetails() {
               <div>
                 <h4 className="font-medium text-lg font-serif mb-6">Stay Connected</h4>
                 <p className="text-gray-300 mb-4">Subscribe to our newsletter for travel inspiration, tips and exclusive offers.</p>
-                <form className="flex">
-                  <input
-                    type="email"
-                    placeholder="Your email address"
-                    className="px-4 py-2 w-full bg-gray-800 border border-gray-700 rounded-l-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    Subscribe
-                  </button>
-                </form>
+                {newsletterState.status === 'success' ? (
+                  <p className="bg-green-900/30 border border-green-700 rounded-lg p-3 text-green-400 text-sm">
+                    {newsletterState.message}
+                  </p>
+                ) : (
+                  <form className="flex flex-col gap-2" onSubmit={handleNewsletterSubmit}>
+                    <div className="flex">
+                      <input
+                        type="email"
+                        placeholder="Your email address"
+                        aria-label="Email address for newsletter"
+                        className="px-4 py-2 w-full bg-gray-800 border border-gray-700 rounded-l-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                        value={newsletterEmail}
+                        onChange={(e) => setNewsletterEmail(e.target.value)}
+                        disabled={newsletterState.status === 'submitting'}
+                        required
+                      />
+                      <button
+                        type="submit"
+                        disabled={newsletterState.status === 'submitting'}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                      >
+                        {newsletterState.status === 'submitting' ? 'Saving…' : 'Subscribe'}
+                      </button>
+                    </div>
+                    {newsletterState.status === 'error' && (
+                      <p role="alert" className="text-red-400 text-sm">{newsletterState.message}</p>
+                    )}
+                  </form>
+                )}
               </div>
             </div>
             

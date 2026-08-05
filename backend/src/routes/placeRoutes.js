@@ -144,6 +144,25 @@ const reviewRules = [
     .withMessage('Comment must be at most 2000 characters')
 ];
 
+const reviewIdParam = param('reviewId')
+  .isInt({ min: 1 })
+  .withMessage('Review id must be a positive integer');
+
+const reportRules = [
+  placeIdParam,
+  reviewIdParam,
+  // The current UI reports with a single click and sends no reason; the column and this rule
+  // exist so a reason box can be added without touching the schema or the route.
+  body('reason')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('Reason must be text')
+    .bail()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Reason must be at most 500 characters')
+];
+
 // Public routes
 router.get('/places', placeController.getAllPlaces);
 router.get('/places/search', searchRules, handleValidationErrors, placeController.searchPlaces);
@@ -166,6 +185,24 @@ router.post(
   reviewRules,
   handleValidationErrors,
   placeController.createPlaceReview
+);
+
+// Ownership is resolved server-side from the verified token, never from the URL or body — the
+// client cannot even see author uids, since the review payload carries an opaque digest.
+router.delete(
+  '/places/:id/reviews/:reviewId',
+  isAuthenticated,
+  [placeIdParam, reviewIdParam],
+  handleValidationErrors,
+  placeController.deletePlaceReview
+);
+
+router.post(
+  '/places/:id/reviews/:reviewId/report',
+  isAuthenticated,
+  reportRules,
+  handleValidationErrors,
+  placeController.reportPlaceReview
 );
 
 // Admin routes - the only registration for these URLs. `/api` is mounted before

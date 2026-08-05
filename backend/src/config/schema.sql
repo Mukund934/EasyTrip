@@ -59,6 +59,39 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Reports filed against a review; feeds the moderation queue planned in IMP-111.
+-- CASCADE because a report about a deleted review has nothing left to moderate.
+CREATE TABLE IF NOT EXISTS review_reports (
+  id SERIAL PRIMARY KEY,
+  review_id INT NOT NULL REFERENCES place_reviews(id) ON DELETE CASCADE,
+  -- Firebase uid, as in place_reviews.user_id. Not a FK: users rows are created lazily.
+  reporter_uid VARCHAR(255) NOT NULL,
+  reason TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'open'
+    CHECK (status IN ('open', 'reviewed', 'dismissed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- One report per person per review, so reporting is idempotent
+  CONSTRAINT review_reports_review_id_reporter_uid_key UNIQUE (review_id, reporter_uid)
+);
+
+CREATE INDEX IF NOT EXISTS review_reports_status_created_at_idx
+  ON review_reports (status, created_at DESC);
+
+-- Newsletter signups. `email` is normalised (trimmed, lower-cased) by the API before insert,
+-- so the UNIQUE constraint is a real duplicate guard. `source` is intentionally unconstrained
+-- in the schema — the API owns the allowlist, so a new signup surface needs no migration.
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  status VARCHAR(20) NOT NULL DEFAULT 'subscribed'
+    CHECK (status IN ('subscribed', 'unsubscribed')),
+  subscribed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  unsubscribed_at TIMESTAMPTZ,
+  source VARCHAR(40) NOT NULL DEFAULT 'unknown',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Timestamp trigger function
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$
@@ -81,6 +114,11 @@ EXECUTE FUNCTION update_modified_column();
 
 CREATE TRIGGER update_users_modtime
 BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION update_modified_column();
+
+CREATE TRIGGER update_newsletter_subscribers_modtime
+BEFORE UPDATE ON newsletter_subscribers
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
