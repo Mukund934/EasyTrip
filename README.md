@@ -111,9 +111,9 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 | 📝 Review moderation | No moderation endpoints or queue; "report review" is a client-side stub |
 | 📊 Analytics dashboard | The admin dashboard is a set of static navigation tiles — no metrics are computed |
 | 👥 Admin user-management UI | The backend API works, but the dashboard's "User Management" and "Settings" tiles link to pages that do not exist yet |
-| 🎯 Theme & minimum-rating filters | Sent by the browse UI but not yet applied by the search query |
-| 🔑 Password reset | Not implemented |
 | 🧪 Tests & CI | No test suite and no CI pipeline in this repository yet |
+| ✉️ Email verification | Password reset works, but a new account's address is never confirmed |
+| ⚡ Google One Tap | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported |
 
 ---
 

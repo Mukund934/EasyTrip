@@ -2,7 +2,6 @@ import { ToastContainer } from 'react-toastify';
 import { AuthProvider } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import GoogleOneTap from '../components/GoogleOneTap';
 import 'react-toastify/dist/ReactToastify.css';
 import '../styles/globals.css';
 import { UserProvider } from '../context/UserContext';
@@ -21,7 +20,6 @@ function MyApp({ Component, pageProps }) {
           </main>
           <Footer />
         </div>
-        <GoogleOneTap />
         <ToastContainer
           position="top-right"
           autoClose={5000}

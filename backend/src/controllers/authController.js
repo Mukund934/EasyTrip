@@ -6,6 +6,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+// One list for every profile read/write. It was repeated three times, and the profile form seeds
+// itself from whatever this returns — a column missing from one copy silently blanks that field.
+const USER_COLUMNS = 'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
+
 /**
  * Get current user profile
  */
@@ -17,7 +21,7 @@ const getProfile = async (req, res) => {
 
     // Get user from database
     const result = await pool.query(
-      'SELECT id, firebase_uid, email, name, is_admin, created_at, updated_at FROM users WHERE firebase_uid = $1',
+      `SELECT ${USER_COLUMNS} FROM users WHERE firebase_uid = $1`,
       [uid]
     );
     
@@ -27,7 +31,7 @@ const getProfile = async (req, res) => {
       
       // Create user in database
       const newUser = await pool.query(
-        'INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
+        `INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING ${USER_COLUMNS}`,
         [userRecord.uid, userRecord.email, userRecord.displayName || '']
       );
 
@@ -68,14 +72,16 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { uid } = req.user;
-    const { name } = req.body;
+    const { name, location, dob } = req.body;
 
     console.log(`Profile update requested for UID: ${uid}`);
 
-    // Update in database
+    // location and dob were accepted by the validator and then dropped here, so the profile form
+    // reported success while saving nothing (IMP-008). A cleared field arrives as '', which DATE
+    // rejects, so both are normalised to NULL rather than written through.
     const result = await pool.query(
-      'UPDATE users SET name = $1, updated_at = NOW() WHERE firebase_uid = $2 RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
-      [name, uid]
+      `UPDATE users SET name = $1, location = $2, dob = $3, updated_at = NOW() WHERE firebase_uid = $4 RETURNING ${USER_COLUMNS}`,
+      [name, location || null, dob || null, uid]
     );
     
     if (result.rows.length === 0) {
