@@ -529,6 +529,7 @@ export default function AddPlace() {
                           onClick={handleLocationLookup}
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary-500 hover:text-primary-700 p-1"
                           title="Auto-fill coordinates"
+                          aria-label="Auto-fill coordinates from the address"
                         >
                           <FiNavigation className="w-4 h-4" />
                         </button>

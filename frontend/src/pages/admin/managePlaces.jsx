@@ -241,12 +241,13 @@ export default function ManagePlaces() {
               {/* Search Bar */}
               <div className="relative mb-4">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiSearch className="h-5 w-5 text-gray-400" />
+                  <FiSearch className="h-5 w-5 text-gray-500" />
                 </div>
                 <input
                   type="text"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm sm:text-base"
                   placeholder="Search places..."
+                  aria-label="Search places"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -338,7 +339,7 @@ export default function ManagePlaces() {
           ) : filteredPlaces.length === 0 ? (
             <div className="bg-white shadow-sm rounded-xl border border-gray-200 p-8 text-center">
               <div className="max-w-md mx-auto">
-                <FiMapPin className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <FiMapPin className="mx-auto h-12 w-12 text-gray-500 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   {places.length === 0 ? 'No places yet' : 'No matching places'}
                 </h3>
@@ -397,22 +398,25 @@ export default function ManagePlaces() {
                             <div className="flex items-center space-x-2">
                               <Link
                                 href={`/places/${place.id}`}
-                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-400 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-500 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
                                 title="View Place"
+                                aria-label={`View ${place.name}`}
                               >
                                 <FiEye className="w-4 h-4" />
                               </Link>
                               <Link
                                 href={`/admin/editPlace/${place.id}`}
-                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-400 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-500 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
                                 title="Edit Place"
+                                aria-label={`Edit ${place.name}`}
                               >
                                 <FiEdit className="w-4 h-4" />
                               </Link>
                               <button
                                 onClick={() => confirmDelete(place)}
-                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                                 title="Delete Place"
+                                aria-label={`Delete ${place.name}`}
                               >
                                 <FiTrash2 className="w-4 h-4" />
                               </button>
@@ -485,22 +489,25 @@ export default function ManagePlaces() {
                             <div className="ml-2 flex items-center space-x-2">
                               <Link
                                 href={`/places/${place.id}`}
-                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-400 hover:text-primary-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-500 hover:text-primary-600 rounded transition-colors"
                                 title="View Place"
+                                aria-label={`View ${place.name}`}
                               >
                                 <FiEye className="w-4 h-4" />
                               </Link>
                               <Link
                                 href={`/admin/editPlace/${place.id}`}
-                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-400 hover:text-primary-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-500 hover:text-primary-600 rounded transition-colors"
                                 title="Edit Place"
+                                aria-label={`Edit ${place.name}`}
                               >
                                 <FiEdit className="w-4 h-4" />
                               </Link>
                               <button
                                 onClick={() => confirmDelete(place)}
-                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-500 hover:text-red-600 rounded transition-colors"
                                 title="Delete Place"
+                                aria-label={`Delete ${place.name}`}
                               >
                                 <FiTrash2 className="w-4 h-4" />
                               </button>
@@ -621,6 +628,7 @@ export default function ManagePlaces() {
                                     href={`/places/${place.id}`}
                                     className="text-gray-600 hover:text-primary-600 p-1 rounded transition-colors"
                                     title="View Place"
+                                aria-label={`View ${place.name}`}
                                   >
                                     <FiEye className="h-4 w-4" />
                                   </Link>
@@ -628,6 +636,7 @@ export default function ManagePlaces() {
                                     href={`/admin/editPlace/${place.id}`}
                                     className="text-primary-600 hover:text-primary-800 p-1 rounded transition-colors"
                                     title="Edit Place"
+                                aria-label={`Edit ${place.name}`}
                                   >
                                     <FiEdit className="h-4 w-4" />
                                   </Link>
@@ -635,6 +644,7 @@ export default function ManagePlaces() {
                                     onClick={() => confirmDelete(place)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
                                     title="Delete Place"
+                                aria-label={`Delete ${place.name}`}
                                   >
                                     <FiTrash2 className="h-4 w-4" />
                                   </button>

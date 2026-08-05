@@ -4,11 +4,15 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useDismissable } from '../hooks/useDismissable';
 import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiCompass } from 'react-icons/fi';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // The dropdown previously closed only by re-clicking the avatar or navigating away — clicking
+  // elsewhere or pressing Escape left it open over the page (IMP-077).
+  const profileRef = useDismissable(isProfileOpen, () => setIsProfileOpen(false));
   const [scrolled, setScrolled] = useState(false);
   const { currentUser: authUser, isAdmin, logout } = useAuth();
   const router = useRouter();
@@ -137,11 +141,14 @@ const Navbar = () => {
             </Link>
 
             {authUser ? (
-              <div className="relative ml-3">
+              <div className="relative ml-3" ref={profileRef}>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  aria-haspopup="menu"
+                  aria-expanded={isProfileOpen}
+                  aria-label="Account menu"
                   className={`flex items-center space-x-2 ${solid ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
                     } backdrop-blur-sm px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors`}
                 >
@@ -165,6 +172,8 @@ const Navbar = () => {
                 <AnimatePresence>
                   {isProfileOpen && (
                     <motion.div
+                      role="menu"
+                      aria-label="Account"
                       className="absolute right-0 mt-2 w-60 rounded-xl shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-10 overflow-hidden"
                       variants={menuVariants}
                       initial="hidden"

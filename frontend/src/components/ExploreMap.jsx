@@ -693,6 +693,7 @@ const ExploreMap = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search places..."
+                aria-label="Search places"
                 className="sidebar-search-input"
               />
               <FiSearch className="search-icon" />
@@ -700,6 +701,7 @@ const ExploreMap = ({
                 <button
                   className="clear-search"
                   onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
                   aria-label="Clear search"
                 >
                   <FiX />
@@ -734,13 +736,15 @@ const ExploreMap = ({
                   const isVisible = visiblePlaces.some(p => p.id === place.id);
                   
                   return (
-                    <motion.div
+                    <motion.button
                       key={place.id}
+                      type="button"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                       className={`place-item ${isCurrentlySelected ? 'selected' : ''} ${isVisible ? 'visible' : 'not-visible'}`}
+                      aria-pressed={isCurrentlySelected}
                       onClick={() => onSelectPlace(place)}
                       onMouseEnter={() => setHoveredPlace(place)}
                       onMouseLeave={() => setHoveredPlace(null)}
@@ -770,7 +774,7 @@ const ExploreMap = ({
                           <FiArrowRight className="arrow-icon" />
                         )}
                       </div>
-                    </motion.div>
+                    </motion.button>
                   );
                 })
               )}
@@ -800,6 +804,7 @@ const ExploreMap = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search places on map..."
+                aria-label="Search places on the map"
                 className="search-input"
               />
               <FiSearch className="search-icon" />
@@ -807,6 +812,7 @@ const ExploreMap = ({
                 <button
                   className="clear-search"
                   onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
                   aria-label="Clear search"
                 >
                   <FiX />

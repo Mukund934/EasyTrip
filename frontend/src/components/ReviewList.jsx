@@ -123,7 +123,7 @@ const ReviewList = ({ reviews = [], onReportReview }) => {
                 {!review.is_own && (
                   <button
                     onClick={() => onReportReview(review.id)}
-                    className="text-gray-400 hover:text-red-500"
+                    className="text-gray-500 hover:text-red-500"
                     title="Report review"
                   >
                     <FiFlag className="h-4 w-4" />

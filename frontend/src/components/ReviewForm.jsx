@@ -39,33 +39,47 @@ const ReviewForm = ({
         </p>
       )}
 
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      {/* A rating is a single choice from five mutually exclusive options — a radio group, not five
+          independent toggle buttons. `aria-pressed` described each star as its own on/off control,
+          so a screen reader announced five unrelated buttons rather than one question with five
+          answers, and nothing conveyed that picking 4 unpicks 3 (IMP-081).
+
+          Native radio inputs rather than `role="radiogroup"` on divs: they bring arrow-key
+          navigation, roving focus, and form semantics for free, and getting those right by hand is
+          exactly where hand-rolled widgets go wrong. The inputs are visually hidden but remain
+          focusable — `sr-only` keeps them in the accessibility tree, unlike `display: none`. */}
+      <fieldset className="mb-4 border-0 p-0 m-0">
+        <legend className="block text-sm font-medium text-gray-700 mb-2">
           Your Rating
-        </label>
-        <div className="flex">
+        </legend>
+        <div className="flex" onMouseLeave={handleStarLeave}>
           {[1, 2, 3, 4, 5].map((value) => (
-            <button
+            <label
               key={value}
-              type="button"
-              onClick={() => handleStarClick(value)}
               onMouseEnter={() => handleStarHover(value)}
-              onMouseLeave={handleStarLeave}
-              className="text-2xl mr-1 focus:outline-none"
-              aria-label={`Rate ${value} out of 5`}
-              aria-pressed={rating === value}
+              className="mr-1 cursor-pointer rounded focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2"
             >
+              <input
+                type="radio"
+                name="rating"
+                value={value}
+                checked={rating === value}
+                onChange={() => handleStarClick(value)}
+                className="sr-only"
+              />
+              <span className="sr-only">{`${value} star${value === 1 ? '' : 's'}`}</span>
               <FiStar
+                aria-hidden="true"
                 className={`h-8 w-8 ${
                   (hoverRating || rating) >= value
                     ? 'text-yellow-400 fill-current'
                     : 'text-gray-300'
                 }`}
               />
-            </button>
+            </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       <div className="mb-4">
         <label htmlFor="review" className="block text-sm font-medium text-gray-700 mb-2">

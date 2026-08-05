@@ -752,6 +752,7 @@ const Home = () => {
                             whileTap={{ scale: 0.9 }}
                             className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-lg transition-all disabled:opacity-50"
                             onClick={goToPrevPlace}
+                            aria-label="Previous destination"
                             disabled={isTransitioning}
                           >
                             <FiArrowLeft className="h-5 w-5" />
@@ -761,6 +762,7 @@ const Home = () => {
                             whileTap={{ scale: 0.9 }}
                             className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-lg transition-all disabled:opacity-50"
                             onClick={goToNextPlace}
+                            aria-label="Next destination"
                             disabled={isTransitioning}
                           >
                             <FiArrowRight className="h-5 w-5" />

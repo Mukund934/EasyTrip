@@ -215,7 +215,7 @@ export default function ImageUpload({
           ) : (
             <div className="flex flex-col items-center">
               <FiUpload className={`w-12 h-12 mb-4 ${
-                dragActive ? 'text-blue-500' : 'text-gray-400'
+                dragActive ? 'text-blue-500' : 'text-gray-500'
               }`} />
               <div className="text-lg font-medium text-gray-700 mb-2">
                 {dragActive ? 'Drop your images here' : 'Upload images'}
@@ -223,7 +223,7 @@ export default function ImageUpload({
               <div className="text-sm text-gray-500 mb-2">
                 Drag and drop {multiple ? 'images' : 'an image'} here, or click to select
               </div>
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-gray-500">
                 {acceptedTypes.map(type => type.split('/')[1].toUpperCase()).join(', ')} • Max {(maxSize / (1024 * 1024)).toFixed(1)}MB
                 {multiple && ' each'}
               </div>

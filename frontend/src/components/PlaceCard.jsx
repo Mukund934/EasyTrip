@@ -414,12 +414,12 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
             {/* Footer */}
             <div className="mt-auto pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center text-xs text-gray-500">
               <div className="flex items-center">
-                <FiCalendar className="mr-1 text-gray-400" />
+                <FiCalendar className="mr-1 text-gray-500" />
                 <span className="whitespace-nowrap">{formatDate(place.created_at)}</span>
               </div>
               
               {place.updated_at && place.updated_at !== place.created_at && (
-                <div className="flex items-center text-xs text-gray-400 mr-2">
+                <div className="flex items-center text-xs text-gray-500 mr-2">
                   <FiClock className="mr-1" />
                   <span>Updated {formatDate(place.updated_at)}</span>
                 </div>
@@ -427,14 +427,14 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
               
               {place.rating_count > 0 ? (
                 <div className="flex items-center">
-                  <FiStar className={`mr-1 ${rating && parseFloat(rating.value) >= 4 ? 'text-yellow-500' : 'text-gray-400'}`} />
+                  <FiStar className={`mr-1 ${rating && parseFloat(rating.value) >= 4 ? 'text-yellow-500' : 'text-gray-500'}`} />
                   <span>
                     {place.rating_count} {place.rating_count === 1 ? 'review' : 'reviews'}
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center">
-                  <FiInfo className="mr-1 text-gray-400" />
+                  <FiInfo className="mr-1 text-gray-500" />
                   <span>No reviews yet</span>
                 </div>
               )}

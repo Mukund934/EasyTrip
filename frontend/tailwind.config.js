@@ -23,7 +23,15 @@ module.exports = {
           300: '#7dd3fc',
           400: '#38bdf8',
           500: '#0ea5e9',
-          600: '#0284c7',
+          // Darkened from #0284c7 for WCAG AA (IMP-084). `primary-600` is the app's primary button
+          // background and its link colour, and white-on-#0284c7 measured 4.10:1 — below the 4.5:1
+          // required for normal-size text, so every primary button and every link failed AA.
+          // #0277b4 measures 4.88:1 in both directions (white on it, and it as text on white),
+          // keeps the same hue, and stays lighter than 700 so the ramp is still monotonic.
+          //
+          // Fixing the token rather than ~50 call sites means the whole app moves at once and
+          // cannot drift back one button at a time.
+          600: '#0277b4',
           700: '#0369a1',
           800: '#075985',
           900: '#0c4a6e',

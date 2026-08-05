@@ -808,6 +808,7 @@ function Browse() {
                                                 onBlur={() => setTimeout(() => setSearchActive(false), 200)}
                                                 ref={searchInputRef}
                                                 placeholder="Search destinations..."
+                                                aria-label="Search destinations"
                                                 className="block w-full bg-transparent pl-10 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-md"
                                             />
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -845,19 +846,22 @@ function Browse() {
                                                     </div>
                                                     <ul className="max-h-32 overflow-y-auto">
                                                         {recentSearches.map((term, index) => (
-                                                            <li key={index}>
+                                                            <li key={index} className="flex items-center hover:bg-gray-50">
                                                                 <button
-                                                                    className="flex w-full items-center px-3 py-1 hover:bg-gray-50 text-gray-600 text-sm"
+                                                                    type="button"
+                                                                    className="flex flex-1 items-center px-3 py-1 text-gray-600 text-sm text-left"
                                                                     onClick={() => useSearchSuggestion(term)}
                                                                 >
                                                                     <FiClock className="h-3 w-3 mr-2 text-gray-400" />
                                                                     <span>{term}</span>
-                                                                    <button
-                                                                        onClick={(e) => clearSearchTerm(term, e)}
-                                                                        className="ml-auto text-gray-400 hover:text-gray-600"
-                                                                    >
-                                                                        <FiX className="h-3 w-3" />
-                                                                    </button>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => clearSearchTerm(term, e)}
+                                                                    aria-label={`Remove "${term}" from recent searches`}
+                                                                    className="px-3 py-1 text-gray-400 hover:text-gray-600"
+                                                                >
+                                                                    <FiX className="h-3 w-3" />
                                                                 </button>
                                                             </li>
                                                         ))}
@@ -977,6 +981,7 @@ function Browse() {
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
                                                 placeholder="Search places..."
+                                                aria-label="Search places"
                                                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                                             />
                                             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -2080,6 +2085,7 @@ function Browse() {
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                         onClick={handleRefresh}
+                                        aria-label="Refresh results"
                                         className={`p-3 border-2 border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 transition-all shadow-sm ${loading ? 'animate-pulse' : ''
                                             }`}
                                         disabled={loading}

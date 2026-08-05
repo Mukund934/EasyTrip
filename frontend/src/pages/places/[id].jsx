@@ -22,6 +22,7 @@ import ReviewForm from '../../components/ReviewForm';
 import ReviewList from '../../components/ReviewList';
 import RelatedPlaces from '../../components/RelatedPlaces';
 import { useAuth } from '../../context/AuthContext';
+import { useDismissable } from '../../hooks/useDismissable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { getCloudinaryThumbnail, getCloudinaryLargeImage } from '../../utils/cloudinaryHelper';
 
@@ -29,6 +30,8 @@ const FALLBACK_IMAGE = '/images/placeholder.jpg';
 
 // Hero section with cinematic magazine styling
 const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorite, avgRating, onShareSocial }) => {
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareRef = useDismissable(shareOpen, () => setShareOpen(false));
   const heroRef = useRef(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [heroHeight, setHeroHeight] = useState('100vh');
@@ -128,41 +131,56 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="relative group"
+            className="relative"
+            ref={shareRef}
           >
+            {/* Was a CSS `group-hover` disclosure, which does not exist on touch — every mobile
+                user and every keyboard user was locked out of sharing entirely (IMP-079). The
+                trigger also called onShare() directly, so clicking it copied the link while the
+                menu it revealed offered a different set of actions. */}
             <button
-              onClick={onShare}
-              className="bg-white/90 backdrop-blur-md text-gray-900 p-3 rounded-full hover:bg-white shadow-2xl transition-all duration-300 hover:scale-110 border border-white/20 group-hover:bg-primary-50"
-              aria-label="Share"
+              onClick={() => setShareOpen((open) => !open)}
+              className="bg-white/90 backdrop-blur-md text-gray-900 p-3 rounded-full hover:bg-white shadow-2xl transition-all duration-300 hover:scale-110 border border-white/20"
+              aria-label="Share this place"
+              aria-haspopup="menu"
+              aria-expanded={shareOpen}
             >
-              <FiShare2 className="h-6 w-6 group-hover:text-primary-600 transition-colors" />
+              <FiShare2 className="h-6 w-6 transition-colors" />
             </button>
-            
-            {/* Share dropdown */}
-            <div className="absolute right-0 mt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-40 transform origin-top-right">
-              <div className="bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
-                  <h3 className="font-serif font-semibold text-gray-900">Share this place</h3>
-                </div>
-                <div className="p-2">
-                  {[
-                    { platform: 'copy', label: 'Copy Link', icon: FiLink, color: 'gray' },
-                    { platform: 'twitter', label: 'Twitter', icon: FiExternalLink, color: 'blue' },
-                    { platform: 'facebook', label: 'Facebook', icon: FiExternalLink, color: 'indigo' },
-                    { platform: 'whatsapp', label: 'WhatsApp', icon: FiExternalLink, color: 'green' }
-                  ].map(({ platform, label, icon: Icon, color }) => (
-                    <button
-                      key={platform}
-                      onClick={() => platform === 'copy' ? onShare() : onShareSocial(platform)}
-                      className={`flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-${color}-50 hover:text-${color}-600 rounded-lg transition-all duration-200`}
-                    >
-                      <Icon className="mr-3 h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
+
+            {shareOpen && (
+              <div className="absolute right-0 mt-2 w-56 z-40 origin-top-right" role="menu" aria-label="Share options">
+                <div className="bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <h3 className="font-serif font-semibold text-gray-900">Share this place</h3>
+                  </div>
+                  <div className="p-2">
+                    {/* Static classes: these were `hover:bg-${color}-50` template literals, which
+                        the Tailwind JIT scanner cannot see, so none of those styles were ever
+                        generated. */}
+                    {[
+                      { platform: 'copy', label: 'Copy Link', icon: FiLink, hover: 'hover:bg-gray-50 hover:text-gray-900' },
+                      { platform: 'twitter', label: 'Twitter', icon: FiExternalLink, hover: 'hover:bg-sky-50 hover:text-sky-700' },
+                      { platform: 'facebook', label: 'Facebook', icon: FiExternalLink, hover: 'hover:bg-primary-50 hover:text-primary-700' },
+                      { platform: 'whatsapp', label: 'WhatsApp', icon: FiExternalLink, hover: 'hover:bg-green-50 hover:text-green-700' }
+                    ].map(({ platform, label, icon: Icon, hover }) => (
+                      <button
+                        key={platform}
+                        role="menuitem"
+                        onClick={() => {
+                          setShareOpen(false);
+                          return platform === 'copy' ? onShare() : onShareSocial(platform);
+                        }}
+                        className={`flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 rounded-lg transition-all duration-200 ${hover}`}
+                      >
+                        <Icon className="mr-3 h-4 w-4" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </motion.div>
           
           <motion.button
