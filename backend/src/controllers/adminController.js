@@ -1,9 +1,6 @@
-const { Pool } = require('pg');
+const pool = require('../config/db');
 const admin = require('firebase-admin');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 /**
  * Keep the Firebase custom `admin` claim in step with users.is_admin.

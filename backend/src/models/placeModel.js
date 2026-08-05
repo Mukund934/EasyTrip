@@ -1,10 +1,4 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
-
+const pool = require('../config/db');
 const createPlace = async (placeData) => {
   const {
     name, description, location, district, state, locality, pin_code,
@@ -30,7 +24,9 @@ const createPlace = async (placeData) => {
 
 const getPlaceById = async (id) => {
   const result = await pool.query(
-    `SELECT *,
+    `SELECT id, name, location, description, district, state, locality, pin_code,
+           latitude, longitude, primary_image_url, themes, tags, custom_keys,
+           rating_count, rating_sum, created_at, updated_at, created_by, updated_by,
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
         ELSE NULL
@@ -108,7 +104,9 @@ const SEASON_MONTHS = {
 const searchPlaces = async (criteria) => {
   const { searchTerm, location, district, state, tags, themes, minRating, date } = criteria;
   let query = `
-    SELECT *,
+    SELECT id, name, location, description, district, state, locality, pin_code,
+           latitude, longitude, primary_image_url, themes, tags, custom_keys,
+           rating_count, rating_sum, created_at, updated_at, created_by, updated_by,
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
         ELSE NULL

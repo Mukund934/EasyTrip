@@ -7,9 +7,10 @@ const { testCloudinary } = require('./src/config/cloudinary');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const { Pool } = require('pg');
+const pool = require('./src/config/db');
 const { errorHandler } = require('./src/utils/errorHandler');
 
 // Import routes
@@ -28,6 +29,16 @@ const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '', 10);
 if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
   app.set('trust proxy', trustProxyHops);
 }
+
+// gzip/brotli for every response above the threshold. Place lists are large, highly repetitive
+// JSON — the same ~20 keys repeated per row — which compresses extremely well. Registered before
+// the routers so it wraps their output (IMP-038).
+app.use(compression({
+  // Below ~1 KB the compression header overhead outweighs the saving.
+  threshold: 1024,
+  // Honour an explicit opt-out, which image redirects and already-compressed payloads can set.
+  filter: (req, res) => (res.getHeader('x-no-compression') ? false : compression.filter(req, res))
+}));
 
 // Security headers
 app.disable('x-powered-by');
@@ -63,7 +74,15 @@ const isAllowedOrigin = (origin) => !origin || allowedOrigins.includes(origin);
 
 app.use(cors({
   origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
-  credentials: true
+  credentials: true,
+  // Without this the browser re-runs a preflight OPTIONS before *every* cross-origin request that
+  // carries an Authorization header — doubling the request count on an authenticated page for no
+  // information gain. 24h is the maximum Chromium honours; Firefox caps at 24h too (IMP-039).
+  maxAge: 86400,
+  // Named explicitly so the preflight response is cacheable and stable. The client sends only
+  // Authorization and Content-Type; the former X-User header is gone (IMP-003).
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 }));
 
 // A disallowed origin gets a clean 403 rather than a thrown error surfacing as a 500.
@@ -134,11 +153,31 @@ app.use('/api/admin', onWrites(adminWriteLimiter));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Check database schema compatibility
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+// Cache policy for public read-only JSON (IMP-047).
+//
+// Express already generates an ETag per response, but it could never match: every place payload
+// carried a `fetched_at` timestamp that changed on each request, so the body — and therefore the
+// ETag — differed every time. With that removed, identical data now produces an identical ETag and
+// a repeat request can be answered with a 304 and no body at all.
+//
+// `must-revalidate` with a short max-age rather than a long one: place data is admin-edited and an
+// edit should surface quickly. The win here is the conditional request, not the freshness window.
+//
+// Scoped to GET on public place reads. Authenticated and admin routes are deliberately excluded —
+// caching a per-user response in a shared proxy is how one user ends up seeing another's data.
+const PUBLIC_CACHEABLE = /^\/api\/places(\/\d+)?(\/(images|reviews))?\/?$/;
+app.use((req, res, next) => {
+  if (req.method === 'GET' && PUBLIC_CACHEABLE.test(req.path) && !req.headers.authorization) {
+    res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+  } else if (req.method === 'GET' && req.path.startsWith('/api/')) {
+    // Everything else is either user-specific or admin-only. Say so explicitly rather than
+    // leaving it to a proxy's default heuristics.
+    res.set('Cache-Control', 'private, no-cache');
+  }
+  next();
 });
+
+// Check database schema compatibility
 
 async function ensureDatabaseSchema() {
   try {

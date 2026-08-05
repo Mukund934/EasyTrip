@@ -1,10 +1,7 @@
-const { Pool } = require('pg');
+const pool = require('../config/db');
 const admin = require('firebase-admin');
 const { resolveAdminStatus } = require('../utils/authMiddleware');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 // One list for every profile read/write. It was repeated three times, and the profile form seeds
 // itself from whatever this returns — a column missing from one copy silently blanks that field.

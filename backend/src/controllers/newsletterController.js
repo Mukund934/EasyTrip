@@ -1,8 +1,5 @@
-const { Pool } = require('pg');
+const pool = require('../config/db');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 // Where a signup came from. Kept here rather than as a database CHECK so adding a surface is a
 // one-line change with no migration; the API is the layer that knows which surfaces exist.

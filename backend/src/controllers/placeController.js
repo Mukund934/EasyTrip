@@ -1,14 +1,10 @@
-const { Pool } = require('pg');
+const pool = require('../config/db');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const placeModel = require('../models/placeModel');
 const { uploadImage, destroyImage, destroyPlaceAssets, publicIdFromUrl } = require('../config/cloudinary');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
 
 // Get current user from request.
 // Identity comes only from the token the auth middleware verified: the former x-user /
@@ -76,9 +72,7 @@ const getAllPlaces = async (req, res) => {
     
     const formattedPlaces = places.map(place => ({
       ...place,
-      image_url: place.primary_image_url || `/api/places/${place.id}/image`,
-      fetched_at: timestamp,
-      fetched_by: user
+      image_url: place.primary_image_url || `/api/places/${place.id}/image`
     }));
     
     console.log(`[${timestamp}] Found ${places.length} places`);
@@ -124,9 +118,7 @@ const getPlaceById = async (req, res) => {
 
     const formattedPlace = {
       ...place,
-      image_url: place.primary_image_url || `/api/places/${id}/image`,
-      fetched_at: timestamp,
-      fetched_by: user
+      image_url: place.primary_image_url || `/api/places/${id}/image`
     };
     
     console.log(`[${timestamp}] Found place: ID=${place.id}, Name=${place.name}`);
@@ -605,9 +597,7 @@ const searchPlaces = async (req, res) => {
     
     const formattedPlaces = places.map(place => ({
       ...place,
-      image_url: place.primary_image_url || `/api/places/${place.id}/image`,
-      fetched_at: timestamp,
-      fetched_by: user
+      image_url: place.primary_image_url || `/api/places/${place.id}/image`
     }));
     
     res.status(200).json(formattedPlaces);
