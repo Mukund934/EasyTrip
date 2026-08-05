@@ -47,7 +47,7 @@ export default function AdminDashboard() {
       description: 'Edit or delete existing destination listings',
       icon: <FiList className="h-8 w-8" />,
       href: '/admin/managePlaces',
-      color: 'bg-blue-100 text-blue-600'
+      color: 'bg-primary-100 text-primary-600'
     },
     {
       title: 'User Management',
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {adminFeatures.map((feature, index) => (
               <Link key={index} href={feature.href}>
                 <div className="relative group bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 h-full flex flex-col justify-between cursor-pointer">

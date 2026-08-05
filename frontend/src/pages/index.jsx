@@ -31,9 +31,9 @@ const CarouselImage = ({ place, isActive }) => {
       {imageState === 'error' && (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
           <div className="text-center">
-            <FiImage className="h-8 w-8 sm:h-12 sm:w-12 text-blue-400 mx-auto mb-2 sm:mb-3" />
-            <p className="text-blue-600 text-xs sm:text-sm font-medium">{place?.name}</p>
-            <p className="text-blue-500 text-xs">Explore this destination</p>
+            <FiImage className="h-8 w-8 sm:h-12 sm:w-12 text-primary-400 mx-auto mb-2 sm:mb-3" />
+            <p className="text-primary-600 text-xs sm:text-sm font-medium">{place?.name}</p>
+            <p className="text-primary-500 text-xs">Explore this destination</p>
           </div>
         </div>
       )}
@@ -66,7 +66,7 @@ const FeatureCard = ({ icon, title, description }) => (
     className="bg-white p-4 sm:p-6 rounded-xl shadow-lg backdrop-blur-sm border border-gray-100/50 hover:shadow-xl transition-shadow duration-300"
     whileHover={{ y: -5 }}
   >
-    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
+    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
       {icon}
     </div>
     <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 text-center">{title}</h3>
@@ -306,10 +306,9 @@ const Home = () => {
         <title>EasyTrip - Discover Your Journey</title>
         <meta name="description" content="Explore curated destinations with EasyTrip, your premium travel companion." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
       </Head>
 
-      <div className="min-h-screen bg-gray-900 font-inter">
+      <div className="min-h-screen bg-gray-900">
         {/* Hero Section */}
         <div className="relative min-h-screen overflow-hidden">
           {/* Dynamic Background Image */}
@@ -343,7 +342,7 @@ const Home = () => {
                 >
                   <h1 className="text-2xl sm:text-3xl font-extrabold mb-3 leading-tight">
                     Discover Your Next
-                    <span className="block text-blue-300">Adventure</span>
+                    <span className="block text-primary-300">Adventure</span>
                   </h1>
                   
                   <p className="text-sm text-gray-200 mb-5 max-w-xs mx-auto leading-relaxed">
@@ -355,7 +354,7 @@ const Home = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-full px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center text-sm"
+                        className="w-full px-5 py-2.5 bg-primary-600 text-white font-medium rounded-lg shadow-lg hover:bg-primary-700 transition-colors flex items-center justify-center text-sm"
                       >
                         <FiCompass className="mr-2 h-4 w-4" />
                         Explore Now
@@ -399,7 +398,7 @@ const Home = () => {
                           <p className="mb-3 text-sm">{error}</p>
                           <button 
                             onClick={() => window.location.reload()}
-                            className="px-3 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            className="px-3 py-2 bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors text-sm"
                           >
                             Try Again
                           </button>
@@ -460,7 +459,7 @@ const Home = () => {
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={(e) => toggleLike(e, places[currentPlaceIndex]?.id)}
-                                    className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-7 h-7 flex items-center justify-center shadow-lg transition-colors ${
+                                    className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-11 h-11 flex items-center justify-center shadow-lg transition-colors ${
                                       likedPlaces.includes(places[currentPlaceIndex]?.id) 
                                         ? 'bg-red-500 text-white' 
                                         : 'bg-white/95 text-gray-700'
@@ -494,7 +493,7 @@ const Home = () => {
                                       {places[currentPlaceIndex]?.tags?.slice(0, 2).map((tag, idx) => (
                                         <span 
                                           key={idx} 
-                                          className="bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 text-xs font-medium"
+                                          className="bg-primary-100 text-primary-700 rounded-full px-2 py-0.5 text-xs font-medium"
                                         >
                                           {tag}
                                         </span>
@@ -508,7 +507,7 @@ const Home = () => {
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 px-3 py-1.5 text-xs flex items-center"
+                                        className="bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 px-3 py-1.5 text-xs flex items-center"
                                       >
                                         View Details
                                         <FiChevronRight className="ml-1 h-3 w-3" />
@@ -516,7 +515,7 @@ const Home = () => {
                                     </Link>
                                     
                                     <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
-                                      <button className="text-blue-600 hover:text-blue-800 text-xs underline underline-offset-2">
+                                      <button className="text-primary-600 hover:text-primary-800 text-xs underline underline-offset-2">
                                         More places
                                       </button>
                                     </Link>
@@ -566,7 +565,7 @@ const Home = () => {
                     className="text-white max-w-2xl"
                   >
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
-                      Discover Your Next <span className="text-blue-300">Adventure</span>
+                      Discover Your Next <span className="text-primary-300">Adventure</span>
                     </h1>
                     
                     <p className="text-lg lg:text-xl text-gray-200 mb-8 max-w-lg leading-relaxed">
@@ -578,7 +577,7 @@ const Home = () => {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center"
+                          className="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg shadow-lg hover:bg-primary-700 transition-colors flex items-center"
                         >
                           <FiCompass className="mr-2" />
                           Explore Now
@@ -622,7 +621,7 @@ const Home = () => {
                           <p className="mb-4 text-sm">{error}</p>
                           <button 
                             onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            className="px-4 py-2 bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors text-sm"
                           >
                             Try Again
                           </button>
@@ -713,7 +712,7 @@ const Home = () => {
                                       {places[currentPlaceIndex]?.tags?.slice(0, 3).map((tag, idx) => (
                                         <span 
                                           key={idx} 
-                                          className="bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-sm font-medium"
+                                          className="bg-primary-100 text-primary-700 rounded-full px-3 py-1 text-sm font-medium"
                                         >
                                           {tag}
                                         </span>
@@ -727,7 +726,7 @@ const Home = () => {
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 px-5 py-2 text-sm flex items-center"
+                                        className="bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 px-5 py-2 text-sm flex items-center"
                                       >
                                         View Details
                                         <FiChevronRight className="ml-1 h-4 w-4" />
@@ -735,7 +734,7 @@ const Home = () => {
                                     </Link>
                                     
                                     <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
-                                      <button className="text-blue-600 hover:text-blue-800 text-sm underline underline-offset-2">
+                                      <button className="text-primary-600 hover:text-primary-800 text-sm underline underline-offset-2">
                                         More destinations
                                       </button>
                                     </Link>
@@ -857,7 +856,7 @@ const Home = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-6 sm:px-8 py-3 bg-blue-600 text-white font-medium rounded-lg flex items-center mx-auto text-sm sm:text-base shadow-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 sm:px-8 py-3 bg-primary-600 text-white font-medium rounded-lg flex items-center mx-auto text-sm sm:text-base shadow-lg hover:bg-primary-700 transition-colors"
                 >
                   Start Exploring
                   <FiArrowRight className="ml-2 h-4 w-4" />

@@ -42,7 +42,7 @@ export default function About() {
       </Head>
 
       <div className="min-h-screen bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">About EasyTrip</h1>
           <p className="text-lg text-gray-600 mb-12">
             EasyTrip is a travel-destination discovery platform for India. It helps you find places

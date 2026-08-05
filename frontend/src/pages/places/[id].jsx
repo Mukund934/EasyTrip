@@ -16,8 +16,6 @@ import {
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview, deletePlaceReview, reportPlaceReview } from '../../services/placeService';
-import { subscribeToNewsletter } from '../../services/newsletterService';
-import { themeLabel } from '../../constants/themes';
 import ImageGallery from '../../components/ImageGallery';
 import MagazineGallery from '../../components/MagazineGallery';
 import ReviewForm from '../../components/ReviewForm';
@@ -134,10 +132,10 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
           >
             <button
               onClick={onShare}
-              className="bg-white/90 backdrop-blur-md text-gray-900 p-3 rounded-full hover:bg-white shadow-2xl transition-all duration-300 hover:scale-110 border border-white/20 group-hover:bg-blue-50"
+              className="bg-white/90 backdrop-blur-md text-gray-900 p-3 rounded-full hover:bg-white shadow-2xl transition-all duration-300 hover:scale-110 border border-white/20 group-hover:bg-primary-50"
               aria-label="Share"
             >
-              <FiShare2 className="h-6 w-6 group-hover:text-blue-600 transition-colors" />
+              <FiShare2 className="h-6 w-6 group-hover:text-primary-600 transition-colors" />
             </button>
             
             {/* Share dropdown */}
@@ -302,8 +300,8 @@ const TableOfContents = ({ sections }) => {
         className="flex items-center justify-between w-full"
       >
         <div className="flex items-center">
-          <div className="p-2 bg-indigo-100 rounded-lg mr-3">
-            <FiList className="text-indigo-600 h-5 w-5" />
+          <div className="p-2 bg-primary-100 rounded-lg mr-3">
+            <FiList className="text-primary-600 h-5 w-5" />
           </div>
           <h3 className="font-serif text-xl font-bold text-gray-900">In This Article</h3>
         </div>
@@ -319,14 +317,14 @@ const TableOfContents = ({ sections }) => {
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <ul className="mt-4 space-y-2 border-l-2 border-indigo-100 pl-4">
+            <ul className="mt-4 space-y-2 border-l-2 border-primary-100 pl-4">
               {sections.map((section, index) => (
                 <li key={index} className="py-1">
                   <a 
                     href={`#${section.id}`}
-                    className="flex items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                    className="flex items-center text-gray-700 hover:text-primary-600 transition-colors"
                   >
-                    <span className="text-indigo-600 font-serif font-bold mr-2">{index + 1}</span>
+                    <span className="text-primary-600 font-serif font-bold mr-2">{index + 1}</span>
                     <span className="font-medium">{section.title}</span>
                   </a>
                 </li>
@@ -353,7 +351,7 @@ const FactBox = ({ title, facts }) => {
         <ul className="space-y-3">
           {facts.map((fact, index) => (
             <li key={index} className="flex">
-              <span className="font-serif font-bold text-2xl text-indigo-500 mr-3">•</span>
+              <span className="font-serif font-bold text-2xl text-primary-500 mr-3">•</span>
               <span className="text-gray-700">{fact}</span>
             </li>
           ))}
@@ -373,7 +371,7 @@ const MagazineImage = ({ src, alt, caption, credit, className, fullWidth = false
       <div className="relative overflow-hidden bg-gray-100 rounded-xl shadow-lg">
         {!isLoaded && !hasError && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <LoadingSpinner color="indigo" />
+            <LoadingSpinner color="primary" />
           </div>
         )}
         
@@ -449,8 +447,8 @@ const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
       className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100"
     >
       <h3 className="text-xl font-serif font-bold text-gray-900 mb-5 flex items-center">
-        <div className="p-2 bg-blue-100 rounded-lg mr-3">
-          <FiMapPin className="text-blue-600 h-5 w-5" />
+        <div className="p-2 bg-primary-100 rounded-lg mr-3">
+          <FiMapPin className="text-primary-600 h-5 w-5" />
         </div>
         Location Details
       </h3>
@@ -563,7 +561,7 @@ const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
               />
               {/* Decorative compass */}
               <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow">
-                <FiNavigation className="h-5 w-5 text-indigo-600" />
+                <FiNavigation className="h-5 w-5 text-primary-600" />
               </div>
             </div>
           )}
@@ -576,7 +574,7 @@ const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
             href={`https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center bg-indigo-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            className="flex items-center justify-center bg-primary-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors"
           >
             <FiNavigation className="mr-2 h-4 w-4" />
             Directions
@@ -661,7 +659,7 @@ const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingRe
             onClick={() => setViewMode('curated')}
             className={`px-4 py-2 rounded-full text-sm font-medium ${
               viewMode === 'curated' 
-                ? 'bg-white shadow text-indigo-600' 
+                ? 'bg-white shadow text-primary-600' 
                 : 'text-gray-700 hover:text-gray-900'
             }`}
           >
@@ -671,7 +669,7 @@ const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingRe
             onClick={() => setViewMode('all')}
             className={`px-4 py-2 rounded-full text-sm font-medium ${
               viewMode === 'all' 
-                ? 'bg-white shadow text-indigo-600' 
+                ? 'bg-white shadow text-primary-600' 
                 : 'text-gray-700 hover:text-gray-900'
             }`}
           >
@@ -879,7 +877,7 @@ const MagazineDetails = ({ customKeys, themes, isLoading = false }) => {
                 // Different card styles for visual interest
                 const cardStyles = [
                   "bg-gray-50 border-gray-200",
-                  "bg-blue-50 border-blue-200",
+                  "bg-primary-50 border-primary-200",
                   "bg-amber-50 border-amber-200",
                   "bg-emerald-50 border-emerald-200",
                   "bg-rose-50 border-rose-200",
@@ -968,8 +966,6 @@ export default function PlaceDetails() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isDeletingReview, setIsDeletingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterState, setNewsletterState] = useState({ status: 'idle', message: null });
 
   // Scroll progress
   const scrollProgress = useTransform(scrollY, [0, 2000], [0, 100]);
@@ -1212,29 +1208,6 @@ export default function PlaceDetails() {
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   }, [place?.name]);
 
-  // This form had no onSubmit at all until Sprint 2.3 (IMP-023) — submitting it reloaded the page,
-  // which looked like the address had been accepted and lost it instead.
-  const handleNewsletterSubmit = async (e) => {
-    e.preventDefault();
-    if (!newsletterEmail || newsletterState.status === 'submitting') return;
-
-    setNewsletterState({ status: 'submitting', message: null });
-
-    try {
-      const result = await subscribeToNewsletter(newsletterEmail, 'place_page');
-      setNewsletterEmail('');
-      setNewsletterState({
-        status: 'success',
-        message: result?.message || "Thanks for subscribing! We'll be in touch."
-      });
-    } catch (err) {
-      setNewsletterState({
-        status: 'error',
-        message: err?.message || 'Could not complete your subscription. Please try again.'
-      });
-    }
-  };
-
   // Handler for reporting reviews. This faked success with a setTimeout until Sprint 2.3
   // (IMP-023/019) — the button told users their report was filed and nothing was recorded.
   const handleReportReview = async (reviewId) => {
@@ -1356,7 +1329,7 @@ export default function PlaceDetails() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => fetchAllData()}
-              className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center"
+              className="flex-1 bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center"
             >
               <FiRefreshCw className="mr-2 h-4 w-4" />
               Try Again
@@ -1401,14 +1374,11 @@ export default function PlaceDetails() {
         <meta property="og:image" content={getCloudinaryLargeImage(place.primary_image_url || place.image_url || FALLBACK_IMAGE, 1600)} />
         <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
         <meta name="twitter:card" content="summary_large_image" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet" />
       </Head>
 
       {/* Reading progress bar */}
       <motion.div 
-        className="fixed top-0 left-0 right-0 h-1 bg-indigo-600 z-50" 
+        className="fixed top-0 left-0 right-0 h-1 bg-primary-600 z-50" 
         style={{ scaleX: scrollProgress, transformOrigin: "0%" }}
       />
 
@@ -1430,7 +1400,7 @@ export default function PlaceDetails() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowTableOfContents(prev => !prev)}
-            className="bg-indigo-600 text-white p-4 rounded-full shadow-lg flex items-center justify-center"
+            className="bg-primary-600 text-white p-4 rounded-full shadow-lg flex items-center justify-center"
           >
             {showTableOfContents ? <FiX className="h-6 w-6" /> : <FiMenu className="h-6 w-6" />}
           </motion.button>
@@ -1453,7 +1423,7 @@ export default function PlaceDetails() {
                       href={`#${section.id}`}
                       className={`block py-2 px-3 rounded-lg text-sm ${
                         activeSection === section.id
-                          ? 'bg-indigo-50 text-indigo-700 font-medium'
+                          ? 'bg-primary-50 text-primary-700 font-medium'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
                       onClick={() => setShowTableOfContents(false)}
@@ -1604,8 +1574,8 @@ export default function PlaceDetails() {
                         className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100"
                       >
                         <h2 className="text-4xl font-serif font-bold text-gray-900 mb-8 flex items-center">
-                          <div className="p-3 bg-indigo-100 rounded-lg mr-4">
-                            <FiCamera className="text-indigo-600 h-7 w-7" />
+                          <div className="p-3 bg-primary-100 rounded-lg mr-4">
+                            <FiCamera className="text-primary-600 h-7 w-7" />
                           </div>
                           Photo Gallery
                         </h2>
@@ -1657,7 +1627,7 @@ export default function PlaceDetails() {
                           <div className="grid grid-cols-2 gap-3">
                             <button
                               onClick={() => document.getElementById('review-form')?.scrollIntoView({ behavior: 'smooth' })}
-                              className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                              className="flex items-center justify-center bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
                             >
                               <FiEdit3 className="mr-2 h-4 w-4" />
                               Write a Review
@@ -1730,7 +1700,7 @@ export default function PlaceDetails() {
                             </p>
                             <Link
                               href="/login"
-                              className="inline-flex items-center justify-center bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+                              className="inline-flex items-center justify-center bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors"
                             >
                               <FiUser className="mr-2 h-4 w-4" />
                               Sign in to review
@@ -1774,75 +1744,6 @@ export default function PlaceDetails() {
           </div>
         </main>
         
-        {/* Magazine-style Footer */}
-        <footer className="bg-gray-900 text-white py-16 mt-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-              <div>
-                <h3 className="text-2xl font-serif font-bold mb-6">EasyTrip</h3>
-                <p className="text-gray-300 mb-6 leading-relaxed">
-                  Curated destinations across India, with real traveller ratings.
-                </p>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-lg font-serif mb-6">Popular Categories</h4>
-                <ul className="space-y-3">
-                  {/* Were five href="#" links naming categories that do not exist in the theme
-                      vocabulary at all. Now real filters, built from the shared list (IMP-025). */}
-                  {['adventure', 'historical', 'nature', 'beach', 'family'].map((id) => (
-                    <li key={id}>
-                      <Link href={`/browse?theme=${id}`} className="text-gray-300 hover:text-white transition-colors">
-                        {themeLabel(id)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-lg font-serif mb-6">Stay Connected</h4>
-                <p className="text-gray-300 mb-4">Subscribe to our newsletter for travel inspiration, tips and exclusive offers.</p>
-                {newsletterState.status === 'success' ? (
-                  <p className="bg-green-900/30 border border-green-700 rounded-lg p-3 text-green-400 text-sm">
-                    {newsletterState.message}
-                  </p>
-                ) : (
-                  <form className="flex flex-col gap-2" onSubmit={handleNewsletterSubmit}>
-                    <div className="flex">
-                      <input
-                        type="email"
-                        placeholder="Your email address"
-                        aria-label="Email address for newsletter"
-                        className="px-4 py-2 w-full bg-gray-800 border border-gray-700 rounded-l-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
-                        value={newsletterEmail}
-                        onChange={(e) => setNewsletterEmail(e.target.value)}
-                        disabled={newsletterState.status === 'submitting'}
-                        required
-                      />
-                      <button
-                        type="submit"
-                        disabled={newsletterState.status === 'submitting'}
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
-                      >
-                        {newsletterState.status === 'submitting' ? 'Saving…' : 'Subscribe'}
-                      </button>
-                    </div>
-                    {newsletterState.status === 'error' && (
-                      <p role="alert" className="text-red-400 text-sm">{newsletterState.message}</p>
-                    )}
-                  </form>
-                )}
-              </div>
-            </div>
-            
-            <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between">
-              <p className="text-gray-400 text-sm mb-4 md:mb-0">
-                {`© ${new Date().getFullYear()} EasyTrip. All rights reserved.`}
-              </p>
-            </div>
-          </div>
-        </footer>
       </div>
     </>
   );

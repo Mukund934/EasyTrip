@@ -13,6 +13,14 @@ const Navbar = () => {
   const { currentUser: authUser, isAdmin, logout } = useAuth();
   const router = useRouter();
 
+  // Only these three render a dark hero image underneath the navbar. Everywhere else the page
+  // starts on a light background, so the navbar must be solid from the top — otherwise the scrim
+  // below draws a dark band over nothing and the white nav text becomes unreadable (IMP-033).
+  const hasDarkHero = ['/', '/browse', '/places/[id]'].includes(router.pathname);
+  // `solid` is what every style below should branch on. `scrolled` alone was the bug: it conflated
+  // "the user has scrolled" with "there is something dark behind me".
+  const solid = scrolled || !hasDarkHero;
+
   // A signed-in user can still be missing displayName and/or email, so every
   // read has to tolerate it rather than dereferencing straight through.
   const displayName =
@@ -72,7 +80,7 @@ const Navbar = () => {
 
   return (
     <motion.nav
-      className={`fixed w-full top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
+      className={`fixed w-full top-0 z-50 transition-all duration-300 ${solid ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
         }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -92,7 +100,7 @@ const Navbar = () => {
               />
             </div>
             <motion.span
-              className={`text-2xl font-bold ${scrolled ? 'text-primary-600' : 'text-white'}`}
+              className={`text-2xl font-bold ${solid ? 'text-primary-600' : 'text-white'}`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
@@ -107,7 +115,7 @@ const Navbar = () => {
               href="/"
               className={`px-3 py-2 text-sm font-medium ${router.pathname === '/'
                   ? 'text-primary-600 border-b-2 border-primary-600'
-                  : scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+                  : solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
                 } transition-colors`}
             >
               <span className="flex items-center">
@@ -119,7 +127,7 @@ const Navbar = () => {
               href="/browse"
               className={`px-3 py-2 text-sm font-medium ${router.pathname === '/browse'
                   ? 'text-primary-600 border-b-2 border-primary-600'
-                  : scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+                  : solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
                 } transition-colors`}
             >
               <span className="flex items-center">
@@ -134,7 +142,7 @@ const Navbar = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className={`flex items-center space-x-2 ${scrolled ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
+                  className={`flex items-center space-x-2 ${solid ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
                     } backdrop-blur-sm px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors`}
                 >
                   {authUser.photoURL ? (
@@ -210,7 +218,7 @@ const Navbar = () => {
               <div className="flex items-center space-x-2">
                 <Link
                   href="/login"
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${scrolled
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${solid
                       ? 'text-primary-600 border border-primary-600 hover:bg-primary-50'
                       : 'text-white border border-white hover:bg-white/10'
                     } transition-colors`}
@@ -219,7 +227,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   href="/signup"
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${scrolled
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${solid
                       ? 'bg-primary-600 text-white hover:bg-primary-700'
                       : 'bg-white text-primary-800 hover:bg-primary-50'
                     } shadow-sm transition-colors`}
@@ -234,7 +242,7 @@ const Navbar = () => {
           <div className="flex items-center sm:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className={`inline-flex items-center justify-center p-2 rounded-md ${scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+              className={`inline-flex items-center justify-center p-2 rounded-md ${solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
                 } hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors`}
             >
               <span className="sr-only">{isOpen ? 'Close menu' : 'Open menu'}</span>
@@ -355,8 +363,9 @@ const Navbar = () => {
         )}
       </AnimatePresence>
 
-      {/* Navbar background overlay for transparent navbar */}
-      {!scrolled && (
+      {/* Scrim exists to keep white nav text legible over a photographic hero. It must therefore
+          render only when the navbar is actually transparent over one. */}
+      {!solid && (
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent -z-10"></div>
       )}
     </motion.nav>

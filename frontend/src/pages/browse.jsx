@@ -752,8 +752,6 @@ function Browse() {
                 <meta property="og:title" content="Explore Amazing Places - EasyTrip" />
                 <meta property="og:description" content="Discover breathtaking destinations for your next adventure" />
                 <meta property="og:type" content="website" />
-                <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
             </Head>
 
             <div className="bg-gray-50 min-h-screen pt-20">
@@ -810,10 +808,10 @@ function Browse() {
                                                 onBlur={() => setTimeout(() => setSearchActive(false), 200)}
                                                 ref={searchInputRef}
                                                 placeholder="Search destinations..."
-                                                className="block w-full bg-transparent pl-10 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md"
+                                                className="block w-full bg-transparent pl-10 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-md"
                                             />
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <FiSearch className="h-4 w-4 text-blue-600" />
+                                                <FiSearch className="h-4 w-4 text-primary-600" />
                                             </div>
                                             {searchTerm && (
                                                 <button
@@ -839,7 +837,7 @@ function Browse() {
                                                             <h3 className="text-xs font-medium text-gray-700">Recent Searches</h3>
                                                             <button
                                                                 onClick={clearAllSearchHistory}
-                                                                className="text-xs text-blue-600 hover:text-blue-800"
+                                                                className="text-xs text-primary-600 hover:text-primary-800"
                                                             >
                                                                 Clear All
                                                             </button>
@@ -910,7 +908,7 @@ function Browse() {
                                     className="mt-6 flex flex-wrap justify-center gap-4"
                                 >
                                     <div className="text-center">
-                                        <div className="text-lg font-bold text-blue-400">{stats.totalPlaces}+</div>
+                                        <div className="text-lg font-bold text-primary-400">{stats.totalPlaces}+</div>
                                         <div className="text-xs text-gray-300">Places</div>
                                     </div>
                                     <div className="text-center">
@@ -1330,29 +1328,6 @@ function Browse() {
                             </div>
                         </div>
 
-                        {/* Search bar for mobile */}
-                        <div className="px-4 pb-4">
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => debouncedSearch(e.target.value)}
-                                    placeholder="Search places..."
-                                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                />
-                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                    <FiSearch className="h-5 w-5 text-gray-400" />
-                                </div>
-                                {searchTerm && (
-                                    <button
-                                        onClick={() => setSearchTerm('')}
-                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                                    >
-                                        <FiX className="h-5 w-5" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
                     </div>
 
                     {/* Active filters with enhanced animations */}
@@ -1499,7 +1474,7 @@ function Browse() {
                                             initial={{ opacity: 0, scale: 0.8 }}
                                             animate={{ opacity: 1, scale: 1 }}
                                             exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.15 } }}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800"
                                         >
                                             <FiCalendar className="mr-1 h-4 w-4" />
                                             {dateOptions.find(d => d.id === selectedDate)?.label || selectedDate}
@@ -1507,7 +1482,7 @@ function Browse() {
                                                 whileHover={{ scale: 1.2 }}
                                                 whileTap={{ scale: 0.9 }}
                                                 onClick={() => setSelectedDate('any')}
-                                                className="ml-1 text-blue-600 hover:text-blue-800"
+                                                className="ml-1 text-primary-600 hover:text-primary-800"
                                             >
                                                 <FiX className="h-4 w-4" />
                                             </motion.button>
@@ -1571,33 +1546,8 @@ function Browse() {
                             <h2 className="sr-only">Filters</h2>
 
                             <div className="bg-white shadow rounded-lg overflow-hidden divide-y divide-gray-200">
-                                {/* Search input */}
-                                <div className="p-6">
-                                    <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
-                                        <FiSearch className="mr-2 text-primary-600" />
-                                        Search
-                                    </h3>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={searchTerm}
-                                            onChange={(e) => debouncedSearch(e.target.value)}
-                                            placeholder="Search places..."
-                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                        />
-                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                            <FiSearch className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        {searchTerm && (
-                                            <button
-                                                onClick={() => setSearchTerm('')}
-                                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                                            >
-                                                <FiX className="h-5 w-5" />
-                                            </button>
-                                        )}
-                                    </div>
 
+                                <div className="p-6 pb-0">
                                     {/* Recent searches */}
                                     {recentSearches.length > 0 && (
                                         <div className="mt-2">
@@ -1807,7 +1757,7 @@ function Browse() {
                                                     whileTap={{ scale: 0.97 }}
                                                     onClick={() => setSelectedDate(option.id)}
                                                     className={`py-2 px-3 rounded-md text-sm flex items-center justify-between ${selectedDate === option.id
-                                                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                                        ? 'bg-primary-100 text-primary-800 border border-primary-300'
                                                         : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
                                                         }`}
                                                 >
@@ -1820,7 +1770,7 @@ function Browse() {
                                                             initial={{ scale: 0 }}
                                                             animate={{ scale: 1 }}
                                                         >
-                                                            <FiCheck className="h-4 w-4 text-blue-600" />
+                                                            <FiCheck className="h-4 w-4 text-primary-600" />
                                                         </motion.span>
                                                     )}
                                                 </motion.button>
@@ -2049,31 +1999,11 @@ function Browse() {
 
                         {/* Places Grid/List */}
                         <div className="mt-6 lg:mt-0 lg:col-span-3">
-                            {/* Enhanced Desktop header with search and view toggle */}
+                            {/* Desktop results header: result count + view toggle. The search input that used to
+                                sit here duplicated the hero search above it (IMP-029). */}
                             <div className="hidden md:flex justify-between items-center mb-6 bg-white shadow-lg rounded-xl p-6 border border-gray-100">
                                 <div className="flex-1 max-w-md relative">
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={searchTerm}
-                                            onChange={(e) => debouncedSearch(e.target.value)}
-                                            placeholder="Search places..."
-                                            className="block w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                        />
-                                        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                                            <FiSearch className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        {searchTerm && (
-                                            <button
-                                                onClick={() => setSearchTerm('')}
-                                                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                                            >
-                                                <FiX className="h-5 w-5" />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-2 text-sm text-gray-500">
+                                    <div className="text-sm text-gray-500">
                                         {filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'} found
                                     </div>
                                 </div>
@@ -2087,7 +2017,7 @@ function Browse() {
                                                 whileTap={{ scale: 0.95 }}
                                                 onClick={() => setViewMode(mode.id)}
                                                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === mode.id
-                                                        ? 'bg-white text-blue-600 shadow-sm'
+                                                        ? 'bg-white text-primary-600 shadow-sm'
                                                         : 'text-gray-600 hover:text-gray-900'
                                                     }`}
                                                 title={mode.description}
@@ -2127,7 +2057,7 @@ function Browse() {
                                                                 setShowSortMenu(false);
                                                             }}
                                                             className={`flex items-center justify-between px-4 py-3 text-sm w-full text-left transition-colors ${sortOrder === option.id
-                                                                    ? 'bg-blue-50 text-blue-700'
+                                                                    ? 'bg-primary-50 text-primary-700'
                                                                     : 'text-gray-700 hover:bg-gray-50'
                                                                 }`}
                                                         >
@@ -2136,7 +2066,7 @@ function Browse() {
                                                                 <span>{option.label}</span>
                                                             </div>
                                                             {sortOrder === option.id && (
-                                                                <FiCheck className="h-4 w-4 text-blue-600" />
+                                                                <FiCheck className="h-4 w-4 text-primary-600" />
                                                             )}
                                                         </button>
                                                     ))}
@@ -2181,7 +2111,7 @@ function Browse() {
                             {initialLoading ? (
                                 <div className="flex flex-col items-center justify-center py-32 bg-white rounded-xl shadow-lg">
                                     <LoadingSpinner size="large" color="primary" />
-                                    <p className="text-xl text-blue-800 mt-6 font-medium">Loading amazing destinations...</p>
+                                    <p className="text-xl text-primary-800 mt-6 font-medium">Loading amazing destinations...</p>
                                     <p className="text-sm text-gray-500 mt-2">Discovering perfect places for your next adventure</p>
                                 </div>
                             ) : error ? (
@@ -2200,7 +2130,7 @@ function Browse() {
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
                                             onClick={handleRefresh}
-                                            className="inline-flex items-center px-6 py-3 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                                            className="inline-flex items-center px-6 py-3 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors"
                                         >
                                             <FiRefreshCw className="mr-2 h-5 w-5" />
                                             Try Again
@@ -2223,7 +2153,7 @@ function Browse() {
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
                                             onClick={clearAllFilters}
-                                            className="inline-flex items-center px-6 py-3 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                                            className="inline-flex items-center px-6 py-3 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors"
                                         >
                                             Clear All Filters
                                         </motion.button>
@@ -2250,7 +2180,7 @@ function Browse() {
                                                 {/* Map overlay with place count */}
                                                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
                                                     <div className="flex items-center text-sm font-medium text-gray-700">
-                                                        <FiMapPin className="h-4 w-4 mr-2 text-blue-600" />
+                                                        <FiMapPin className="h-4 w-4 mr-2 text-primary-600" />
                                                         {filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}
                                                     </div>
                                                 </div>
@@ -2364,7 +2294,7 @@ function Browse() {
                                                                 <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-start">
                                                                     <Link
                                                                         href={`/places/${place.id}`}
-                                                                        className="hover:text-blue-600 transition-colors group flex-1"
+                                                                        className="hover:text-primary-600 transition-colors group flex-1"
                                                                     >
                                                                         <span className="group-hover:underline">{place.name}</span>
                                                                     </Link>
@@ -2379,7 +2309,7 @@ function Browse() {
                                                                 </h3>
 
                                                                 <div className="flex items-center text-sm text-gray-500 mb-3">
-                                                                    <FiMapPin className="mr-1 text-blue-500" />
+                                                                    <FiMapPin className="mr-1 text-primary-500" />
                                                                     <span>{place.location}</span>
                                                                 </div>
 
@@ -2400,7 +2330,7 @@ function Browse() {
                                                                             </span>
                                                                         ))}
                                                                         {place.tags.length > 5 && (
-                                                                            <span className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
+                                                                            <span className="text-xs text-primary-600 hover:text-primary-700 cursor-pointer">
                                                                                 +{place.tags.length - 5} more
                                                                             </span>
                                                                         )}
@@ -2432,7 +2362,7 @@ function Browse() {
 
                                                                     <Link
                                                                         href={`/places/${place.id}`}
-                                                                        className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                                                        className="inline-flex items-center text-primary-600 hover:text-primary-800 font-medium transition-colors"
                                                                     >
                                                                         <span className="hidden sm:inline">View Details</span>
                                                                         <FiArrowRight className="ml-2 h-4 w-4" />
@@ -2469,7 +2399,7 @@ function Browse() {
                                                 <span className="ml-2">
                                                     • <button
                                                         onClick={clearAllFilters}
-                                                        className="text-blue-600 hover:text-blue-800 underline"
+                                                        className="text-primary-600 hover:text-primary-800 underline"
                                                     >
                                                         Clear filters
                                                     </button>
@@ -2484,36 +2414,6 @@ function Browse() {
                 </div>
             </div>
 
-            {/* Enhanced footer with useful information */}
-            <div className="bg-white border-t border-gray-200 py-8 mt-16">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col md:flex-row justify-between items-center">
-                        <div className="flex flex-wrap items-center space-x-6 mb-4 md:mb-0">
-                            <Link href="/" className="text-sm text-gray-600 hover:text-blue-600 flex items-center transition-colors">
-                                <FiHome className="mr-1 h-4 w-4" />
-                                Home
-                            </Link>
-                            <button
-                                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                                className="text-sm text-gray-600 hover:text-blue-600 flex items-center transition-colors"
-                            >
-                                <FiNavigation className="mr-1 h-4 w-4" />
-                                Back to Top
-                            </button>
-                            {currentUser && (
-                                <div className="text-sm text-gray-600 flex items-center">
-                                    <FiUser className="mr-1 h-4 w-4" />
-                                    <span>{currentUser.displayName || currentUser.email || 'User'}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="text-sm text-gray-500">
-                            <span>© 2025 EasyTrip • {stats.totalPlaces} amazing places to explore</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </>
     );
 };
@@ -2527,11 +2427,11 @@ const FilterSection = ({ title, icon, collapsed, onToggle, children }) => (
             aria-expanded={!collapsed}
         >
             <div className="flex items-center">
-                {icon && <span className="mr-2 group-hover:text-blue-600 transition-colors">{icon}</span>}
-                <span className="group-hover:text-blue-600 transition-colors">{title}</span>
+                {icon && <span className="mr-2 group-hover:text-primary-600 transition-colors">{icon}</span>}
+                <span className="group-hover:text-primary-600 transition-colors">{title}</span>
             </div>
             <motion.div
-                className="bg-gray-100 group-hover:bg-blue-100 rounded-full p-1 transition-colors"
+                className="bg-gray-100 group-hover:bg-primary-100 rounded-full p-1 transition-colors"
                 whileTap={{ scale: 0.95 }}
             >
                 <motion.div
@@ -2539,7 +2439,7 @@ const FilterSection = ({ title, icon, collapsed, onToggle, children }) => (
                     animate={{ rotate: collapsed ? 0 : 180 }}
                     transition={{ duration: 0.3, type: 'spring' }}
                 >
-                    <FiChevronDown className="h-4 w-4 group-hover:text-blue-600 transition-colors" />
+                    <FiChevronDown className="h-4 w-4 group-hover:text-primary-600 transition-colors" />
                 </motion.div>
             </motion.div>
         </button>

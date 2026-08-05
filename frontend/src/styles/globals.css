@@ -4,12 +4,13 @@
 @import 'tailwindcss/utilities';
 
 /* Your other styles */
+/* The font stack lives in tailwind.config.js (fontFamily.sans) so the loaded Inter is actually
+   applied. Hardcoding it here overrode that config, which is why the downloaded font never
+   showed up (IMP-028). */
 html,
 body {
   padding: 0;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
-    Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
 }
 html,
 

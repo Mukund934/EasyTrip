@@ -168,8 +168,8 @@ export default function ManagePlaces() {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <div className="relative w-16 h-16 sm:w-24 sm:h-24">
-          <div className="absolute top-0 left-0 w-full h-full border-4 border-t-blue-600 border-b-blue-300 border-l-blue-600 border-r-blue-300 rounded-full animate-spin"></div>
-          <div className="absolute top-1 left-1 sm:top-2 sm:left-2 w-14 h-14 sm:w-20 sm:h-20 border-4 border-t-blue-400 border-b-blue-100 border-l-blue-400 border-r-blue-100 rounded-full animate-spin-slow"></div>
+          <div className="absolute top-0 left-0 w-full h-full border-4 border-t-primary-600 border-b-primary-300 border-l-primary-600 border-r-primary-300 rounded-full animate-spin"></div>
+          <div className="absolute top-1 left-1 sm:top-2 sm:left-2 w-14 h-14 sm:w-20 sm:h-20 border-4 border-t-primary-400 border-b-primary-100 border-l-primary-400 border-r-primary-100 rounded-full animate-spin-slow"></div>
         </div>
       </div>
     );
@@ -207,7 +207,7 @@ export default function ManagePlaces() {
                   onClick={() => setViewMode('card')}
                   className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'card'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
@@ -217,7 +217,7 @@ export default function ManagePlaces() {
                   onClick={() => setViewMode('table')}
                   className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'table'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
@@ -227,7 +227,7 @@ export default function ManagePlaces() {
 
               <Link
                 href="/admin/addPlace"
-                className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
               >
                 <FiPlus className="mr-2 h-4 w-4" />
                 Add Place
@@ -245,7 +245,7 @@ export default function ManagePlaces() {
                 </div>
                 <input
                   type="text"
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm sm:text-base"
                   placeholder="Search places..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -262,7 +262,7 @@ export default function ManagePlaces() {
                   Filters
                 </button>
                 {selectedLocation && (
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                  <span className="text-xs text-primary-600 bg-primary-50 px-2 py-1 rounded-full">
                     {selectedLocation}
                   </span>
                 )}
@@ -277,7 +277,7 @@ export default function ManagePlaces() {
                     </label>
                     <select
                       id="location"
-                      className="block w-full border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="block w-full border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                       value={selectedLocation}
                       onChange={(e) => setSelectedLocation(e.target.value)}
                     >
@@ -328,7 +328,7 @@ export default function ManagePlaces() {
                 <button
                   type="button"
                   onClick={() => router.reload()}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
                 >
                   <FiRefreshCw className="mr-2 h-4 w-4" />
                   Try again
@@ -350,7 +350,7 @@ export default function ManagePlaces() {
                 {places.length === 0 && (
                   <Link
                     href="/admin/addPlace"
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none"
                   >
                     <FiPlus className="mr-2 h-4 w-4" />
                     Add First Place
@@ -397,21 +397,21 @@ export default function ManagePlaces() {
                             <div className="flex items-center space-x-2">
                               <Link
                                 href={`/places/${place.id}`}
-                                className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-400 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
                                 title="View Place"
                               >
                                 <FiEye className="w-4 h-4" />
                               </Link>
                               <Link
                                 href={`/admin/editPlace/${place.id}`}
-                                className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-400 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
                                 title="Edit Place"
                               >
                                 <FiEdit className="w-4 h-4" />
                               </Link>
                               <button
                                 onClick={() => confirmDelete(place)}
-                                className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                                 title="Delete Place"
                               >
                                 <FiTrash2 className="w-4 h-4" />
@@ -426,7 +426,7 @@ export default function ManagePlaces() {
                             {place.tags.slice(0, 2).map((tag, index) => (
                               <span
                                 key={index}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700"
                               >
                                 {tag}
                               </span>
@@ -485,21 +485,21 @@ export default function ManagePlaces() {
                             <div className="ml-2 flex items-center space-x-2">
                               <Link
                                 href={`/places/${place.id}`}
-                                className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-400 hover:text-primary-600 rounded transition-colors"
                                 title="View Place"
                               >
                                 <FiEye className="w-4 h-4" />
                               </Link>
                               <Link
                                 href={`/admin/editPlace/${place.id}`}
-                                className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-400 hover:text-primary-600 rounded transition-colors"
                                 title="Edit Place"
                               >
                                 <FiEdit className="w-4 h-4" />
                               </Link>
                               <button
                                 onClick={() => confirmDelete(place)}
-                                className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
                                 title="Delete Place"
                               >
                                 <FiTrash2 className="w-4 h-4" />
@@ -524,7 +524,7 @@ export default function ManagePlaces() {
                               {place.tags.slice(0, 3).map((tag, index) => (
                                 <span
                                   key={index}
-                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700"
                                 >
                                   {tag}
                                 </span>
@@ -619,14 +619,14 @@ export default function ManagePlaces() {
                                 <div className="flex items-center justify-end space-x-2">
                                   <Link
                                     href={`/places/${place.id}`}
-                                    className="text-gray-600 hover:text-blue-600 p-1 rounded transition-colors"
+                                    className="text-gray-600 hover:text-primary-600 p-1 rounded transition-colors"
                                     title="View Place"
                                   >
                                     <FiEye className="h-4 w-4" />
                                   </Link>
                                   <Link
                                     href={`/admin/editPlace/${place.id}`}
-                                    className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                                    className="text-primary-600 hover:text-primary-800 p-1 rounded transition-colors"
                                     title="Edit Place"
                                   >
                                     <FiEdit className="h-4 w-4" />
@@ -705,7 +705,7 @@ export default function ManagePlaces() {
                 </button>
                 <button
                   type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
                   onClick={() => setShowDeleteModal(false)}
                   disabled={deleting}
                 >

@@ -90,7 +90,42 @@ export default function AddPlace() {
   }, [currentUser, loading, isAdmin, router]);
 
   // Enhanced form validation
-  const validateForm = () => {
+  // Which fields belong to which wizard step. Keeping this next to validateForm means a new
+  // required field is one entry away from being enforced at the right step, rather than silently
+  // deferring to submit.
+  const STEP_FIELDS = {
+    1: ['name', 'location', 'description'],
+    2: ['district', 'state', 'locality', 'pin_code', 'latitude', 'longitude'],
+    3: [],
+    4: ['image']
+  };
+
+  // Runs the full validator, then keeps only the messages belonging to this step. Reusing
+  // validateForm avoids a second set of rules that could disagree with the one at submit.
+  const validateStep = (stepNumber) => {
+    const allErrors = collectErrors();
+    const stepErrors = {};
+    for (const field of STEP_FIELDS[stepNumber] || []) {
+      if (allErrors[field]) stepErrors[field] = allErrors[field];
+    }
+
+    setErrors(stepErrors);
+    return Object.keys(stepErrors).length === 0;
+  };
+
+  const goToStep = (target) => {
+    // Going backwards never blocks — a user must always be able to return and fix something.
+    if (target < step) {
+      setErrors({});
+      setStep(target);
+      return;
+    }
+    if (validateStep(step)) {
+      setStep(target);
+    }
+  };
+
+  const collectErrors = () => {
     const newErrors = {};
     
     // Required fields
@@ -134,6 +169,11 @@ export default function AddPlace() {
       newErrors.image = 'Image size must be less than 5MB';
     }
     
+    return newErrors;
+  };
+
+  const validateForm = () => {
+    const newErrors = collectErrors();
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -180,8 +220,6 @@ export default function AddPlace() {
       const reader = new FileReader();
       reader.onload = (e) => setImagePreview(e.target.result);
       reader.readAsDataURL(file);
-      
-      toast.success('Image uploaded successfully');
     }
   };
 
@@ -195,7 +233,6 @@ export default function AddPlace() {
       setFormData({ ...formData, tags: [...formData.tags, tagToAdd] });
       setNewTag('');
       setShowTagSuggestions(false);
-      toast.success(`Tag "${tagToAdd}" added`);
     } else if (!tagToAdd) {
       toast.error('Tag cannot be empty');
     } else {
@@ -235,7 +272,6 @@ export default function AddPlace() {
       });
       setNewKeyName('');
       setNewKeyValue('');
-      toast.success(`Detail "${key}" added`);
     } else {
       toast.error('Both key and value are required');
     }
@@ -314,7 +350,7 @@ export default function AddPlace() {
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Loading admin panel...</p>
         </motion.div>
       </div>
@@ -375,12 +411,12 @@ export default function AddPlace() {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(step / 4) * 100}%` }}
                   ></div>
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-sm font-semibold text-blue-600">
+                  <h3 className="text-sm font-semibold text-primary-600">
                     {stepTitles[step]}
                   </h3>
                 </div>
@@ -393,7 +429,7 @@ export default function AddPlace() {
                     <div key={stepNum} className="flex items-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                         parseInt(stepNum) === step 
-                          ? 'bg-blue-600 text-white' 
+                          ? 'bg-primary-600 text-white' 
                           : parseInt(stepNum) < step 
                             ? 'bg-green-500 text-white' 
                             : 'bg-gray-200 text-gray-600'
@@ -401,7 +437,7 @@ export default function AddPlace() {
                         {parseInt(stepNum) < step ? <FiCheck className="w-4 h-4" /> : stepNum}
                       </div>
                       <span className={`ml-2 text-xs sm:text-sm font-medium ${
-                        parseInt(stepNum) === step ? 'text-blue-600' : 'text-gray-500'
+                        parseInt(stepNum) === step ? 'text-primary-600' : 'text-gray-500'
                       }`}>
                         {title}
                       </span>
@@ -435,8 +471,8 @@ export default function AddPlace() {
                   className="p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex items-center mb-6">
-                    <div className="p-2 sm:p-3 bg-blue-100 rounded-lg mr-3 sm:mr-4">
-                      <FiInfo className="text-blue-600 h-5 w-5 sm:h-6 sm:w-6" />
+                    <div className="p-2 sm:p-3 bg-primary-100 rounded-lg mr-3 sm:mr-4">
+                      <FiInfo className="text-primary-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Basic Information</h2>
                   </div>
@@ -452,7 +488,7 @@ export default function AddPlace() {
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.name ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="Enter the place name"
@@ -482,7 +518,7 @@ export default function AddPlace() {
                           name="location"
                           value={formData.location}
                           onChange={handleChange}
-                          className={`block w-full pl-10 pr-10 border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
+                          className={`block w-full pl-10 pr-10 border-2 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                             errors.location ? 'border-red-500' : 'border-gray-300'
                           }`}
                           placeholder="Enter the location"
@@ -491,7 +527,7 @@ export default function AddPlace() {
                         <button
                           type="button"
                           onClick={handleLocationLookup}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-500 hover:text-blue-700 p-1"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary-500 hover:text-primary-700 p-1"
                           title="Auto-fill coordinates"
                         >
                           <FiNavigation className="w-4 h-4" />
@@ -520,7 +556,7 @@ export default function AddPlace() {
                       value={formData.description}
                       onChange={handleChange}
                       rows="4"
-                      className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base resize-none ${
+                      className={`block w-full border-2 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base resize-none ${
                         errors.description ? 'border-red-500' : 'border-gray-300'
                       }`}
                       placeholder="Describe this place, its attractions, and what makes it special..."
@@ -544,8 +580,8 @@ export default function AddPlace() {
                   <div className="mt-6 sm:mt-8 flex justify-end">
                     <button
                       type="button"
-                      onClick={() => setStep(2)}
-                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                      onClick={() => goToStep(2)}
+                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors text-sm sm:text-base"
                     >
                       Next: Location Details
                       <FiArrowLeft className="ml-2 rotate-180" />
@@ -581,7 +617,7 @@ export default function AddPlace() {
                         name="district"
                         value={formData.district}
                         onChange={handleChange}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base"
                         placeholder="Enter district name"
                       />
                     </div>
@@ -596,7 +632,7 @@ export default function AddPlace() {
                         name="state"
                         value={formData.state}
                         onChange={handleChange}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base"
                         placeholder="Enter state name"
                       />
                     </div>
@@ -611,7 +647,7 @@ export default function AddPlace() {
                         name="locality"
                         value={formData.locality}
                         onChange={handleChange}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base"
                         placeholder="Enter locality/area name"
                       />
                     </div>
@@ -626,7 +662,7 @@ export default function AddPlace() {
                         name="pin_code"
                         value={formData.pin_code}
                         onChange={handleChange}
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.pin_code ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="123456"
@@ -657,7 +693,7 @@ export default function AddPlace() {
                         value={formData.latitude}
                         onChange={handleChange}
                         placeholder="e.g. 28.6139"
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.latitude ? 'border-red-500' : 'border-gray-300'
                         }`}
                       />
@@ -684,7 +720,7 @@ export default function AddPlace() {
                         value={formData.longitude}
                         onChange={handleChange}
                         placeholder="e.g. 77.2090"
-                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors py-3 px-4 text-sm sm:text-base ${
+                        className={`block w-full border-2 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors py-3 px-4 text-sm sm:text-base ${
                           errors.longitude ? 'border-red-500' : 'border-gray-300'
                         }`}
                       />
@@ -704,7 +740,7 @@ export default function AddPlace() {
                   <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
                     <button
                       type="button"
-                      onClick={() => setStep(1)}
+                      onClick={() => goToStep(1)}
                       className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-2 sm:order-1"
                     >
                       <FiArrowLeft className="mr-2" />
@@ -712,8 +748,8 @@ export default function AddPlace() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setStep(3)}
-                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
+                      onClick={() => goToStep(3)}
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
                     >
                       Next: Media & Themes
                       <FiArrowLeft className="ml-2 rotate-180" />
@@ -815,7 +851,7 @@ export default function AddPlace() {
                   <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
                     <button
                       type="button"
-                      onClick={() => setStep(2)}
+                      onClick={() => goToStep(2)}
                       className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-2 sm:order-1"
                     >
                       <FiArrowLeft className="mr-2" />
@@ -823,8 +859,8 @@ export default function AddPlace() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setStep(4)}
-                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
+                      onClick={() => goToStep(4)}
+                      className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
                     >
                       Next: Tags & Details
                       <FiArrowLeft className="ml-2 rotate-180" />
@@ -859,13 +895,13 @@ export default function AddPlace() {
                           key={index}
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="flex items-center bg-blue-50 text-blue-700 px-3 py-2 rounded-full border border-blue-200"
+                          className="flex items-center bg-primary-50 text-primary-700 px-3 py-2 rounded-full border border-primary-200"
                         >
                           <span className="text-xs sm:text-sm font-medium">{tag}</span>
                           <button
                             type="button"
                             onClick={() => handleRemoveTag(tag)}
-                            className="ml-2 text-blue-500 hover:text-blue-700 transition-colors"
+                            className="ml-2 text-primary-500 hover:text-primary-700 transition-colors"
                           >
                             <FiX className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
@@ -882,7 +918,7 @@ export default function AddPlace() {
                             setNewTag(e.target.value);
                             setShowTagSuggestions(e.target.value.length > 0);
                           }}
-                          className="block w-full border-2 border-gray-300 rounded-xl sm:rounded-l-xl sm:rounded-r-none shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4 text-sm sm:text-base"
+                          className="block w-full border-2 border-gray-300 rounded-xl sm:rounded-l-xl sm:rounded-r-none shadow-sm focus:ring-primary-500 focus:border-primary-500 py-3 px-4 text-sm sm:text-base"
                           placeholder="Add a tag (e.g., family-friendly, weekend, nature)"
                           onKeyPress={(e) => {
                             if (e.key === 'Enter') {
@@ -894,7 +930,7 @@ export default function AddPlace() {
                         <button
                           type="button"
                           onClick={() => handleAddTag()}
-                          className="inline-flex items-center justify-center px-4 sm:px-6 py-3 border-2 border-blue-600 sm:border-l-0 text-blue-600 font-medium rounded-xl sm:rounded-l-none sm:rounded-r-xl hover:bg-blue-50 transition-colors text-sm sm:text-base"
+                          className="inline-flex items-center justify-center px-4 sm:px-6 py-3 border-2 border-primary-600 sm:border-l-0 text-primary-600 font-medium rounded-xl sm:rounded-l-none sm:rounded-r-xl hover:bg-primary-50 transition-colors text-sm sm:text-base"
                         >
                           <FiPlus className="mr-1" />
                           Add
@@ -964,14 +1000,14 @@ export default function AddPlace() {
                         type="text"
                         value={newKeyName}
                         onChange={(e) => setNewKeyName(e.target.value)}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4 text-sm sm:text-base"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 py-3 px-4 text-sm sm:text-base"
                         placeholder="Detail name (e.g., Best Time to Visit)"
                       />
                       <input
                         type="text"
                         value={newKeyValue}
                         onChange={(e) => setNewKeyValue(e.target.value)}
-                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4 text-sm sm:text-base"
+                        className="block w-full border-2 border-gray-300 rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 py-3 px-4 text-sm sm:text-base"
                         placeholder="Detail value (e.g., October to March)"
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') {
@@ -997,7 +1033,7 @@ export default function AddPlace() {
                   <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
                     <button
                       type="button"
-                      onClick={() => setStep(3)}
+                      onClick={() => goToStep(3)}
                       className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-3 sm:order-1"
                     >
                       <FiArrowLeft className="mr-2" />
@@ -1014,7 +1050,7 @@ export default function AddPlace() {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="inline-flex items-center justify-center px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
+                        className="inline-flex items-center justify-center px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
                       >
                         {isSubmitting ? (
                           <span className="flex items-center">
@@ -1042,13 +1078,13 @@ export default function AddPlace() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6"
+                className="mt-6 bg-primary-50 border border-primary-200 rounded-xl p-4 sm:p-6"
               >
                 <div className="flex items-center mb-4">
-                  <FiLoader className="animate-spin h-5 w-5 text-blue-600 mr-3" />
-                  <h3 className="text-base sm:text-lg font-semibold text-blue-900">Creating Your Place...</h3>
+                  <FiLoader className="animate-spin h-5 w-5 text-primary-600 mr-3" />
+                  <h3 className="text-base sm:text-lg font-semibold text-primary-900">Creating Your Place...</h3>
                 </div>
-                <div className="text-xs sm:text-sm text-blue-700 space-y-1">
+                <div className="text-xs sm:text-sm text-primary-700 space-y-1">
                   <p>• Validating form data</p>
                   <p>• {primaryImage ? 'Uploading image to Firebase Storage' : 'Preparing place data'}</p>
                   <p>• Saving to database</p>

@@ -7,6 +7,14 @@ module.exports = {
   ],
   theme: {
     extend: {
+      // Without these, `font-serif` resolved to the generic system serif and the Playfair Display
+      // stylesheet the detail page downloaded was never applied — a paid-for request with no
+      // visual effect. `font-inter` was worse: an undefined class, so it did nothing at all
+      // (IMP-028). Declaring the families here is what makes the loaded fonts reachable.
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        serif: ['"Playfair Display"', 'ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'serif'],
+      },
       colors: {
         primary: {
           50: '#f0f9ff',
