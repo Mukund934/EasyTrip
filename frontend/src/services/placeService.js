@@ -1,7 +1,35 @@
 import axios from 'axios';
 import { auth } from '../config/firebase';
+import {
+  fetchPlaceById,
+  fetchPlaceImages,
+  fetchLocations,
+  fetchDistricts,
+  fetchStates,
+  fetchTags
+} from './placesApi';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+/**
+ * This module now holds only what needs a Firebase ID token. The public reads moved to
+ * `placesApi.js` so the server-rendering paths can call them without importing
+ * `../config/firebase`, which this file initialises at module scope (IMP-040).
+ *
+ * The read names below are re-exported rather than reimplemented: one implementation, one place
+ * for a bug to live, and no import churn in the admin pages that already call them.
+ *
+ * `getAllPlaces` and `searchPlaces` are deliberately *not* here any more. Both returned a bare
+ * array; the endpoint now returns `{ data, pagination }`, and a function that quietly discarded
+ * the pagination half would hand callers a page while letting them believe it was the catalogue.
+ * Callers use `fetchPlaces` from `placesApi` instead.
+ */
+const getPlaceById = fetchPlaceById;
+const getPlaceImages = fetchPlaceImages;
+const getLocations = fetchLocations;
+const getDistricts = fetchDistricts;
+const getStates = fetchStates;
+const getTags = fetchTags;
 
 /**
  * Build the Authorization header for an authenticated request.
@@ -26,152 +54,6 @@ const authHeaders = async (token) => {
 };
 
 /**
- * Get all places
- */
-const getAllPlaces = async () => {
-  try {
-    console.log('Getting all places');
-
-    const response = await axios.get(`${API_URL}/places`);
-
-    console.log(`Places fetched successfully: ${response.data.length} items`);
-    if (response.data.length > 0) {
-      console.log(`First place preview:`, {
-        id: response.data[0].id,
-        name: response.data[0].name,
-        location: response.data[0].location,
-        hasImage: !!response.data[0].primary_image_url,
-        tagsCount: response.data[0].tags ? response.data[0].tags.length : 0
-      });
-    }
-
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching places:', error.response?.data || error.message);
-    throw new Error('Failed to fetch places');
-  }
-};
-
-/**
- * Get place by ID
- */
-const getPlaceById = async (id) => {
-  try {
-    console.log(`Getting place ID ${id}`);
-
-    const response = await axios.get(`${API_URL}/places/${id}`);
-
-    console.log(`Place ID ${id} fetched successfully: ${response.data.name}`);
-    console.log(`Image source: ${response.data.primary_image_url ? 'Cloudinary' : 'API Endpoint'}`);
-
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching place ${id}:`, error.response?.data || error.message);
-    throw {
-      message: error.response?.data?.message || 'Place not found',
-      status: error.response?.status || 404
-    };
-  }
-};
-
-/**
- * Search places
- */
-const searchPlaces = async (criteria) => {
-  try {
-    console.log('Searching places with criteria:', criteria);
-
-    // Build query string
-    const params = new URLSearchParams();
-    Object.entries(criteria).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        if (Array.isArray(value)) {
-          params.append(key, JSON.stringify(value));
-        } else {
-          params.append(key, value);
-        }
-      }
-    });
-
-    const response = await axios.get(`${API_URL}/places/search?${params.toString()}`);
-
-    console.log(`Search returned ${response.data.length} places`);
-    return response.data;
-  } catch (error) {
-    console.error('Error searching places:', error.response?.data || error.message);
-    throw new Error('Failed to search places');
-  }
-};
-
-/**
- * Get locations
- */
-const getLocations = async () => {
-  try {
-    console.log('Getting locations');
-
-    const response = await axios.get(`${API_URL}/places/locations`);
-
-    console.log(`Locations fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching locations:', error.response?.data || error.message);
-    throw new Error('Failed to fetch locations');
-  }
-};
-
-/**
- * Get districts
- */
-const getDistricts = async () => {
-  try {
-    console.log('Getting districts');
-
-    const response = await axios.get(`${API_URL}/places/districts`);
-
-    console.log(`Districts fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching districts:', error.response?.data || error.message);
-    throw new Error('Failed to fetch districts');
-  }
-};
-
-/**
- * Get states
- */
-const getStates = async () => {
-  try {
-    console.log('Getting states');
-
-    const response = await axios.get(`${API_URL}/places/states`);
-
-    console.log(`States fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching states:', error.response?.data || error.message);
-    throw new Error('Failed to fetch states');
-  }
-};
-
-/**
- * Get tags
- */
-const getTags = async () => {
-  try {
-    console.log('Getting tags');
-
-    const response = await axios.get(`${API_URL}/places/tags`);
-
-    console.log(`Tags fetched: ${response.data.length} items`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching tags:', error.response?.data || error.message);
-    throw new Error('Failed to fetch tags');
-  }
-};
-
-/**
  * Create place (admin)
  * @param {Object} placeData - Place data
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
@@ -180,14 +62,12 @@ const createPlace = async (placeData, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Creating place: ${placeData.name}`);
 
     const formData = new FormData();
 
     // Add image if present
     if (placeData.image) {
       formData.append('image', placeData.image);
-      console.log(`Uploading primary image: ${placeData.image.name}, ${placeData.image.type}, ${Math.round(placeData.image.size/1024)} KB`);
     }
 
     // Add all other fields to formData
@@ -198,24 +78,11 @@ const createPlace = async (placeData, token) => {
         } else {
           formData.append(key, value);
         }
-        console.log(`Form field - ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
       }
     });
 
-    // Upload progress tracking
-    const onUploadProgress = (progressEvent) => {
-      if (placeData.image && progressEvent.total) {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        console.log(`Upload progress: ${percentCompleted}%`);
-      }
-    };
+    const response = await axios.post(`${API_URL}/admin/places`, formData, { headers });
 
-    const response = await axios.post(`${API_URL}/admin/places`, formData, {
-      headers,
-      onUploadProgress
-    });
-
-    console.log(`Place created successfully: ID=${response.data.id}, Name=${response.data.name}`);
     return response.data;
   } catch (error) {
     console.error('Error creating place:', {
@@ -243,14 +110,12 @@ const updatePlace = async (id, placeData, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Updating place ${id}`);
 
     const formData = new FormData();
 
     // Add image if present
     if (placeData.image) {
       formData.append('image', placeData.image);
-      console.log(`Uploading updated image: ${placeData.image.name}, ${Math.round(placeData.image.size/1024)} KB`);
     }
 
     // Add all other fields to formData
@@ -264,20 +129,8 @@ const updatePlace = async (id, placeData, token) => {
       }
     });
 
-    // Upload progress tracking
-    const onUploadProgress = (progressEvent) => {
-      if (placeData.image && progressEvent.total) {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        console.log(`Update upload progress: ${percentCompleted}%`);
-      }
-    };
+    const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, { headers });
 
-    const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, {
-      headers,
-      onUploadProgress
-    });
-
-    console.log(`Place updated successfully: ID=${response.data.id}, Name=${response.data.name}`);
     return response.data;
   } catch (error) {
     console.error(`Error updating place ${id}:`, {
@@ -303,11 +156,9 @@ const deletePlace = async (id, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Deleting place ${id}`);
 
     const response = await axios.delete(`${API_URL}/admin/places/${id}`, { headers });
 
-    console.log(`Place deleted successfully: ID=${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting place ${id}:`, error.response?.data || error.message);
@@ -331,7 +182,6 @@ const deletePlace = async (id, token) => {
  */
 const getPlaceReviews = async (id, token) => {
   try {
-    console.log(`Getting reviews for place ${id}`);
 
     let idToken = token;
     if (!idToken && auth.currentUser) {
@@ -343,7 +193,6 @@ const getPlaceReviews = async (id, token) => {
       idToken ? { headers: { Authorization: `Bearer ${idToken}` } } : undefined
     );
 
-    console.log(`Reviews fetched: ${response.data.length} items`);
     return response.data;
   } catch (error) {
     console.error(`Error fetching reviews for place ${id}:`, error.response?.data || error.message);
@@ -361,7 +210,6 @@ const createPlaceReview = async (id, reviewData, token) => {
   const headers = await authHeaders(token);
 
   try {
-    console.log(`Creating review for place ${id}`);
 
     // Only the review itself travels on the wire; the author is derived from the
     // verified token server-side, so any client-supplied identity is dropped here.
@@ -372,7 +220,6 @@ const createPlaceReview = async (id, reviewData, token) => {
 
     const response = await axios.post(`${API_URL}/places/${id}/reviews`, payload, { headers });
 
-    console.log(`Review created successfully for place ${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error creating review for place ${id}:`, error.response?.data || error.message);
@@ -389,27 +236,124 @@ const createPlaceReview = async (id, reviewData, token) => {
 };
 
 /**
- * Get place images
+ * Delete the caller's own review.
+ *
+ * There is no `PUT` counterpart by design: re-submitting through `createPlaceReview` upserts,
+ * so editing already has exactly one path. Ownership is enforced server-side from the token —
+ * the client cannot pass an author, and a review belonging to someone else returns 403.
+ *
+ * @param {Number|String} id - Place ID
+ * @param {Number|String} reviewId - Review ID (the `id` field of the review payload)
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
-const getPlaceImages = async (id) => {
+const deletePlaceReview = async (id, reviewId, token) => {
+  const headers = await authHeaders(token);
+
   try {
-    console.log(`Getting images for place ${id}`);
 
-    const response = await axios.get(`${API_URL}/places/${id}/images`);
+    await axios.delete(`${API_URL}/places/${id}/reviews/${reviewId}`, { headers });
 
-    console.log(`Images fetched: ${response.data.length} items`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting review ${reviewId}:`, error.response?.data || error.message);
+    throw {
+      message: error.response?.data?.message || 'Error deleting review',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
+ * Report a review for moderation.
+ *
+ * Reporting the same review twice is a no-op server-side rather than an error, so the caller
+ * does not need to track whether it has already been reported.
+ *
+ * @param {Number|String} id - Place ID
+ * @param {Number|String} reviewId - Review ID
+ * @param {String} [reason] - Optional free-text reason; no UI sends one yet
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const reportPlaceReview = async (id, reviewId, reason, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+
+    const response = await axios.post(
+      `${API_URL}/places/${id}/reviews/${reviewId}/report`,
+      reason ? { reason } : {},
+      { headers }
+    );
+
     return response.data;
   } catch (error) {
-    console.error(`Error fetching images for place ${id}:`, error.response?.data || error.message);
-    throw new Error('Failed to fetch images');
+    console.error(`Error reporting review ${reviewId}:`, error.response?.data || error.message);
+    throw {
+      message:
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.message ||
+        'Error reporting review',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
+ * Add a gallery image to a place (admin).
+ *
+ * @param {Number|String} id - Place ID
+ * @param {File} file - Image file
+ * @param {String} [caption] - Optional caption
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const addPlaceImage = async (id, file, caption, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (caption) formData.append('caption', caption);
+
+    const response = await axios.post(`${API_URL}/admin/places/${id}/images`, formData, { headers });
+
+    return response.data;
+  } catch (error) {
+    console.error(`Error adding gallery image to place ${id}:`, error.response?.data || error.message);
+    throw {
+      message:
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.message ||
+        'Error adding gallery image',
+      status: error.response?.status
+    };
+  }
+};
+
+/**
+ * Remove a gallery image from a place (admin).
+ *
+ * @param {Number|String} id - Place ID
+ * @param {Number|String} imageId - Image ID
+ * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
+ */
+const deletePlaceImage = async (id, imageId, token) => {
+  const headers = await authHeaders(token);
+
+  try {
+    await axios.delete(`${API_URL}/admin/places/${id}/images/${imageId}`, { headers });
+    return true;
+  } catch (error) {
+    console.error(`Error deleting gallery image ${imageId}:`, error.response?.data || error.message);
+    throw {
+      message: error.response?.data?.message || 'Error deleting gallery image',
+      status: error.response?.status
+    };
   }
 };
 
 // Export all functions
-export default {
-  getAllPlaces,
+const placeService = {
   getPlaceById,
-  searchPlaces,
   getLocations,
   getDistricts,
   getStates,
@@ -419,14 +363,18 @@ export default {
   deletePlace,
   getPlaceReviews,
   createPlaceReview,
-  getPlaceImages
+  deletePlaceReview,
+  reportPlaceReview,
+  getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage
 };
+
+export default placeService;
 
 // Named exports for direct imports
 export {
-  getAllPlaces,
   getPlaceById,
-  searchPlaces,
   getLocations,
   getDistricts,
   getStates,
@@ -436,5 +384,9 @@ export {
   deletePlace,
   getPlaceReviews,
   createPlaceReview,
-  getPlaceImages
+  deletePlaceReview,
+  reportPlaceReview,
+  getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage
 };

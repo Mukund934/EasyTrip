@@ -5,13 +5,32 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
-import { createRoot } from 'react-dom/client';
+
 import {
-  FiMapPin, FiStar, FiNavigation, FiLayers, FiPlus, FiMinus,
-  FiMaximize2, FiMinimize2, FiFilter, FiX, FiSearch, FiRefreshCw,
-  FiCrosshair, FiChevronRight, FiChevronLeft, FiInfo, FiAlertCircle,
-  FiSettings, FiCompass, FiArrowRight, FiEye, FiGlobe, FiTarget,
-  FiCheck, FiSun, FiMoon
+  FiMapPin,
+  FiStar,
+  FiNavigation,
+  FiLayers,
+  FiPlus,
+  FiMinus,
+  FiMaximize2,
+  FiMinimize2,
+  FiX,
+  FiSearch,
+  FiRefreshCw,
+  FiCrosshair,
+  FiChevronRight,
+  FiChevronLeft,
+  FiInfo,
+  FiAlertCircle,
+  FiCompass,
+  FiArrowRight,
+  FiEye,
+  FiGlobe,
+  FiTarget,
+  FiCheck,
+  FiSun,
+  FiMoon
 } from 'react-icons/fi';
 
 // Leaflet icon setup
@@ -96,10 +115,12 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 // Main ExploreMap component
-const ExploreMap = ({ 
-  places = [], 
+const ExploreMap = ({
+  places: rawPlaces = [],
   selectedPlace,
-  onSelectPlace,
+  // Browse renders the map without a selection handler, and every marker binds a click that
+  // calls this — so without a default, clicking any pin threw a TypeError.
+  onSelectPlace = () => {},
   center = { lat: 20.5937, lng: 78.9629 }, // Default to India's center
   zoom = 5,
   onZoomChange,
@@ -132,8 +153,21 @@ const ExploreMap = ({
     bearing: 0,
     pitch: 0
   });
-  const [hoveredPlace, setHoveredPlace] = useState(null);
-  
+
+  // PostgreSQL returns DECIMAL columns as strings, so every `typeof place.latitude === 'number'`
+  // guard below rejected every row and the map rendered zero markers (IMP-007). Coordinates are
+  // normalised once here rather than at each guard: unparseable values become null, so those same
+  // guards still exclude them, and the distance maths downstream operates on real numbers.
+  const places = useMemo(() => rawPlaces.map((place) => {
+    const latitude = Number.parseFloat(place.latitude);
+    const longitude = Number.parseFloat(place.longitude);
+    return {
+      ...place,
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null
+    };
+  }), [rawPlaces]);
+
   // Map style options
   const TILE_LAYERS = [
     { id: 'osm', name: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: <FiMapPin /> },
@@ -172,8 +206,7 @@ const ExploreMap = ({
             setNearbyPlaces(placesWithDistance.sort((a, b) => a.distance - b.distance));
           }
         },
-        (error) => {
-          console.log('Geolocation error:', error);
+        () => {
           // If geolocation fails, use all places
           const validPlaces = places.filter(place => 
             typeof place.latitude === 'number' && typeof place.longitude === 'number'
@@ -209,15 +242,32 @@ const ExploreMap = ({
     );
   }, [nearbyPlaces, places, searchQuery, radiusMode]);
   
-  // Initialize map when component mounts
+  // `filteredPlaces` and `selectedPlace` as the Leaflet event handlers see them.
+  //
+  // Those handlers are registered once when the map is built and close over whatever the values
+  // were at that moment. Reading through a ref keeps them current without making the map's
+  // lifetime depend on the data — the previous code solved the same problem by rebuilding the
+  // entire map whenever the data changed, which is the bug below.
+  const liveDataRef = useRef({ filteredPlaces, selectedPlace });
+  useEffect(() => {
+    liveDataRef.current = { filteredPlaces, selectedPlace };
+  }, [filteredPlaces, selectedPlace]);
+
+  // Initialize the map. Once, on mount (IMP-048).
+  //
+  // This effect used to list `[userLocation, radiusMode, nearbyPlaces]` as dependencies, and its
+  // cleanup destroys the map. Geolocation resolves asynchronously *after* first paint and sets
+  // all three, so the normal sequence was: build the map, draw the tiles, draw every marker,
+  // then tear the whole thing down and do it again. The user-location marker and radius circle
+  // are the only things that actually needed the geolocation result, and they are layers — they
+  // are added by their own effect below, on the map that already exists.
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    
+
     try {
-      // Initialize Leaflet map with user location or default center
-      const initialCenter = userLocation ? [userLocation.lat, userLocation.lng] : [center.lat, center.lng];
-      const initialZoom = userLocation ? 10 : zoom; // Closer zoom if user location available
-      
+      const initialCenter = [center.lat, center.lng];
+      const initialZoom = zoom;
+
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
         zoom: initialZoom,
@@ -232,38 +282,6 @@ const ExploreMap = ({
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
       
-      // Add user location marker if available
-      if (userLocation) {
-        const userIcon = L.divIcon({
-          className: 'user-location-icon',
-          html: `<div class="user-marker">
-                   <div class="user-marker-inner">
-                     <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                       <circle cx="12" cy="7" r="4"></circle>
-                     </svg>
-                   </div>
-                   <div class="user-marker-pulse"></div>
-                 </div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
-        });
-        
-        L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
-          .bindPopup('Your Location')
-          .addTo(map);
-          
-        // Add 300km radius circle if in radius mode
-        if (radiusMode && nearbyPlaces.length > 0) {
-          L.circle([userLocation.lat, userLocation.lng], {
-            color: '#4F46E5',
-            fillColor: '#4F46E5',
-            fillOpacity: 0.1,
-            radius: RADIUS_KM * 1000 // Convert to meters
-          }).addTo(map);
-        }
-      }
-      
       // Add custom zoom control
       L.control.zoom({
         position: 'bottomright'
@@ -277,7 +295,7 @@ const ExploreMap = ({
       }).addTo(map);
       
       // Add custom attribution
-      const attribution = L.control.attribution({
+      L.control.attribution({
         position: 'bottomright',
         prefix: 'EasyTrip'
       }).addTo(map);
@@ -309,28 +327,32 @@ const ExploreMap = ({
       markersLayerRef.current = markersLayer;
       clusterLayerRef.current = clusterLayer;
       
-      // Set up event listeners
-      map.on('load', () => {
-        setMapLoaded(true);
-        updateMarkers(filteredPlaces, selectedPlace);
-      });
-      
+      // `whenReady`, not `on('load')`.
+      //
+      // Leaflet fires `load` synchronously inside the constructor when the map is created with a
+      // center and zoom — as it is above — so a listener attached afterwards is registered for an
+      // event that has already happened, and `mapLoaded` stayed false forever. Every effect
+      // guarded on it was therefore dead: markers never updated after the initial draw, the tile
+      // selector did nothing, and selecting a place never flew to it. `whenReady` runs the
+      // callback immediately if the map is already ready, which is the case here.
+      map.whenReady(() => setMapLoaded(true));
+
       map.on('moveend', () => {
         if (onCenterChange) {
           const center = map.getCenter();
           onCenterChange({ lat: center.lat, lng: center.lng });
         }
-        
+
         // Get visible bounds - only use valid coordinates
         const bounds = map.getBounds();
-        const visiblePlacesList = filteredPlaces.filter(place => {
+        const visiblePlacesList = liveDataRef.current.filteredPlaces.filter(place => {
           if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') return false;
           return bounds.contains([place.latitude, place.longitude]);
         });
-        
+
         setVisiblePlaces(visiblePlacesList);
       });
-      
+
       map.on('zoomend', () => {
         const currentZoom = map.getZoom();
         // Prevent zooming out too much
@@ -349,9 +371,6 @@ const ExploreMap = ({
         }));
       });
       
-      // Initial render of markers
-      updateMarkers(filteredPlaces, selectedPlace);
-      
       return () => {
         if (mapRef.current) {
           mapRef.current.remove();
@@ -362,13 +381,72 @@ const ExploreMap = ({
       console.error('Error initializing map:', err);
       setError('Could not initialize map. Please check your internet connection.');
     }
-  }, [userLocation, radiusMode, nearbyPlaces]);
-  
-  // Update markers when places or selected place changes
+    // Mount only. Nothing in here should recreate the map — see the note above the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The user's position and radius circle, as layers on the existing map rather than a reason to
+  // rebuild it. Both are removed before being re-added so a second geolocation fix does not
+  // leave the first one behind.
+  const userLayersRef = useRef([]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    userLayersRef.current.forEach((layer) => map.removeLayer(layer));
+    userLayersRef.current = [];
+
+    if (!userLocation) return;
+
+    const userIcon = L.divIcon({
+      className: 'user-location-icon',
+      html: `<div class="user-marker">
+               <div class="user-marker-inner">
+                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                   <circle cx="12" cy="7" r="4"></circle>
+                 </svg>
+               </div>
+               <div class="user-marker-pulse"></div>
+             </div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    const marker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+      .bindPopup('Your Location')
+      .addTo(map);
+    userLayersRef.current.push(marker);
+
+    if (radiusMode && nearbyPlaces.length > 0) {
+      const circle = L.circle([userLocation.lat, userLocation.lng], {
+        color: '#4F46E5',
+        fillColor: '#4F46E5',
+        fillOpacity: 0.1,
+        radius: RADIUS_KM * 1000 // Convert to meters
+      }).addTo(map);
+      userLayersRef.current.push(circle);
+    }
+
+    // Recentre once, when the position first arrives — the old code got this for free by
+    // rebuilding the map around the new centre, at the cost of rebuilding the map.
+    map.setView([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 10));
+  }, [userLocation, radiusMode, nearbyPlaces.length, mapLoaded]);
+
+  // Update markers when places or selected place changes.
+  //
+  // `updateMarkers` is intentionally absent from the deps: it is declared below this effect, and
+  // a dependency array is evaluated during render, so naming it here would read a `const` in its
+  // temporal dead zone and throw. `clusterMode` — the only thing that changes its identity in
+  // practice — is listed, so the effect still re-runs with a current closure.
   useEffect(() => {
     if (mapRef.current && mapLoaded) {
       updateMarkers(filteredPlaces, selectedPlace);
     }
+    // updateMarkers is declared below; naming it here would read it in its temporal dead zone.
+    // See the note above this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPlaces, selectedPlace, mapLoaded, clusterMode]);
   
   // Update tile layer when it changes
@@ -408,22 +486,44 @@ const ExploreMap = ({
     } catch (err) {
       console.error('Error flying to selected place:', err);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateSelectedMarker is declared below.
   }, [selectedPlace, mapLoaded]);
   
-  // Function to update markers on the map
+  // Markers currently on the map, keyed by place id, so an update can be a diff (IMP-048).
+  const markerIndexRef = useRef(new Map());
+  const markerModeRef = useRef(null);
+
+  /**
+   * Reconcile the markers on the map with the places that should be shown.
+   *
+   * This used to call `clearLayers()` and rebuild every marker from scratch on each change —
+   * and `filteredPlaces` changes on every keystroke in the map's own search box, so typing
+   * "goa" destroyed and recreated every `divIcon` in the catalogue three times. Now it adds
+   * what is new, removes what is gone, and leaves everything else alone; only markers whose
+   * selected state actually flipped are rebuilt, because that is the one thing that changes
+   * their icon.
+   *
+   * A cluster-mode switch still rebuilds wholesale: markers move between two different Leaflet
+   * layers, so there is nothing to preserve.
+   */
   const updateMarkers = useCallback((places, selected) => {
     if (!mapRef.current || !markersLayerRef.current || !clusterLayerRef.current) return;
-    
+
     try {
-      // Clear existing markers
-      markersLayerRef.current.clearLayers();
-      clusterLayerRef.current.clearLayers();
-      
-      if (selectedMarkerRef.current) {
-        mapRef.current.removeLayer(selectedMarkerRef.current);
-        selectedMarkerRef.current = null;
+      const modeChanged = markerModeRef.current !== clusterMode;
+      markerModeRef.current = clusterMode;
+
+      if (modeChanged) {
+        markersLayerRef.current.clearLayers();
+        clusterLayerRef.current.clearLayers();
+        markerIndexRef.current.clear();
+
+        if (selectedMarkerRef.current) {
+          mapRef.current.removeLayer(selectedMarkerRef.current);
+          selectedMarkerRef.current = null;
+        }
       }
-      
+
       // Remove and re-add cluster layer if using clustering
       if (clusterMode) {
         if (mapRef.current.hasLayer(markersLayerRef.current)) {
@@ -441,37 +541,31 @@ const ExploreMap = ({
         }
       }
       
-      // Add markers for each place
-      places.forEach(place => {
-        if (!place.latitude || !place.longitude) return;
-        
-        const isSelected = selected && selected.id === place.id;
+      const index = markerIndexRef.current;
+      const activeLayer = clusterMode ? clusterLayerRef.current : markersLayerRef.current;
+
+      const buildMarker = (place, isSelected) => {
         const hasRating = place.rating_count && place.rating_sum;
         const rating = hasRating ? (place.rating_sum / place.rating_count).toFixed(1) : null;
-        
-        // Create marker
-        const icon = rating 
+
+        const icon = rating
           ? createRatingIcon(rating, isSelected)
           : createCustomIcon('marker', isSelected);
-        
-        const marker = L.marker([place.latitude, place.longitude], { 
-          icon: icon,
+
+        const marker = L.marker([place.latitude, place.longitude], {
+          icon,
           zIndexOffset: isSelected ? 1000 : 0
         });
-        
-        // Add popup
+
         marker.bindPopup(createPopupContent(place), {
           className: 'custom-popup-container',
           closeButton: true,
           autoClose: false,
           closeOnEscapeKey: true
         });
-        
-        // Add event listeners
-        marker.on('click', () => {
-          onSelectPlace(place);
-        });
-        
+
+        marker.on('click', () => onSelectPlace(place));
+
         // Show label on hover
         marker.on('mouseover', () => {
           marker.bindTooltip(place.name, {
@@ -480,65 +574,72 @@ const ExploreMap = ({
             className: 'custom-tooltip'
           }).openTooltip();
         });
-        
-        // Add to appropriate layer
+
+        return marker;
+      };
+
+      const detach = (entry) => {
+        if (entry.isSelected) {
+          mapRef.current.removeLayer(entry.marker);
+          if (selectedMarkerRef.current === entry.marker) selectedMarkerRef.current = null;
+        } else {
+          entry.layer.removeLayer(entry.marker);
+        }
+      };
+
+      const wanted = new Set();
+
+      places.forEach(place => {
+        if (!place.latitude || !place.longitude) return;
+        wanted.add(place.id);
+
+        const isSelected = Boolean(selected && selected.id === place.id);
+        const existing = index.get(place.id);
+
+        // Already on the map in the right state — the common case while typing, and the whole
+        // point of the diff.
+        if (existing && existing.isSelected === isSelected) return;
+
+        if (existing) detach(existing);
+
+        const marker = buildMarker(place, isSelected);
+
         if (isSelected) {
-          // Handle selected marker separately
-          if (selectedMarkerRef.current) {
-            mapRef.current.removeLayer(selectedMarkerRef.current);
-          }
+          if (selectedMarkerRef.current) mapRef.current.removeLayer(selectedMarkerRef.current);
           marker.addTo(mapRef.current);
           selectedMarkerRef.current = marker;
+          index.set(place.id, { marker, isSelected: true, layer: null });
         } else {
-          if (clusterMode) {
-            clusterLayerRef.current.addLayer(marker);
-          } else {
-            markersLayerRef.current.addLayer(marker);
-          }
+          activeLayer.addLayer(marker);
+          index.set(place.id, { marker, isSelected: false, layer: activeLayer });
         }
+      });
+
+      // Anything no longer in the result set.
+      index.forEach((entry, id) => {
+        if (wanted.has(id)) return;
+        detach(entry);
+        index.delete(id);
       });
     } catch (err) {
       console.error('Error updating markers:', err);
     }
   }, [clusterMode, onSelectPlace]);
   
-  // Function to update the selected marker
+  /**
+   * Open the popup for the selected place.
+   *
+   * This used to build a *second* marker for a place `updateMarkers` had already placed, and
+   * assign it over `selectedMarkerRef` — so the first one stayed on the map with nothing holding
+   * a reference to it, and every selection leaked one marker. The marker already exists and the
+   * index knows where it is; the only thing left to do is open its popup.
+   */
   const updateSelectedMarker = useCallback((place) => {
-    if (!mapRef.current || !place || !place.latitude || !place.longitude) return;
-    
+    if (!mapRef.current || !place) return;
+
     try {
-      // Remove existing selected marker
-      if (selectedMarkerRef.current) {
-        mapRef.current.removeLayer(selectedMarkerRef.current);
-      }
-      
-      // Create new selected marker
-      const hasRating = place.rating_count && place.rating_sum;
-      const rating = hasRating ? (place.rating_sum / place.rating_count).toFixed(1) : null;
-      
-      const icon = rating
-        ? createRatingIcon(rating, true)
-        : createCustomIcon('marker', true);
-      
-      const marker = L.marker([place.latitude, place.longitude], {
-        icon: icon,
-        zIndexOffset: 1000
-      });
-      
-      // Add popup
-      marker.bindPopup(createPopupContent(place), {
-        className: 'custom-popup-container',
-        closeButton: true,
-        autoClose: false,
-        closeOnEscapeKey: true
-      });
-      
-      // Open popup
-      marker.addTo(mapRef.current);
-      marker.openPopup();
-      
-      // Save reference
-      selectedMarkerRef.current = marker;
+      const entry = markerIndexRef.current.get(place.id);
+      if (entry) entry.marker.openPopup();
     } catch (err) {
       console.error('Error updating selected marker:', err);
     }
@@ -679,6 +780,7 @@ const ExploreMap = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search places..."
+                aria-label="Search places"
                 className="sidebar-search-input"
               />
               <FiSearch className="search-icon" />
@@ -720,16 +822,16 @@ const ExploreMap = ({
                   const isVisible = visiblePlaces.some(p => p.id === place.id);
                   
                   return (
-                    <motion.div
+                    <motion.button
                       key={place.id}
+                      type="button"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                       className={`place-item ${isCurrentlySelected ? 'selected' : ''} ${isVisible ? 'visible' : 'not-visible'}`}
+                      aria-pressed={isCurrentlySelected}
                       onClick={() => onSelectPlace(place)}
-                      onMouseEnter={() => setHoveredPlace(place)}
-                      onMouseLeave={() => setHoveredPlace(null)}
                     >
                       <div className="place-icon">
                         {isVisible ? (
@@ -756,7 +858,7 @@ const ExploreMap = ({
                           <FiArrowRight className="arrow-icon" />
                         )}
                       </div>
-                    </motion.div>
+                    </motion.button>
                   );
                 })
               )}
@@ -786,6 +888,7 @@ const ExploreMap = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search places on map..."
+                aria-label="Search places on the map"
                 className="search-input"
               />
               <FiSearch className="search-icon" />

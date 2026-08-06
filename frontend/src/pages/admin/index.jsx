@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
-import { FiPlus, FiList, FiUsers, FiSettings } from 'react-icons/fi';
+import { FiPlus, FiList, FiUsers } from 'react-icons/fi';
 
 export default function AdminDashboard() {
   const { currentUser, loading, isAdmin } = useAuth();
@@ -47,22 +47,18 @@ export default function AdminDashboard() {
       description: 'Edit or delete existing destination listings',
       icon: <FiList className="h-8 w-8" />,
       href: '/admin/managePlaces',
-      color: 'bg-blue-100 text-blue-600'
+      color: 'bg-primary-100 text-primary-600'
     },
     {
       title: 'User Management',
-      description: 'Manage user accounts and permissions',
+      description: 'Grant or revoke admin access',
       icon: <FiUsers className="h-8 w-8" />,
       href: '/admin/users',
       color: 'bg-purple-100 text-purple-600'
-    },
-    {
-      title: 'Settings',
-      description: 'Configure application settings',
-      icon: <FiSettings className="h-8 w-8" />,
-      href: '/admin/settings',
-      color: 'bg-gray-100 text-gray-600'
     }
+    // The "Settings" tile that used to sit here linked to /admin/settings, which has never existed
+    // and is not on the roadmap. Removing the tile is one of the two options IMP-025 lists for it;
+    // building a settings page nobody has specified would have been the worse one.
   ];
 
   return (
@@ -83,7 +79,7 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {adminFeatures.map((feature, index) => (
               <Link key={index} href={feature.href}>
                 <div className="relative group bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 h-full flex flex-col justify-between cursor-pointer">

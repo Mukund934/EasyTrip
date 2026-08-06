@@ -2,26 +2,51 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import NextImage from 'next/image'; 
 import {
-  FiArrowLeft, FiMapPin, FiStar, FiTag, FiMap, FiShare2, FiHeart,
-  FiMessageSquare, FiInfo, FiCalendar, FiChevronDown, FiGlobe, FiCloud,
-  FiThermometer, FiDroplet, FiWind, FiSun, FiCamera, FiNavigation,
-  FiExternalLink, FiClock, FiUser, FiEdit3, FiEye, FiX, FiLoader,
-  FiAlertCircle, FiRefreshCw, FiCheckCircle, FiBookmark, FiLink,
-  FiChevronRight, FiChevronUp, FiList, FiMenu, FiArrowDown, FiArrowUp,
-  FiFeather, FiAward, FiCoffee, FiShield, FiThumbsUp, FiGrid, FiCompass,
-  FiChevronLeft, FiFlag
+  FiArrowLeft,
+  FiMapPin,
+  FiStar,
+  FiTag,
+  FiMap,
+  FiShare2,
+  FiHeart,
+  FiMessageSquare,
+  FiInfo,
+  FiCalendar,
+  FiChevronDown,
+  FiGlobe,
+  FiCamera,
+  FiNavigation,
+  FiExternalLink,
+  FiClock,
+  FiUser,
+  FiEdit3,
+  FiEye,
+  FiX,
+  FiLoader,
+  FiAlertCircle,
+  FiRefreshCw,
+  FiCheckCircle,
+  FiLink,
+  FiChevronRight,
+  FiList,
+  FiMenu,
+  FiArrowDown,
+  FiFeather,
+  FiCompass,
+  FiFlag,
+  FiTrash2
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview } from '../../services/placeService';
-import ImageGallery from '../../components/ImageGallery';
+import { getPlaceById, getPlaceImages, getPlaceReviews, createPlaceReview, deletePlaceReview, reportPlaceReview } from '../../services/placeService';
+// Server-side reads come from placesApi, which carries no Firebase import — see its header.
+import { fetchPlaces, fetchPlaceById, fetchPlaceImages, fetchPlaceReviews } from '../../services/placesApi';
 import MagazineGallery from '../../components/MagazineGallery';
 import ReviewForm from '../../components/ReviewForm';
-import ReviewList from '../../components/ReviewList';
 import RelatedPlaces from '../../components/RelatedPlaces';
 import { useAuth } from '../../context/AuthContext';
+import { useDismissable } from '../../hooks/useDismissable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { getCloudinaryThumbnail, getCloudinaryLargeImage } from '../../utils/cloudinaryHelper';
 
@@ -29,6 +54,8 @@ const FALLBACK_IMAGE = '/images/placeholder.jpg';
 
 // Hero section with cinematic magazine styling
 const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorite, avgRating, onShareSocial }) => {
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareRef = useDismissable(shareOpen, () => setShareOpen(false));
   const heroRef = useRef(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [heroHeight, setHeroHeight] = useState('100vh');
@@ -36,7 +63,6 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
   const scale = useTransform(scrollY, [0, 300], [1, 1.1]);
   const titleY = useTransform(scrollY, [0, 300], [0, 100]);
-  const parallaxY = useTransform(scrollY, [0, 300], [0, -150]);
   
   // Load hero image with JavaScript
   useEffect(() => {
@@ -105,12 +131,6 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
       {/* Hero overlay with gradient */}
       <motion.div style={{ opacity }} className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30 z-10" />
       
-      {/* Decorative patterns */}
-      <div className="absolute inset-0 z-5 opacity-10 mix-blend-overlay" style={{ 
-        backgroundImage: "url('/images/pattern-dots.svg')",
-        backgroundSize: "30px 30px"
-      }}></div>
-      
       {/* Top navigation bar */}
       <div className="absolute top-0 left-0 right-0 px-6 md:px-12 pt-8 md:pt-10 z-30 flex justify-between items-start">
         <motion.button
@@ -134,41 +154,56 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="relative group"
+            className="relative"
+            ref={shareRef}
           >
+            {/* Was a CSS `group-hover` disclosure, which does not exist on touch — every mobile
+                user and every keyboard user was locked out of sharing entirely (IMP-079). The
+                trigger also called onShare() directly, so clicking it copied the link while the
+                menu it revealed offered a different set of actions. */}
             <button
-              onClick={onShare}
-              className="bg-white/90 backdrop-blur-md text-gray-900 p-3 rounded-full hover:bg-white shadow-2xl transition-all duration-300 hover:scale-110 border border-white/20 group-hover:bg-blue-50"
-              aria-label="Share"
+              onClick={() => setShareOpen((open) => !open)}
+              className="bg-white/90 backdrop-blur-md text-gray-900 p-3 rounded-full hover:bg-white shadow-2xl transition-all duration-300 hover:scale-110 border border-white/20"
+              aria-label="Share this place"
+              aria-haspopup="menu"
+              aria-expanded={shareOpen}
             >
-              <FiShare2 className="h-6 w-6 group-hover:text-blue-600 transition-colors" />
+              <FiShare2 className="h-6 w-6 transition-colors" />
             </button>
-            
-            {/* Share dropdown */}
-            <div className="absolute right-0 mt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-40 transform origin-top-right">
-              <div className="bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
-                  <h3 className="font-serif font-semibold text-gray-900">Share this place</h3>
-                </div>
-                <div className="p-2">
-                  {[
-                    { platform: 'copy', label: 'Copy Link', icon: FiLink, color: 'gray' },
-                    { platform: 'twitter', label: 'Twitter', icon: FiExternalLink, color: 'blue' },
-                    { platform: 'facebook', label: 'Facebook', icon: FiExternalLink, color: 'indigo' },
-                    { platform: 'whatsapp', label: 'WhatsApp', icon: FiExternalLink, color: 'green' }
-                  ].map(({ platform, label, icon: Icon, color }) => (
-                    <button
-                      key={platform}
-                      onClick={() => platform === 'copy' ? onShare() : onShareSocial(platform)}
-                      className={`flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-${color}-50 hover:text-${color}-600 rounded-lg transition-all duration-200`}
-                    >
-                      <Icon className="mr-3 h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
+
+            {shareOpen && (
+              <div className="absolute right-0 mt-2 w-56 z-40 origin-top-right" role="menu" aria-label="Share options">
+                <div className="bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100">
+                    <h3 className="font-serif font-semibold text-gray-900">Share this place</h3>
+                  </div>
+                  <div className="p-2">
+                    {/* Static classes: these were `hover:bg-${color}-50` template literals, which
+                        the Tailwind JIT scanner cannot see, so none of those styles were ever
+                        generated. */}
+                    {[
+                      { platform: 'copy', label: 'Copy Link', icon: FiLink, hover: 'hover:bg-gray-50 hover:text-gray-900' },
+                      { platform: 'twitter', label: 'Twitter', icon: FiExternalLink, hover: 'hover:bg-sky-50 hover:text-sky-700' },
+                      { platform: 'facebook', label: 'Facebook', icon: FiExternalLink, hover: 'hover:bg-primary-50 hover:text-primary-700' },
+                      { platform: 'whatsapp', label: 'WhatsApp', icon: FiExternalLink, hover: 'hover:bg-green-50 hover:text-green-700' }
+                    ].map(({ platform, label, icon: Icon, hover }) => (
+                      <button
+                        key={platform}
+                        role="menuitem"
+                        onClick={() => {
+                          setShareOpen(false);
+                          return platform === 'copy' ? onShare() : onShareSocial(platform);
+                        }}
+                        className={`flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 rounded-lg transition-all duration-200 ${hover}`}
+                      >
+                        <Icon className="mr-3 h-4 w-4" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </motion.div>
           
           <motion.button
@@ -284,10 +319,6 @@ const PlaceMagazineHero = ({ place, onBack, onShare, onToggleFavorite, isFavorit
           <FiCalendar className="mr-1 h-3 w-3" />
           <span>Published: {formatDate(place.created_at) || 'September 2025'}</span>
         </div>
-        <div className="flex items-center">
-          <FiUser className="mr-1 h-3 w-3" />
-          <span>EasyTrip Editorial</span>
-        </div>
         {place.updated_at && (
           <div className="hidden md:flex items-center">
             <FiClock className="mr-1 h-3 w-3" />
@@ -310,8 +341,8 @@ const TableOfContents = ({ sections }) => {
         className="flex items-center justify-between w-full"
       >
         <div className="flex items-center">
-          <div className="p-2 bg-indigo-100 rounded-lg mr-3">
-            <FiList className="text-indigo-600 h-5 w-5" />
+          <div className="p-2 bg-primary-100 rounded-lg mr-3">
+            <FiList className="text-primary-600 h-5 w-5" />
           </div>
           <h3 className="font-serif text-xl font-bold text-gray-900">In This Article</h3>
         </div>
@@ -327,14 +358,14 @@ const TableOfContents = ({ sections }) => {
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <ul className="mt-4 space-y-2 border-l-2 border-indigo-100 pl-4">
+            <ul className="mt-4 space-y-2 border-l-2 border-primary-100 pl-4">
               {sections.map((section, index) => (
                 <li key={index} className="py-1">
                   <a 
                     href={`#${section.id}`}
-                    className="flex items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                    className="flex items-center text-gray-700 hover:text-primary-600 transition-colors"
                   >
-                    <span className="text-indigo-600 font-serif font-bold mr-2">{index + 1}</span>
+                    <span className="text-primary-600 font-serif font-bold mr-2">{index + 1}</span>
                     <span className="font-medium">{section.title}</span>
                   </a>
                 </li>
@@ -344,33 +375,6 @@ const TableOfContents = ({ sections }) => {
         )}
       </AnimatePresence>
     </div>
-  );
-};
-
-// Pull Quote component
-const PullQuote = ({ quote, author, color = "indigo" }) => {
-  const colorClasses = {
-    indigo: "border-indigo-500 text-indigo-800 bg-indigo-50",
-    amber: "border-amber-500 text-amber-800 bg-amber-50",
-    emerald: "border-emerald-500 text-emerald-800 bg-emerald-50",
-    rose: "border-rose-500 text-rose-800 bg-rose-50",
-    violet: "border-violet-500 text-violet-800 bg-violet-50"
-  };
-  
-  return (
-    <blockquote className={`my-8 mx-auto max-w-2xl p-6 border-l-4 ${colorClasses[color]} rounded-r-xl font-serif italic relative`}>
-      <div className="absolute top-0 left-0 transform -translate-x-4 -translate-y-1/2 text-6xl opacity-20 font-serif">
-        "
-      </div>
-      <p className="text-xl md:text-2xl leading-relaxed relative z-10">
-        {quote}
-      </p>
-      {author && (
-        <footer className="mt-2 font-sans text-sm not-italic font-medium">
-          — {author}
-        </footer>
-      )}
-    </blockquote>
   );
 };
 
@@ -388,7 +392,7 @@ const FactBox = ({ title, facts }) => {
         <ul className="space-y-3">
           {facts.map((fact, index) => (
             <li key={index} className="flex">
-              <span className="font-serif font-bold text-2xl text-indigo-500 mr-3">•</span>
+              <span className="font-serif font-bold text-2xl text-primary-500 mr-3">•</span>
               <span className="text-gray-700">{fact}</span>
             </li>
           ))}
@@ -398,51 +402,8 @@ const FactBox = ({ title, facts }) => {
   );
 };
 
-// Enhanced Image Component with magazine styling
-const MagazineImage = ({ src, alt, caption, credit, className, fullWidth = false }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  
-  return (
-    <figure className={`my-8 ${fullWidth ? 'w-full' : 'max-w-3xl mx-auto'} ${className || ''}`}>
-      <div className="relative overflow-hidden bg-gray-100 rounded-xl shadow-lg">
-        {!isLoaded && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <LoadingSpinner color="indigo" />
-          </div>
-        )}
-        
-        {hasError ? (
-          <div className="flex items-center justify-center h-64 bg-gray-100 text-gray-500">
-            <FiAlertCircle className="mr-2 h-5 w-5" />
-            <span>Image unavailable</span>
-          </div>
-        ) : (
-          <img
-            src={src}
-            alt={alt}
-            className={`w-full transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setIsLoaded(true)}
-            onError={() => {
-              setIsLoaded(true);
-              setHasError(true);
-            }}
-          />
-        )}
-      </div>
-      
-      {(caption || credit) && (
-        <figcaption className="mt-2 text-gray-600 text-sm italic flex justify-between border-b border-gray-200 pb-2">
-          {caption && <span>{caption}</span>}
-          {credit && <span className="text-gray-400 text-xs">Credit: {credit}</span>}
-        </figcaption>
-      )}
-    </figure>
-  );
-};
-
 // Magazine-style Sidebar with progressive loading
-const MagazineSidebar = ({ place, isLoading = false }) => (
+const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
   <aside className="lg:sticky lg:top-24 space-y-8">
     {/* Editor's Note */}
     <motion.div
@@ -455,7 +416,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
         <div className="p-2 bg-yellow-500/20 rounded-lg mr-3">
           <FiFeather className="text-yellow-500 h-5 w-5" />
         </div>
-        Editor's Note
+        Editor&apos;s Note
       </h3>
       
       <p className="text-gray-300 italic font-serif mb-4 leading-relaxed">
@@ -484,8 +445,8 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
       className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100"
     >
       <h3 className="text-xl font-serif font-bold text-gray-900 mb-5 flex items-center">
-        <div className="p-2 bg-blue-100 rounded-lg mr-3">
-          <FiMapPin className="text-blue-600 h-5 w-5" />
+        <div className="p-2 bg-primary-100 rounded-lg mr-3">
+          <FiMapPin className="text-primary-600 h-5 w-5" />
         </div>
         Location Details
       </h3>
@@ -526,7 +487,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
       )}
       
       {/* Ratings Breakdown */}
-      {place.rating_count > 0 && (
+      {reviews.length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -538,46 +499,33 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
             Ratings Breakdown
           </h4>
           
+          {/* Was four invented sub-scores (4.7 Overall / 4.2 Value / 3.9 Accessibility / 4.5
+              Facilities) with a comment admitting it was a mockup. Those dimensions do not exist in
+              the data model — a review carries one 1-5 rating — so they could never be computed.
+              This is the distribution that CAN be computed, from the reviews actually loaded. */}
           <div className="space-y-2">
-            {/* This is a mockup - would need actual breakdown data */}
-            {[
-              { label: 'Overall Experience', value: 4.7 },
-              { label: 'Value for Money', value: 4.2 },
-              { label: 'Accessibility', value: 3.9 },
-              { label: 'Facilities', value: 4.5 }
-            ].map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">{item.label}</span>
-                <div className="flex items-center">
-                  <div className="w-24 h-2 bg-gray-200 rounded-full mr-2 overflow-hidden">
-                    <div 
-                      className="h-full bg-yellow-500 rounded-full" 
-                      style={{ width: `${(item.value / 5) * 100}%` }}
-                    ></div>
+            {[5, 4, 3, 2, 1].map((star) => {
+              const count = reviews.filter((review) => review.rating === star).length;
+              const share = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+              return (
+                <div key={star} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">{star} star{star === 1 ? '' : 's'}</span>
+                  <div className="flex items-center">
+                    <div className="w-24 h-2 bg-gray-200 rounded-full mr-2 overflow-hidden">
+                      <div
+                        className="h-full bg-yellow-500 rounded-full"
+                        style={{ width: `${share}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-medium w-6 text-right">{count}</span>
                   </div>
-                  <span className="text-sm font-medium">{item.value}</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
       )}
       
-      {/* Weather Widget */}
-      {place.latitude && place.longitude && (
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mt-6 pt-6 border-t border-gray-100"
-        >
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-            <FiSun className="mr-2 h-4 w-4" />
-            Current Weather
-          </h4>
-          <WeatherWidget lat={place.latitude} lon={place.longitude} />
-        </motion.div>
-      )}
     </motion.div>
 
     {/* Map Card with Magazine Styling */}
@@ -611,7 +559,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
               />
               {/* Decorative compass */}
               <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow">
-                <FiNavigation className="h-5 w-5 text-indigo-600" />
+                <FiNavigation className="h-5 w-5 text-primary-600" />
               </div>
             </div>
           )}
@@ -624,7 +572,7 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
             href={`https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center bg-indigo-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            className="flex items-center justify-center bg-primary-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors"
           >
             <FiNavigation className="mr-2 h-4 w-4" />
             Directions
@@ -644,85 +592,12 @@ const MagazineSidebar = ({ place, isLoading = false }) => (
       </motion.div>
     ) : null}
     
-    {/* Travel Tips Card */}
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.3 }}
-      className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-xl p-6 border border-amber-100"
-    >
-      <h3 className="text-xl font-serif font-bold text-amber-900 mb-4 flex items-center">
-        <div className="p-2 bg-amber-200 rounded-lg mr-3">
-          <FiAward className="text-amber-700 h-5 w-5" />
-        </div>
-        Travel Tips
-      </h3>
-      
-      <ul className="space-y-3">
-        {/* These tips would ideally come from the place data */}
-        {[
-          "Best time to visit is during early morning to avoid crowds",
-          "Don't forget to carry water and comfortable walking shoes",
-          "Photography is allowed, but tripods may require special permission",
-          "Local guides can enhance your experience with historical insights"
-        ].map((tip, index) => (
-          <li key={index} className="flex">
-            <span className="text-amber-500 mr-2">•</span>
-            <span className="text-amber-900">{tip}</span>
-          </li>
-        ))}
-      </ul>
-      
-      <div className="mt-4 pt-4 border-t border-amber-200">
-        <p className="text-amber-800 text-sm font-medium italic">
-          Tips updated on {formatDate(place.updated_at) || 'September 2025'}
-        </p>
-      </div>
-    </motion.div>
     
-    {/* Magazine Issue Card */}
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.4 }}
-      className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-    >
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 text-white">
-        <h3 className="font-serif font-bold text-lg">In This Issue</h3>
-        <p className="text-white/80 text-sm">September 2025 • Vol. 12 Issue 9</p>
-      </div>
-      
-      <div className="p-4">
-        <ul className="space-y-3">
-          {[
-            "Top 10 Hidden Beaches in South Asia",
-            "The Ultimate Foodie's Guide to Street Cuisine",
-            "Sustainable Travel: Eco-friendly Destinations",
-            "Photography Special: Capturing Culture"
-          ].map((article, index) => (
-            <li key={index} className="border-b border-gray-100 pb-2 last:border-0 last:pb-0">
-              <a href="#" className="text-gray-700 hover:text-indigo-600 transition-colors flex items-center">
-                <span className="font-serif text-indigo-500 mr-2">{index + 1}</span>
-                <span>{article}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-        
-        <a 
-          href="#"
-          className="mt-4 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800"
-        >
-          Browse all articles
-          <FiChevronRight className="ml-1 h-4 w-4" />
-        </a>
-      </div>
-    </motion.div>
   </aside>
 );
 
 // Magazine-style Review Section
-const MagazineReviews = ({ reviews, onReportReview, currentUserId, isLoading = false }) => {
+const MagazineReviews = ({ reviews, onReportReview, onDeleteReview, isDeletingReview = false, isLoading = false }) => {
   const [viewMode, setViewMode] = useState('curated');
   
   // Filter out some of the most positive reviews for "curated" view
@@ -782,17 +657,17 @@ const MagazineReviews = ({ reviews, onReportReview, currentUserId, isLoading = f
             onClick={() => setViewMode('curated')}
             className={`px-4 py-2 rounded-full text-sm font-medium ${
               viewMode === 'curated' 
-                ? 'bg-white shadow text-indigo-600' 
+                ? 'bg-white shadow text-primary-600' 
                 : 'text-gray-700 hover:text-gray-900'
             }`}
           >
-            Editor's Picks
+            Editor&apos;s Picks
           </button>
           <button
             onClick={() => setViewMode('all')}
             className={`px-4 py-2 rounded-full text-sm font-medium ${
               viewMode === 'all' 
-                ? 'bg-white shadow text-indigo-600' 
+                ? 'bg-white shadow text-primary-600' 
                 : 'text-gray-700 hover:text-gray-900'
             }`}
           >
@@ -852,13 +727,28 @@ const MagazineReviews = ({ reviews, onReportReview, currentUserId, isLoading = f
                 <span>Was this helpful?</span>
               </div>
               
-              <button
-                onClick={() => onReportReview(review.id)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <span className="sr-only">Report</span>
-                <FiFlag className="w-4 h-4" />
-              </button>
+              {/* `is_own` is set server-side: the payload carries an opaque author digest rather
+                  than a uid, so this flag is the only way the client can identify its own review.
+                  Owners get delete; everyone else gets report. Offering someone the option to
+                  report their own review would be noise, and the API rejects it anyway. */}
+              {review.is_own ? (
+                <button
+                  onClick={() => onDeleteReview(review.id)}
+                  disabled={isDeletingReview}
+                  className="text-red-500 hover:text-red-700 disabled:opacity-50 flex items-center gap-1"
+                >
+                  <FiTrash2 className="w-4 h-4" />
+                  <span>{isDeletingReview ? 'Deleting…' : 'Delete'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => onReportReview(review.id)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">Report this review</span>
+                  <FiFlag className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
@@ -985,7 +875,7 @@ const MagazineDetails = ({ customKeys, themes, isLoading = false }) => {
                 // Different card styles for visual interest
                 const cardStyles = [
                   "bg-gray-50 border-gray-200",
-                  "bg-blue-50 border-blue-200",
+                  "bg-primary-50 border-primary-200",
                   "bg-amber-50 border-amber-200",
                   "bg-emerald-50 border-emerald-200",
                   "bg-rose-50 border-rose-200",
@@ -1031,113 +921,45 @@ const formatDate = (dateString) => {
   }
 };
 
-const formatRelativeTime = (dateString) => {
-  if (!dateString) return null;
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
-    if (diffInDays === 0) return 'Today';
-    if (diffInDays === 1) return 'Yesterday';
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} months ago`;
-    return `${Math.floor(diffInDays / 365)} years ago`;
-  } catch {
-    return null;
-  }
-};
+/**
+ * Compose the gallery: the primary image first, then the gallery rows, de-duplicated by URL.
+ *
+ * Shared by `getStaticProps` and the client refresh path so the two cannot disagree about what
+ * the first image is — which matters, because the first image is the hero.
+ */
+const composeGallery = (place, galleryImages) => {
+  const all = [
+    { id: 'primary', image_url: place?.primary_image_url || place?.image_url || FALLBACK_IMAGE },
+    ...(galleryImages || [])
+  ].filter((img) => img.image_url);
 
-// Enhanced Weather Widget Component with better loading
-const WeatherWidget = ({ lat, lon }) => {
-  const [weather, setWeather] = useState({
-    temp_c: 24,
-    condition: "Partly cloudy",
-    icon: "/images/weather/partly-cloudy.svg",
-    humidity: 65,
-    wind_kph: 12,
-    feels_like: 25,
-    uv: 5
+  const seen = new Set();
+  return all.filter((img) => {
+    if (seen.has(img.image_url)) return false;
+    seen.add(img.image_url);
+    return true;
   });
-  const [loadingWeather, setLoadingWeather] = useState(false);
-  
-  // Note: We're using mock data to keep it simple in this example
-  
-  if (loadingWeather) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-blue-50 rounded-xl p-4 flex items-center justify-center min-h-[120px]"
-      >
-        <div className="text-center">
-          <FiLoader className="h-6 w-6 text-blue-600 animate-spin mx-auto mb-2" />
-          <span className="text-blue-700 text-sm">Loading weather...</span>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="relative w-12 h-12">
-            <img
-              src={weather.icon}
-              alt={weather.condition}
-              className="rounded-lg"
-            />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-blue-900">{weather.temp_c}°C</div>
-            <div className="text-blue-700 text-sm font-medium truncate max-w-[120px]">
-              {weather.condition}
-            </div>
-          </div>
-        </div>
-        <div className="text-right text-xs text-blue-600 space-y-1">
-          <div className="flex items-center justify-end">
-            <FiDroplet className="mr-1 h-3 w-3" />
-            {weather.humidity}%
-          </div>
-          <div className="flex items-center justify-end">
-            <FiWind className="mr-1 h-3 w-3" />
-            {weather.wind_kph} kph
-          </div>
-        </div>
-      </div>
-      
-      <div className="mt-3 pt-3 border-t border-blue-100 grid grid-cols-2 gap-2 text-xs">
-        <div className="text-blue-800">
-          <span className="text-blue-500">Feels like:</span> {weather.feels_like}°C
-        </div>
-        <div className="text-blue-800">
-          <span className="text-blue-500">UV Index:</span> {weather.uv}
-        </div>
-      </div>
-    </motion.div>
-  );
 };
 
 // Main Component with enhanced magazine-style layout
-export default function PlaceDetails() {
+//
+// Place, gallery and reviews arrive as props from `getStaticProps` (IMP-040). This page used to
+// be a three-stage client waterfall behind a spinner — place, then images + reviews, then
+// related places — which meant a crawler saw an empty shell on the pages a travel site most
+// needs indexed, and a visitor saw a spinner until three round trips had resolved.
+export default function PlaceDetails({ initialPlace = null, initialImages = [], initialReviews = [] }) {
   const router = useRouter();
   const { id } = router.query;
   const { currentUser, isAuthenticated, getIdToken, loading: authLoading } = useAuth();
   const { scrollY } = useScroll();
 
-  // State management
-  const [place, setPlace] = useState(null);
-  const [images, setImages] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [contentLoading, setContentLoading] = useState(true);
+  // State management — seeded from the pre-rendered payload, so the first render already has
+  // content. The fetch path below survives for the retry button and for post-review refreshes.
+  const [place, setPlace] = useState(initialPlace);
+  const [images, setImages] = useState(initialImages);
+  const [reviews, setReviews] = useState(initialReviews);
+  const [loading, setLoading] = useState(!initialPlace);
+  const [contentLoading, setContentLoading] = useState(!initialPlace);
   const [error, setError] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeSection, setActiveSection] = useState('about');
@@ -1147,19 +969,21 @@ export default function PlaceDetails() {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isDeletingReview, setIsDeletingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
 
   // Scroll progress
   const scrollProgress = useTransform(scrollY, [0, 2000], [0, 100]);
   
-  // Content sections for table of contents
-  const sections = [
+  // Content sections for table of contents. Memoised because the scroll-observer effect below
+  // depends on it, and a fresh array literal each render re-registered the observer every time.
+  const sections = useMemo(() => [
     { id: 'about', title: 'About This Place' },
     { id: 'details', title: 'Essential Details' },
     { id: 'gallery', title: 'Photo Gallery' },
     { id: 'reviews', title: 'Traveler Reviews' },
     { id: 'related', title: 'Similar Places' }
-  ];
+  ], []);
 
   // Memoized calculation for average rating
   const avgRating = useMemo(() => {
@@ -1191,7 +1015,6 @@ export default function PlaceDetails() {
     setError(null);
     
     try {
-      console.log(`[${new Date().toISOString()}] Fetching data for place ID: ${id}`);
 
       // Fetch place data first (critical)
       const placeData = await getPlaceById(id);
@@ -1207,22 +1030,13 @@ export default function PlaceDetails() {
 
       // Handle images
       const imageResults = imagesData.status === 'fulfilled' ? imagesData.value : [];
-      const allImages = [
-        { id: 'primary', image_url: placeData.primary_image_url || placeData.image_url || FALLBACK_IMAGE },
-        ...(imageResults || []),
-      ].filter(img => img.image_url);
-
-      // Remove duplicates and set images
-      const uniqueImages = Array.from(new Set(allImages.map(img => img.image_url)))
-        .map(url => allImages.find(img => img.image_url === url));
-      setImages(uniqueImages);
+      setImages(composeGallery(placeData, imageResults));
 
       // Handle reviews
             // Handle reviews
       const reviewResults = reviewsData.status === 'fulfilled' ? reviewsData.value : [];
       setReviews(reviewResults || []);
 
-      console.log(`[${new Date().toISOString()}] Successfully loaded data for place: ${placeData.name}`);
       
     } catch (err) {
       console.error('Error loading page data:', {
@@ -1235,10 +1049,30 @@ export default function PlaceDetails() {
     }
   }, [id]);
 
-  // Effect for initial data loading
+  // Re-seed when the props change.
+  //
+  // `useState(initialPlace)` only runs its initialiser on mount, and Next re-renders this same
+  // component with new props when you navigate from one place to another. The keyed
+  // ErrorBoundary in `_app` happens to remount the whole page subtree on every route change, so
+  // this would be correct without the effect — but that makes this page's correctness depend on
+  // an unrelated component's `key`, and the failure mode if someone removes it is silently
+  // rendering the previous place's content under the new URL.
   useEffect(() => {
+    if (!initialPlace) return;
+    setPlace(initialPlace);
+    setImages(initialImages);
+    setReviews(initialReviews);
+    setError(null);
+    setLoading(false);
+    setContentLoading(false);
+  }, [initialPlace, initialImages, initialReviews]);
+
+  // Client fetch, only when the page was not pre-rendered with data. With `getStaticProps` in
+  // place that is the retry path rather than the normal one.
+  useEffect(() => {
+    if (initialPlace) return;
     fetchAllData();
-  }, [fetchAllData]);
+  }, [fetchAllData, initialPlace]);
 
   // The first reviews read happens at mount, usually a beat before Firebase restores the
   // session, so it goes out unauthenticated and the server cannot mark `is_own`. Re-read
@@ -1390,18 +1224,78 @@ export default function PlaceDetails() {
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   }, [place?.name]);
 
-  // Handler for reporting reviews
+  // Handler for reporting reviews. This faked success with a setTimeout until Sprint 2.3
+  // (IMP-023/019) — the button told users their report was filed and nothing was recorded.
   const handleReportReview = async (reviewId) => {
     if (!isAuthenticated) {
       toast.error('You must be logged in to report a review.');
       return;
     }
+
     try {
-      // Mock implementation - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success('Review reported successfully.');
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      // Reporting the same review twice is a no-op server-side, so there is nothing to guard
+      // against here beyond the in-flight state.
+      const result = await reportPlaceReview(id, reviewId, undefined, token);
+      toast.success(result?.message || 'Thanks — this review has been reported for moderation.');
     } catch (err) {
-      toast.error('Failed to report review.');
+      toast.error(err?.message || 'Failed to report review.');
+    }
+  };
+
+  // Handler for deleting the signed-in user's own review. Editing stays on the upsert path in
+  // handleReviewSubmit; this covers the one operation that had no route at all (IMP-019).
+  const handleDeleteReview = async (reviewId) => {
+    if (!isAuthenticated) {
+      toast.error('You must be logged in to delete a review.');
+      return;
+    }
+
+    // Deleting a review also drops the rating it contributed, and there is no undo — so this is
+    // one of the few places a confirm is genuinely warranted rather than reflexive.
+    if (!window.confirm('Delete your review? This will also remove your rating for this place.')) {
+      return;
+    }
+
+    setIsDeletingReview(true);
+
+    try {
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      await deletePlaceReview(id, reviewId, token);
+
+      // The delete trigger recomputes the place's rating aggregate, so re-read the place as well
+      // as the list — patching counts client-side would drift from what the database now holds.
+      const [reviewsResult, placeResult] = await Promise.allSettled([
+        getPlaceReviews(id),
+        getPlaceById(id),
+      ]);
+
+      if (reviewsResult.status === 'fulfilled') {
+        setReviews(reviewsResult.value || []);
+      }
+      if (placeResult.status === 'fulfilled' && placeResult.value) {
+        setPlace(placeResult.value);
+      }
+
+      // Clear the form too: with the review gone the section reverts to "Share Your Experience",
+      // and leaving the old text in the inputs would look like it had not been deleted.
+      setReviewRating(0);
+      setReviewComment('');
+      setReviewError(null);
+
+      toast.success('Your review has been deleted.');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to delete review.');
+    } finally {
+      setIsDeletingReview(false);
     }
   };
 
@@ -1451,13 +1345,13 @@ export default function PlaceDetails() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => fetchAllData()}
-              className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center"
+              className="flex-1 bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center"
             >
               <FiRefreshCw className="mr-2 h-4 w-4" />
               Try Again
             </motion.button>
             <Link 
-              href="/explore" 
+              href="/browse" 
               className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors text-center flex items-center justify-center"
             >
               <FiArrowLeft className="mr-2 h-4 w-4" />
@@ -1496,14 +1390,11 @@ export default function PlaceDetails() {
         <meta property="og:image" content={getCloudinaryLargeImage(place.primary_image_url || place.image_url || FALLBACK_IMAGE, 1600)} />
         <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
         <meta name="twitter:card" content="summary_large_image" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet" />
       </Head>
 
       {/* Reading progress bar */}
       <motion.div 
-        className="fixed top-0 left-0 right-0 h-1 bg-indigo-600 z-50" 
+        className="fixed top-0 left-0 right-0 h-1 bg-primary-600 z-50" 
         style={{ scaleX: scrollProgress, transformOrigin: "0%" }}
       />
 
@@ -1525,7 +1416,7 @@ export default function PlaceDetails() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowTableOfContents(prev => !prev)}
-            className="bg-indigo-600 text-white p-4 rounded-full shadow-lg flex items-center justify-center"
+            className="bg-primary-600 text-white p-4 rounded-full shadow-lg flex items-center justify-center"
           >
             {showTableOfContents ? <FiX className="h-6 w-6" /> : <FiMenu className="h-6 w-6" />}
           </motion.button>
@@ -1548,7 +1439,7 @@ export default function PlaceDetails() {
                       href={`#${section.id}`}
                       className={`block py-2 px-3 rounded-lg text-sm ${
                         activeSection === section.id
-                          ? 'bg-indigo-50 text-indigo-700 font-medium'
+                          ? 'bg-primary-50 text-primary-700 font-medium'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
                       onClick={() => setShowTableOfContents(false)}
@@ -1630,22 +1521,12 @@ export default function PlaceDetails() {
                         {editorialExcerpt}
                       </p>
                       
-                      {/* Additional descriptive content */}
-                      <div className="prose prose-lg max-w-none text-gray-700 leading-relaxed">
-                        {/* Add more detailed description - this would normally come from the backend */}
-                        <p>
-                          Nestled in the heart of {place.district || place.location}, this {place.themes?.[0] || 'amazing'} destination attracts visitors from all around the world. The perfect balance of natural beauty and cultural heritage makes it a must-visit for travelers seeking authentic experiences.
-                        </p>
-                        
-                        <PullQuote 
-                          quote={`${place.name} represents the perfect blend of tradition and natural beauty that defines the essence of ${place.state || 'this region'}.`} 
-                          author="EasyTrip Editorial Team"
-                        />
-                        
-                        <p>
-                          Whether you're an adventure enthusiast, a cultural explorer, or simply looking for a peaceful retreat, {place.name} offers something special for every type of traveler. The local hospitality adds to the charm, ensuring visitors leave with unforgettable memories.
-                        </p>
-                      </div>
+                      {/* Three paragraphs of templated prose lived here, generated from the
+                          place's own fields and rendered as editorial copy — including a pull quote
+                          attributed to an "EasyTrip Editorial Team" that does not exist. Removed in
+                          Sprint 3.1 (IMP-027): the admin-written description above is the real
+                          content, and padding it with generated sentences made a short entry look
+                          researched rather than short. */}
                       
                       {/* Quick Facts Box */}
                       <FactBox 
@@ -1709,8 +1590,8 @@ export default function PlaceDetails() {
                         className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100"
                       >
                         <h2 className="text-4xl font-serif font-bold text-gray-900 mb-8 flex items-center">
-                          <div className="p-3 bg-indigo-100 rounded-lg mr-4">
-                            <FiCamera className="text-indigo-600 h-7 w-7" />
+                          <div className="p-3 bg-primary-100 rounded-lg mr-4">
+                            <FiCamera className="text-primary-600 h-7 w-7" />
                           </div>
                           Photo Gallery
                         </h2>
@@ -1762,7 +1643,7 @@ export default function PlaceDetails() {
                           <div className="grid grid-cols-2 gap-3">
                             <button
                               onClick={() => document.getElementById('review-form')?.scrollIntoView({ behavior: 'smooth' })}
-                              className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                              className="flex items-center justify-center bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
                             >
                               <FiEdit3 className="mr-2 h-4 w-4" />
                               Write a Review
@@ -1782,15 +1663,33 @@ export default function PlaceDetails() {
                       <MagazineReviews
                         reviews={reviews}
                         onReportReview={handleReportReview}
-                        currentUserId={currentUser?.uid}
+                        onDeleteReview={handleDeleteReview}
+                        isDeletingReview={isDeletingReview}
                         isLoading={contentLoading}
                       />
                       
                       {/* Review form */}
                       <div id="review-form" className="mt-12 pt-8 border-t border-gray-200">
-                        <h3 className="text-2xl font-serif font-bold text-gray-900 mb-6">
-                          {existingReview ? 'Edit Your Review' : 'Share Your Experience'}
-                        </h3>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                          <h3 className="text-2xl font-serif font-bold text-gray-900">
+                            {existingReview ? 'Edit Your Review' : 'Share Your Experience'}
+                          </h3>
+                          {/* Also offered here, not just on the review card: the list defaults to
+                              the "curated" view, which only shows 4-star-and-up reviews, so an
+                              owner who rated a place lower could not otherwise reach their own
+                              delete control without switching views. */}
+                          {existingReview && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReview(existingReview.id)}
+                              disabled={isDeletingReview}
+                              className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              <FiTrash2 className="w-4 h-4" />
+                              {isDeletingReview ? 'Deleting…' : 'Delete my review'}
+                            </button>
+                          )}
+                        </div>
                         {authLoading ? (
                           // Firebase resolves the session a beat after mount; without this
                           // a signed-in user sees the "Sign in to review" panel flash first.
@@ -1816,7 +1715,7 @@ export default function PlaceDetails() {
                             </p>
                             <Link
                               href="/login"
-                              className="inline-flex items-center justify-center bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+                              className="inline-flex items-center justify-center bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors"
                             >
                               <FiUser className="mr-2 h-4 w-4" />
                               Sign in to review
@@ -1855,79 +1754,82 @@ export default function PlaceDetails() {
 
             {/* Sidebar */}
             <div className="mt-12 lg:mt-0">
-              <MagazineSidebar place={place} isLoading={contentLoading} />
+              <MagazineSidebar place={place} reviews={reviews} isLoading={contentLoading} />
             </div>
           </div>
         </main>
         
-        {/* Magazine-style Footer */}
-        <footer className="bg-gray-900 text-white py-16 mt-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-              <div>
-                <h3 className="text-2xl font-serif font-bold mb-6">EasyTrip Magazine</h3>
-                <p className="text-gray-300 mb-6 leading-relaxed">
-                  Inspiring travelers with expertly curated destinations, insider tips, and immersive cultural experiences since 2022.
-                </p>
-                <div className="flex space-x-4">
-                  <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                    <span className="sr-only">Twitter</span>
-                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                    </svg>
-                  </a>
-                  <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                    <span className="sr-only">Instagram</span>
-                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clipRule="evenodd" />
-                    </svg>
-                  </a>
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-lg font-serif mb-6">Popular Categories</h4>
-                <ul className="space-y-3">
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Adventure Travel</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Cultural Experiences</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Food & Cuisine</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Eco Tourism</a></li>
-                  <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Luxury Getaways</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-lg font-serif mb-6">Stay Connected</h4>
-                <p className="text-gray-300 mb-4">Subscribe to our newsletter for travel inspiration, tips and exclusive offers.</p>
-                <form className="flex">
-                  <input
-                    type="email"
-                    placeholder="Your email address"
-                    className="px-4 py-2 w-full bg-gray-800 border border-gray-700 rounded-l-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    Subscribe
-                  </button>
-                </form>
-              </div>
-            </div>
-            
-            <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between">
-              <p className="text-gray-400 text-sm mb-4 md:mb-0">
-                © 2025 EasyTrip Magazine. All rights reserved.
-              </p>
-              <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-400">
-                <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
-              </div>
-            </div>
-          </div>
-        </footer>
       </div>
     </>
   );
+}
+/**
+ * Which detail pages exist at build time (IMP-040).
+ *
+ * Only the most recent 20 are pre-built. `fallback: 'blocking'` means everything else is
+ * generated on its first request and then cached like any other static page, so the build stays
+ * fast and bounded no matter how large the catalogue grows — pre-building all of them would make
+ * deploy time a function of row count for pages nobody may visit.
+ *
+ * A failure here returns an empty path list rather than throwing. The API being unreachable
+ * during a build is an infrastructure state, not a reason to ship nothing; every page is still
+ * reachable through the fallback.
+ */
+export async function getStaticPaths() {
+  try {
+    const { data } = await fetchPlaces({ limit: 20, sort: 'newest' });
+    return {
+      paths: data.map((place) => ({ params: { id: String(place.id) } })),
+      fallback: 'blocking'
+    };
+  } catch (error) {
+    console.error('[getStaticPaths] places:', error.message);
+    return { paths: [], fallback: 'blocking' };
+  }
+}
+
+/**
+ * Render the place, its gallery and its reviews into the HTML.
+ *
+ * Reviews are included even though `is_own` cannot be resolved without a caller — this request
+ * has no user, so every review comes back marked as somebody else's. That is the correct answer
+ * for the cached copy, which is shared by every visitor and by crawlers; the page re-reads
+ * reviews with the user's token once Firebase restores the session, and that pass is what makes
+ * the edit affordance appear. The alternative — leaving reviews out of the static payload — would
+ * hide real review content from search engines to avoid a flag anonymous visitors never see.
+ */
+export async function getStaticProps({ params }) {
+  try {
+    const place = await fetchPlaceById(params.id);
+
+    // Neither of these should sink the page: a place with an unreachable gallery or review list
+    // is still worth rendering.
+    const [imagesResult, reviewsResult] = await Promise.allSettled([
+      fetchPlaceImages(params.id),
+      fetchPlaceReviews(params.id)
+    ]);
+
+    return {
+      props: {
+        initialPlace: place,
+        initialImages: composeGallery(
+          place,
+          imagesResult.status === 'fulfilled' ? imagesResult.value : []
+        ),
+        initialReviews: reviewsResult.status === 'fulfilled' ? reviewsResult.value : []
+      },
+      revalidate: 300
+    };
+  } catch (error) {
+    // A real 404 is a real 404 — but recheck periodically, since `fallback: 'blocking'` means
+    // this also covers a place created after the last build.
+    if (error.status === 404) {
+      return { notFound: true, revalidate: 300 };
+    }
+
+    // Anything else is an outage, not a missing page. Throwing keeps the last successfully
+    // generated copy being served during ISR instead of replacing it with a 404 that would then
+    // be cached and indexed.
+    throw error;
+  }
 }

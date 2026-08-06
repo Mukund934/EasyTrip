@@ -1,0 +1,167 @@
+# EasyTrip CI (IMP-096, repays TD-008)
+#
+# Nothing ran on push or PR before this. Every claim that the build passed was manual and
+# point-in-time — which is the same class of problem as `next lint` never having executed
+# (IMP-097): a quality gate everyone assumes exists and nothing enforces.
+#
+# Two jobs, deliberately separate so a failure names its own cause:
+#   lint-and-build  — does the code pass lint and does the frontend compile
+#   migrations      — does the schema actually build from nothing, and are the migrations
+#                     re-runnable, checked against a real Postgres
+#
+# Tests join in Phase 6 (IMP-092/093/094); the jobs below are the ones that can be green today.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer irrelevant. Cancelling it keeps
+# queue time down and stops a stale red X sitting on a branch that has already been fixed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    name: Lint and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Read from .nvmrc so CI and local can never drift apart — the version is stated once.
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # `npm ci` rather than `npm install`: it installs exactly the lockfile and fails if
+      # package.json and the lockfile disagree, which is the drift that broke `npm ci` at the root
+      # until IMP-013 fixed it. Three separate installs because this is three manifests, not a
+      # workspace.
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Lint backend
+        run: npm run lint
+        working-directory: backend
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: frontend
+
+      # NO `npm run format:check` STEP — deliberately, and it is tracked as TD-016.
+      #
+      # Sprint 5.1 added Prettier and the format/format:check scripts but never ran them across the
+      # repo, so `prettier --check .` currently reports style issues in 63 files. Adding the step
+      # would make CI red on arrival, which is worse than not having it: a pipeline that is red for
+      # a known reason trains everyone to ignore red pipelines.
+      #
+      # The fix is `npm run format` as its OWN commit, touching nothing else. A 63-file
+      # whitespace diff mixed into a functional change is unreviewable, and this sprint's change is
+      # the functional one. Once that lands, add the step back here.
+
+      # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
+      # present to compile. These are deliberately fake: the job proves the app compiles, it does
+      # not talk to Firebase, and a real credential in a workflow file would be a leak. They are
+      # public identifiers in any case — access is controlled by Firebase security rules and by the
+      # backend's token verification, not by keeping these hidden.
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:5000/api
+          NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder-api-key
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-placeholder
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000'
+
+  migrations:
+    name: Migrations against Postgres
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Pinned to a major version rather than `latest`, so a Postgres release cannot turn a green
+        # pipeline red overnight without anyone changing anything.
+        image: postgres:16
+        env:
+          POSTGRES_USER: easytrip
+          POSTGRES_PASSWORD: easytrip
+          POSTGRES_DB: easytrip
+        ports:
+          - 5432:5432
+        # Without this the job races the container: the runner is ready long before Postgres is
+        # accepting connections, and the first migration fails with ECONNREFUSED.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://easytrip:easytrip@localhost:5432/easytrip
+      # Not "production": that would turn on TLS certificate verification (IMP-063) against a
+      # plaintext local container, which is correct behaviour and would fail here for the wrong
+      # reason.
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      # The fresh-database path: schema.sql builds everything from nothing. This is what
+      # docker-compose runs on first start, and what a new contributor gets.
+      - name: Create schema from schema.sql
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/src/config/schema.sql
+
+      # schema.sql must be re-runnable. It was not until this sprint: the CREATE TABLEs were
+      # guarded with IF NOT EXISTS but the CREATE TRIGGERs were not, so a second run got most of
+      # the way through and then failed with "trigger already exists".
+      - name: Re-run schema.sql (must be idempotent)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/src/config/schema.sql
+
+      - name: Apply migrations
+        run: npm run migrate
+        working-directory: backend
+
+      # The property the whole runner design rests on. `migrate.js` records a migration after it
+      # commits, so a crash in that window re-runs it — which is only safe because every migration
+      # is re-runnable. This step is what stops that from being an assumption: a migration that
+      # is not idempotent fails here, in CI, rather than during a deploy.
+      - name: Re-apply migrations from scratch (must be idempotent)
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "TRUNCATE schema_migrations"
+          npm run migrate
+        working-directory: backend
+
+      # Exits non-zero if any applied migration's checksum no longer matches its file.
+      - name: Report migration status
+        run: npm run migrate:status
+        working-directory: backend

@@ -3,22 +3,24 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-import { 
-  FiEdit, 
-  FiTrash2, 
-  FiPlus, 
-  FiArrowLeft, 
-  FiSearch, 
-  FiFilter, 
-  FiMoreVertical,
+import {
+  FiEdit,
+  FiTrash2,
+  FiPlus,
+  FiArrowLeft,
+  FiSearch,
+  FiFilter,
   FiMapPin,
   FiClock,
   FiUser,
-  FiEye
+  FiEye,
+  FiAlertCircle,
+  FiRefreshCw
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import ImageWithFallback from '../../components/ImageWithFallback';
-import { getAllPlaces, deletePlace } from '../../services/placeService';
+import { deletePlace } from '../../services/placeService';
+import { fetchPlaces } from '../../services/placesApi';
 
 // Utility function to format dates
 const formatDate = (dateString) => {
@@ -46,6 +48,11 @@ export default function ManagePlaces() {
   const [places, setPlaces] = useState([]);
   const [filteredPlaces, setFilteredPlaces] = useState([]);
   const [loadingPlaces, setLoadingPlaces] = useState(true);
+  // An empty list and a failed request are different facts. Without this the catch below fell
+  // through to the same "No places yet - add your first place" panel, so an API outage looked
+  // like an empty database and an admin could be told to re-create content that still exists
+  // (IMP-031).
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [locations, setLocations] = useState([]);
@@ -65,14 +72,35 @@ export default function ManagePlaces() {
 
   // Fetch places
   useEffect(() => {
-    const fetchPlaces = async () => {
+    const loadAllPlaces = async () => {
       try {
         setLoadingPlaces(true);
-        const data = await getAllPlaces();
-        console.log('Places fetched:', {
-          count: data.length,
-          firstPlace: data[0] ? { id: data[0].id, name: data[0].name, updatedByName: data[0].updated_by_name } : null,
-        });
+        setLoadError(null);
+
+        // This table searches, sorts and filters entirely in the browser, so unlike the public
+        // browse grid it genuinely wants the whole catalogue — but the endpoint now caps a
+        // single response at 100 rows (IMP-038). Walk the pages instead of asking for a limit
+        // the server will silently clamp, which would show an admin a truncated list that looks
+        // complete. PAGE_CAP is a runaway guard, not a product limit; hitting it is reported.
+        const PAGE_SIZE = 100;
+        const PAGE_CAP = 50;
+        const data = [];
+        let offset = 0;
+        let truncated = false;
+
+        for (let page = 0; ; page += 1) {
+          if (page >= PAGE_CAP) { truncated = true; break; }
+          const { data: rows, pagination } = await fetchPlaces({ limit: PAGE_SIZE, offset });
+          data.push(...rows);
+          if (!pagination.hasMore || rows.length === 0) break;
+          offset += rows.length;
+        }
+
+        if (truncated) {
+          console.warn(`Place list truncated at ${data.length} rows (${PAGE_CAP} pages).`);
+          toast.warn(`Showing the first ${data.length} places.`);
+        }
+
         setPlaces(data);
         setFilteredPlaces(data);
 
@@ -86,13 +114,14 @@ export default function ManagePlaces() {
           message: error.message,
           status: error.status,
         });
+        setLoadError(error.message || 'Could not reach the server.');
         toast.error(error.message || 'Failed to load places');
         setLoadingPlaces(false);
       }
     };
 
     if (!loading && currentUser && isAdmin) {
-      fetchPlaces();
+      loadAllPlaces();
     }
   }, [loading, currentUser, isAdmin]);
 
@@ -159,8 +188,8 @@ export default function ManagePlaces() {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <div className="relative w-16 h-16 sm:w-24 sm:h-24">
-          <div className="absolute top-0 left-0 w-full h-full border-4 border-t-blue-600 border-b-blue-300 border-l-blue-600 border-r-blue-300 rounded-full animate-spin"></div>
-          <div className="absolute top-1 left-1 sm:top-2 sm:left-2 w-14 h-14 sm:w-20 sm:h-20 border-4 border-t-blue-400 border-b-blue-100 border-l-blue-400 border-r-blue-100 rounded-full animate-spin-slow"></div>
+          <div className="absolute top-0 left-0 w-full h-full border-4 border-t-primary-600 border-b-primary-300 border-l-primary-600 border-r-primary-300 rounded-full animate-spin"></div>
+          <div className="absolute top-1 left-1 sm:top-2 sm:left-2 w-14 h-14 sm:w-20 sm:h-20 border-4 border-t-primary-400 border-b-primary-100 border-l-primary-400 border-r-primary-100 rounded-full animate-spin-slow"></div>
         </div>
       </div>
     );
@@ -198,7 +227,7 @@ export default function ManagePlaces() {
                   onClick={() => setViewMode('card')}
                   className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'card'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
@@ -208,7 +237,7 @@ export default function ManagePlaces() {
                   onClick={() => setViewMode('table')}
                   className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'table'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
@@ -218,7 +247,7 @@ export default function ManagePlaces() {
 
               <Link
                 href="/admin/addPlace"
-                className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
               >
                 <FiPlus className="mr-2 h-4 w-4" />
                 Add Place
@@ -232,12 +261,13 @@ export default function ManagePlaces() {
               {/* Search Bar */}
               <div className="relative mb-4">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiSearch className="h-5 w-5 text-gray-400" />
+                  <FiSearch className="h-5 w-5 text-gray-500" />
                 </div>
                 <input
                   type="text"
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm sm:text-base"
                   placeholder="Search places..."
+                  aria-label="Search places"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -253,7 +283,7 @@ export default function ManagePlaces() {
                   Filters
                 </button>
                 {selectedLocation && (
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                  <span className="text-xs text-primary-600 bg-primary-50 px-2 py-1 rounded-full">
                     {selectedLocation}
                   </span>
                 )}
@@ -268,7 +298,7 @@ export default function ManagePlaces() {
                     </label>
                     <select
                       id="location"
-                      className="block w-full border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="block w-full border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                       value={selectedLocation}
                       onChange={(e) => setSelectedLocation(e.target.value)}
                     >
@@ -302,10 +332,34 @@ export default function ManagePlaces() {
           </div>
 
           {/* Places List */}
-          {filteredPlaces.length === 0 ? (
+          {loadError ? (
+            /* An outage must never render as "No places yet" — that tells an admin their data is
+               gone and invites them to re-create it (IMP-031). */
+            <div className="bg-white shadow-sm rounded-xl border border-red-200 p-8 text-center">
+              <div className="max-w-md mx-auto">
+                <FiAlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Couldn&apos;t load places
+                </h3>
+                <p className="text-gray-500 mb-2">{loadError}</p>
+                <p className="text-gray-500 mb-6 text-sm">
+                  Your places are still there — this is a problem reaching the server, not an empty
+                  database.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.reload()}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
+                >
+                  <FiRefreshCw className="mr-2 h-4 w-4" />
+                  Try again
+                </button>
+              </div>
+            </div>
+          ) : filteredPlaces.length === 0 ? (
             <div className="bg-white shadow-sm rounded-xl border border-gray-200 p-8 text-center">
               <div className="max-w-md mx-auto">
-                <FiMapPin className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <FiMapPin className="mx-auto h-12 w-12 text-gray-500 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   {places.length === 0 ? 'No places yet' : 'No matching places'}
                 </h3>
@@ -317,7 +371,7 @@ export default function ManagePlaces() {
                 {places.length === 0 && (
                   <Link
                     href="/admin/addPlace"
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none"
                   >
                     <FiPlus className="mr-2 h-4 w-4" />
                     Add First Place
@@ -364,22 +418,25 @@ export default function ManagePlaces() {
                             <div className="flex items-center space-x-2">
                               <Link
                                 href={`/places/${place.id}`}
-                                className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-500 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
                                 title="View Place"
+                                aria-label={`View ${place.name}`}
                               >
                                 <FiEye className="w-4 h-4" />
                               </Link>
                               <Link
                                 href={`/admin/editPlace/${place.id}`}
-                                className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-500 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
                                 title="Edit Place"
+                                aria-label={`Edit ${place.name}`}
                               >
                                 <FiEdit className="w-4 h-4" />
                               </Link>
                               <button
                                 onClick={() => confirmDelete(place)}
-                                className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                                 title="Delete Place"
+                                aria-label={`Delete ${place.name}`}
                               >
                                 <FiTrash2 className="w-4 h-4" />
                               </button>
@@ -393,7 +450,7 @@ export default function ManagePlaces() {
                             {place.tags.slice(0, 2).map((tag, index) => (
                               <span
                                 key={index}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700"
                               >
                                 {tag}
                               </span>
@@ -452,22 +509,25 @@ export default function ManagePlaces() {
                             <div className="ml-2 flex items-center space-x-2">
                               <Link
                                 href={`/places/${place.id}`}
-                                className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-500 hover:text-primary-600 rounded transition-colors"
                                 title="View Place"
+                                aria-label={`View ${place.name}`}
                               >
                                 <FiEye className="w-4 h-4" />
                               </Link>
                               <Link
                                 href={`/admin/editPlace/${place.id}`}
-                                className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-500 hover:text-primary-600 rounded transition-colors"
                                 title="Edit Place"
+                                aria-label={`Edit ${place.name}`}
                               >
                                 <FiEdit className="w-4 h-4" />
                               </Link>
                               <button
                                 onClick={() => confirmDelete(place)}
-                                className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] p-1 text-gray-500 hover:text-red-600 rounded transition-colors"
                                 title="Delete Place"
+                                aria-label={`Delete ${place.name}`}
                               >
                                 <FiTrash2 className="w-4 h-4" />
                               </button>
@@ -491,7 +551,7 @@ export default function ManagePlaces() {
                               {place.tags.slice(0, 3).map((tag, index) => (
                                 <span
                                   key={index}
-                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700"
                                 >
                                   {tag}
                                 </span>
@@ -586,15 +646,17 @@ export default function ManagePlaces() {
                                 <div className="flex items-center justify-end space-x-2">
                                   <Link
                                     href={`/places/${place.id}`}
-                                    className="text-gray-600 hover:text-blue-600 p-1 rounded transition-colors"
+                                    className="text-gray-600 hover:text-primary-600 p-1 rounded transition-colors"
                                     title="View Place"
+                                aria-label={`View ${place.name}`}
                                   >
                                     <FiEye className="h-4 w-4" />
                                   </Link>
                                   <Link
                                     href={`/admin/editPlace/${place.id}`}
-                                    className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                                    className="text-primary-600 hover:text-primary-800 p-1 rounded transition-colors"
                                     title="Edit Place"
+                                aria-label={`Edit ${place.name}`}
                                   >
                                     <FiEdit className="h-4 w-4" />
                                   </Link>
@@ -602,6 +664,7 @@ export default function ManagePlaces() {
                                     onClick={() => confirmDelete(place)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
                                     title="Delete Place"
+                                aria-label={`Delete ${place.name}`}
                                   >
                                     <FiTrash2 className="h-4 w-4" />
                                   </button>
@@ -647,7 +710,7 @@ export default function ManagePlaces() {
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500">
-                        Are you sure you want to delete <span className="font-medium">"{placeToDelete?.name}"</span>? This
+                        Are you sure you want to delete <span className="font-medium">&quot;{placeToDelete?.name}&quot;</span>? This
                         action cannot be undone and will permanently remove all associated data.
                       </p>
                     </div>
@@ -672,7 +735,7 @@ export default function ManagePlaces() {
                 </button>
                 <button
                   type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
                   onClick={() => setShowDeleteModal(false)}
                   disabled={deleting}
                 >

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const placeController = require('../controllers/placeController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
@@ -106,6 +106,42 @@ const placeBodyRules = (required) => [
   body('custom_keys').optional({ values: 'falsy' }).custom(isFlatObject)
 ];
 
+// Search accepts the same collection shapes as the write routes (JSON arrays as query text).
+// `date` is a season key, not a calendar date — see SEASON_MONTHS in placeModel.
+const searchRules = [
+  query('searchTerm').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 200 })
+    .withMessage('searchTerm must be at most 200 characters'),
+  query('location').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+    .withMessage('location must be at most 120 characters'),
+  query('district').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+    .withMessage('district must be at most 120 characters'),
+  query('state').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+    .withMessage('state must be at most 120 characters'),
+  query('tags').optional({ values: 'falsy' }).custom(isStringArray('tags', 50, 60)),
+  query('themes').optional({ values: 'falsy' }).custom(isStringArray('themes', 20, 60)),
+  query('minRating').optional({ values: 'falsy' }).isFloat({ min: 0, max: 5 })
+    .withMessage('minRating must be between 0 and 5'),
+  query('date').optional({ values: 'falsy' }).isIn(['summer', 'monsoon', 'winter'])
+    .withMessage('date must be one of: summer, monsoon, winter')
+];
+
+// Pagination, sorting and projection (IMP-038). `limit` is capped in the model as well; this
+// rule exists so an out-of-range value is a 400 the caller can see rather than a silent clamp.
+// `sort` and `projection` are enumerations because both index into server-side SQL fragments —
+// rejecting anything unrecognised here keeps that lookup total.
+const listRules = [
+  query('limit').optional({ values: 'falsy' }).isInt({ min: 1, max: 100 })
+    .withMessage('limit must be between 1 and 100'),
+  query('offset').optional({ values: 'falsy' }).isInt({ min: 0 })
+    .withMessage('offset must be zero or greater'),
+  query('sort').optional({ values: 'falsy' }).isIn(['newest', 'oldest', 'rating', 'popular', 'name'])
+    .withMessage('sort must be one of: newest, oldest, rating, popular, name'),
+  query('projection').optional({ values: 'falsy' }).isIn(['list', 'map'])
+    .withMessage('projection must be one of: list, map'),
+  query('withStats').optional({ values: 'falsy' }).isIn(['true', '1', 'false', '0'])
+    .withMessage('withStats must be a boolean')
+];
+
 const reviewRules = [
   placeIdParam,
   body('rating')
@@ -125,9 +161,43 @@ const reviewRules = [
     .withMessage('Comment must be at most 2000 characters')
 ];
 
+const reviewIdParam = param('reviewId')
+  .isInt({ min: 1 })
+  .withMessage('Review id must be a positive integer');
+
+const imageIdParam = param('imageId')
+  .isInt({ min: 1 })
+  .withMessage('Image id must be a positive integer');
+
+// Caption arrives as multipart alongside the file, so it is optional and length-capped to the
+// column width rather than validated as structured input.
+const galleryCaptionRule = body('caption')
+  .optional({ values: 'falsy' })
+  .trim()
+  .isLength({ max: 255 })
+  .withMessage('Caption must be at most 255 characters');
+
+const reportRules = [
+  placeIdParam,
+  reviewIdParam,
+  // The current UI reports with a single click and sends no reason; the column and this rule
+  // exist so a reason box can be added without touching the schema or the route.
+  body('reason')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('Reason must be text')
+    .bail()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Reason must be at most 500 characters')
+];
+
 // Public routes
-router.get('/places', placeController.getAllPlaces);
-router.get('/places/search', placeController.searchPlaces);
+// One handler, two names. `/places` had no validation at all before — it took no parameters, so
+// there was nothing to validate; now that it accepts the full filter and pagination surface it
+// gets the same rules as `/places/search`, which is the point of routing them to one place.
+router.get('/places', searchRules, listRules, handleValidationErrors, placeController.listPlaces);
+router.get('/places/search', searchRules, listRules, handleValidationErrors, placeController.listPlaces);
 router.get('/places/locations', placeController.getAllLocations);
 router.get('/places/districts', placeController.getDistricts);
 router.get('/places/states', placeController.getStates);
@@ -147,6 +217,24 @@ router.post(
   reviewRules,
   handleValidationErrors,
   placeController.createPlaceReview
+);
+
+// Ownership is resolved server-side from the verified token, never from the URL or body — the
+// client cannot even see author uids, since the review payload carries an opaque digest.
+router.delete(
+  '/places/:id/reviews/:reviewId',
+  isAuthenticated,
+  [placeIdParam, reviewIdParam],
+  handleValidationErrors,
+  placeController.deletePlaceReview
+);
+
+router.post(
+  '/places/:id/reviews/:reviewId/report',
+  isAuthenticated,
+  reportRules,
+  handleValidationErrors,
+  placeController.reportPlaceReview
 );
 
 // Admin routes - the only registration for these URLs. `/api` is mounted before
@@ -175,6 +263,24 @@ router.delete(
   placeIdParam,
   handleValidationErrors,
   placeController.deletePlace
+);
+
+// Gallery write path (IMP-014). The read endpoint and lightbox already existed; `place_images`
+// simply had no writer, so the gallery rendered from a permanently empty table.
+router.post(
+  '/admin/places/:id/images',
+  isAdmin,
+  uploadMiddleware('image'),
+  [placeIdParam, galleryCaptionRule],
+  handleValidationErrors,
+  placeController.addPlaceImage
+);
+router.delete(
+  '/admin/places/:id/images/:imageId',
+  isAdmin,
+  [placeIdParam, imageIdParam],
+  handleValidationErrors,
+  placeController.deletePlaceImage
 );
 
 module.exports = router;

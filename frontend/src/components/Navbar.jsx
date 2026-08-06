@@ -4,14 +4,26 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiMap, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiInfo, FiCompass, FiSearch } from 'react-icons/fi';
+import { useDismissable } from '../hooks/useDismissable';
+import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiCompass } from 'react-icons/fi';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // The dropdown previously closed only by re-clicking the avatar or navigating away — clicking
+  // elsewhere or pressing Escape left it open over the page (IMP-077).
+  const profileRef = useDismissable(isProfileOpen, () => setIsProfileOpen(false));
   const [scrolled, setScrolled] = useState(false);
   const { currentUser: authUser, isAdmin, logout } = useAuth();
   const router = useRouter();
+
+  // Only these three render a dark hero image underneath the navbar. Everywhere else the page
+  // starts on a light background, so the navbar must be solid from the top — otherwise the scrim
+  // below draws a dark band over nothing and the white nav text becomes unreadable (IMP-033).
+  const hasDarkHero = ['/', '/browse', '/places/[id]'].includes(router.pathname);
+  // `solid` is what every style below should branch on. `scrolled` alone was the bug: it conflated
+  // "the user has scrolled" with "there is something dark behind me".
+  const solid = scrolled || !hasDarkHero;
 
   // A signed-in user can still be missing displayName and/or email, so every
   // read has to tolerate it rather than dereferencing straight through.
@@ -72,7 +84,7 @@ const Navbar = () => {
 
   return (
     <motion.nav
-      className={`fixed w-full top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
+      className={`fixed w-full top-0 z-50 transition-all duration-300 ${solid ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
         }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -92,7 +104,7 @@ const Navbar = () => {
               />
             </div>
             <motion.span
-              className={`text-2xl font-bold ${scrolled ? 'text-primary-600' : 'text-white'}`}
+              className={`text-2xl font-bold ${solid ? 'text-primary-600' : 'text-white'}`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
@@ -107,7 +119,7 @@ const Navbar = () => {
               href="/"
               className={`px-3 py-2 text-sm font-medium ${router.pathname === '/'
                   ? 'text-primary-600 border-b-2 border-primary-600'
-                  : scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+                  : solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
                 } transition-colors`}
             >
               <span className="flex items-center">
@@ -119,7 +131,7 @@ const Navbar = () => {
               href="/browse"
               className={`px-3 py-2 text-sm font-medium ${router.pathname === '/browse'
                   ? 'text-primary-600 border-b-2 border-primary-600'
-                  : scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+                  : solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
                 } transition-colors`}
             >
               <span className="flex items-center">
@@ -127,26 +139,17 @@ const Navbar = () => {
                 Browse
               </span>
             </Link>
-            <Link
-              href="/search"
-              className={`px-3 py-2 text-sm font-medium ${router.pathname === '/search'
-                  ? 'text-primary-600 border-b-2 border-primary-600'
-                  : scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
-                } transition-colors`}
-            >
-              <span className="flex items-center">
-                <FiSearch className="mr-2" />
-                Search
-              </span>
-            </Link>
 
             {authUser ? (
-              <div className="relative ml-3">
+              <div className="relative ml-3" ref={profileRef}>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className={`flex items-center space-x-2 ${scrolled ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
+                  aria-haspopup="menu"
+                  aria-expanded={isProfileOpen}
+                  aria-label="Account menu"
+                  className={`flex items-center space-x-2 ${solid ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
                     } backdrop-blur-sm px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors`}
                 >
                   {authUser.photoURL ? (
@@ -169,6 +172,8 @@ const Navbar = () => {
                 <AnimatePresence>
                   {isProfileOpen && (
                     <motion.div
+                      role="menu"
+                      aria-label="Account"
                       className="absolute right-0 mt-2 w-60 rounded-xl shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-10 overflow-hidden"
                       variants={menuVariants}
                       initial="hidden"
@@ -202,16 +207,6 @@ const Navbar = () => {
                           </motion.div>
                         )}
 
-                        <motion.div variants={itemVariants}>
-                          <Link
-                            href="/activity"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            <FiInfo className="mr-3 h-4 w-4 text-gray-500" />
-                            Activity Log
-                          </Link>
-                        </motion.div>
-
                         <div className="border-t border-gray-100 my-1"></div>
 
                         <motion.div variants={itemVariants}>
@@ -232,7 +227,7 @@ const Navbar = () => {
               <div className="flex items-center space-x-2">
                 <Link
                   href="/login"
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${scrolled
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${solid
                       ? 'text-primary-600 border border-primary-600 hover:bg-primary-50'
                       : 'text-white border border-white hover:bg-white/10'
                     } transition-colors`}
@@ -241,7 +236,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   href="/signup"
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${scrolled
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${solid
                       ? 'bg-primary-600 text-white hover:bg-primary-700'
                       : 'bg-white text-primary-800 hover:bg-primary-50'
                     } shadow-sm transition-colors`}
@@ -256,7 +251,7 @@ const Navbar = () => {
           <div className="flex items-center sm:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className={`inline-flex items-center justify-center p-2 rounded-md ${scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+              className={`inline-flex items-center justify-center p-2 rounded-md ${solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
                 } hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors`}
             >
               <span className="sr-only">{isOpen ? 'Close menu' : 'Open menu'}</span>
@@ -307,19 +302,6 @@ const Navbar = () => {
                     Browse
                   </div>
                 </Link>
-
-                <Link
-                  href="/search"
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${router.pathname === '/search'
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                    }`}
-                >
-                  <div className="flex items-center">
-                    <FiSearch className="mr-3 h-5 w-5" />
-                    Search
-                  </div>
-                </Link>
               </div>
 
               <div className="py-2">
@@ -337,16 +319,6 @@ const Navbar = () => {
                       <div className="flex items-center">
                         <FiUser className="mr-3 h-5 w-5" />
                         My Profile
-                      </div>
-                    </Link>
-
-                    <Link
-                      href="/activity"
-                      className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-primary-600"
-                    >
-                      <div className="flex items-center">
-                        <FiInfo className="mr-3 h-5 w-5" />
-                        Activity Log
                       </div>
                     </Link>
 
@@ -400,8 +372,9 @@ const Navbar = () => {
         )}
       </AnimatePresence>
 
-      {/* Navbar background overlay for transparent navbar */}
-      {!scrolled && (
+      {/* Scrim exists to keep white nav text legible over a photographic hero. It must therefore
+          render only when the navbar is actually transparent over one. */}
+      {!solid && (
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent -z-10"></div>
       )}
     </motion.nav>

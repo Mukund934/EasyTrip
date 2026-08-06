@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-import { FiMail, FiLock, FiArrowRight } from 'react-icons/fi';
+import { FiMail, FiLock, FiArrowRight, FiEye, FiEyeOff } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,16 +11,25 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  // Validation was toast-only, so the message appeared in the corner while the field that caused
+  // it sat unmarked — and vanished after five seconds (IMP-030).
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
   const { login, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast.error('Please enter both email and password');
+    const errors = {};
+    if (!email.trim()) errors.email = 'Enter your email address.';
+    if (!password) errors.password = 'Enter your password.';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
+    setFieldErrors({});
     
     try {
       setLoading(true);
@@ -64,7 +73,7 @@ export default function Login() {
         <meta name="description" content="Login to your EasyTrip account" />
       </Head>
 
-      <div className="bg-gray-50 min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="bg-gray-50 min-h-screen flex flex-col justify-center pt-24 pb-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to your account
@@ -117,12 +126,21 @@ export default function Login() {
                     type="email"
                     autoComplete="email"
                     required
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+                    className={`block w-full pl-10 pr-3 py-2 border rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none sm:text-sm ${
+                      fieldErrors.email
+                        ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
+                        : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
+                    }`}
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
+                {fieldErrors.email && (
+                  <p id="email-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+                )}
               </div>
 
               {/* Password Input */}
@@ -137,31 +155,37 @@ export default function Login() {
                   <input
                     id="password"
                     name="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
                     required
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    aria-invalid={Boolean(fieldErrors.password)}
+                    aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                    className={`block w-full pl-10 pr-12 py-2 border rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none sm:text-sm ${
+                      fieldErrors.password
+                        ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
+                        : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
+                    }`}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((shown) => !shown)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+                  </button>
                 </div>
+                {fieldErrors.password && (
+                  <p id="password-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+                )}
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                    Remember me
-                  </label>
-                </div>
-
+              {/* "Remember me" used to sit here, wired to nothing — Firebase persistence is local
+                  by default, so the checkbox controlled no behaviour either way (IMP-030). */}
+              <div className="flex items-center justify-end">
                 <div className="text-sm">
                   <Link href="/forgot-password" className="font-medium text-primary-600 hover:text-primary-500">
                     Forgot your password?

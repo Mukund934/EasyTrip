@@ -18,13 +18,10 @@ let firebaseApp;
 
 if (typeof window !== 'undefined' && !getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
-  console.log('Firebase initialized in browser');
 } else if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
-  console.log('Firebase initialized in SSR');
 } else {
   firebaseApp = getApps()[0];
-  console.log('Firebase already initialized');
 }
 
 // Initialize Firebase Authentication and get a reference to the service

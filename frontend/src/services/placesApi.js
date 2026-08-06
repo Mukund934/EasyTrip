@@ -1,0 +1,133 @@
+/**
+ * Public place reads, usable from anywhere (IMP-040).
+ *
+ * Split from `placeService.js` along a trust boundary rather than for convenience:
+ *   placesApi.js    — public, unauthenticated reads. Runs on the server and in the browser.
+ *   placeService.js — everything that needs a Firebase ID token. Browser only.
+ *
+ * `placeService` imports `../config/firebase` at module scope, so importing it from
+ * `getStaticProps` / `getServerSideProps` drags the Firebase *client* SDK into the server render
+ * path — a browser auth library, initialised on the server, to fetch public rows that need no
+ * identity at all.
+ *
+ * To be precise about what this does and does not fix: the SDK is *already* initialised during
+ * SSR, because `_app` renders `AuthProvider` and several admin pages import the service directly.
+ * A build with no `NEXT_PUBLIC_FIREBASE_*` variables fails at `/admin/addPlace` with
+ * `auth/invalid-api-key` today, and this split does not change that — it is tracked separately.
+ * What the split does is keep the new server-rendered data path from deepening that coupling.
+ *
+ * Uses `fetch` rather than axios: it is available in both runtimes, needs no second HTTP client
+ * in the browser bundle, and supports the server-only `API_URL` indirection below.
+ */
+
+// `API_URL` is server-only and wins when set, so the Next server can reach the API over an
+// internal address while the browser uses the public one. Without it both fall back to the
+// same public URL, which is correct for local development.
+const baseUrl = () => {
+  if (typeof window === 'undefined') {
+    return process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+};
+
+/** Page size for the browse grid. Server caps this at 100 (placeModel MAX_LIMIT). */
+export const PLACES_PAGE_SIZE = 12;
+
+class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+const request = async (path, { signal } = {}) => {
+  const response = await fetch(`${baseUrl()}${path}`, {
+    signal,
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body?.message) message = body.message;
+    } catch {
+      // A non-JSON error body (a proxy's HTML 502, say) leaves the status-derived message.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return response.json();
+};
+
+/**
+ * Serialise list parameters.
+ *
+ * Arrays are JSON-encoded rather than repeated (`tags=["a","b"]`, not `tags=a&tags=b`). That is
+ * the shape the server's validator requires: a repeated parameter with a single value arrives as
+ * a bare string, which `JSON.parse` rejects, so the one-tag case would 400 while the two-tag case
+ * passed. Encoding always keeps both cases on the same path.
+ */
+const buildQuery = (params = {}) => {
+  const query = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      query.set(key, JSON.stringify(value));
+    } else {
+      query.set(key, String(value));
+    }
+  });
+
+  const encoded = query.toString();
+  return encoded ? `?${encoded}` : '';
+};
+
+/**
+ * Fetch a page of places.
+ *
+ * Accepts filters (searchTerm, location, district, state, themes, tags, minRating, date)
+ * alongside `limit`, `offset`, `sort` and `projection`, and returns the server envelope:
+ *
+ *   { data: [...], pagination: { total, limit, offset, hasMore, sort } }
+ *
+ * `projection: 'map'` returns every match, unpaginated, with a marker-sized row.
+ */
+export const fetchPlaces = async (params = {}, options = {}) =>
+  request(`/places${buildQuery(params)}`, options);
+
+export const fetchPlaceById = async (id, options = {}) =>
+  request(`/places/${id}`, options);
+
+export const fetchPlaceImages = async (id, options = {}) =>
+  request(`/places/${id}/images`, options);
+
+export const fetchPlaceReviews = async (id, options = {}) =>
+  request(`/places/${id}/reviews`, options);
+
+export const fetchLocations = async (options = {}) => request('/places/locations', options);
+export const fetchDistricts = async (options = {}) => request('/places/districts', options);
+export const fetchStates = async (options = {}) => request('/places/states', options);
+export const fetchTags = async (options = {}) => request('/places/tags', options);
+
+/**
+ * The four filter vocabularies browse renders, in one round of parallel requests.
+ *
+ * Individually optional: a facet that fails to load costs one empty filter section, not the
+ * page, so each settles to `[]` on error rather than rejecting the whole set.
+ */
+export const fetchFacets = async (options = {}) => {
+  const [locations, districts, states, tags] = await Promise.all([
+    fetchLocations(options).catch(() => []),
+    fetchDistricts(options).catch(() => []),
+    fetchStates(options).catch(() => []),
+    fetchTags(options).catch(() => [])
+  ]);
+
+  return { locations, districts, states, tags };
+};
+
+export { ApiError };

@@ -1,14 +1,9 @@
-const { Pool } = require('pg');
-const path = require('path');
+const pool = require('../config/db');
 const fs = require('fs');
 const crypto = require('crypto');
 const placeModel = require('../models/placeModel');
-const { uploadImage } = require('../config/cloudinary');
+const { uploadImage, destroyImage, destroyPlaceAssets, publicIdFromUrl } = require('../config/cloudinary');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
 
 // Get current user from request.
 // Identity comes only from the token the auth middleware verified: the former x-user /
@@ -62,31 +57,85 @@ const toPublicReview = (row, viewerUid) => {
   };
 };
 
-/**
- * Get all places
- */
-const getAllPlaces = async (req, res) => {
+// ---------------------------------------------------------------------------
+// Place lists (IMP-038)
+// ---------------------------------------------------------------------------
+//
+// `/api/places` and `/api/places/search` are the same read behind two names — the second one is
+// the first one with filters bound. They share this handler so pagination, sorting, projection
+// and the image fallback cannot behave differently depending on which URL the caller picked.
+//
+// Response contract, on both routes:
+//
+//   { data: [...], pagination: { total, limit, offset, hasMore, sort } }
+//
+// This replaced a bare array. Every consumer in this repo was migrated in the same change; the
+// envelope is not optional and there is no legacy shape to fall back to, because a list endpoint
+// that sometimes reports a total and sometimes does not is worse than either alternative.
+
+// Query arrays arrive either repeated (`?tags=a&tags=b`) or JSON-encoded, depending on the caller.
+const parseArrayParam = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (Array.isArray(value)) return value;
   try {
-    const timestamp = new Date().toISOString();
-    const user = getCurrentUser(req);
-    
-    console.log(`[${timestamp}] Getting all places - Requested by: ${user}`);
-    
-    const places = await placeModel.getAllPlaces();
-    
-    const formattedPlaces = places.map(place => ({
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [value];
+  } catch {
+    return [value];
+  }
+};
+
+const criteriaFromQuery = (query) => {
+  const parsedMinRating = Number.parseFloat(query.minRating);
+  return {
+    searchTerm: query.searchTerm?.trim() || undefined,
+    location: query.location?.trim() || undefined,
+    district: query.district?.trim() || undefined,
+    state: query.state?.trim() || undefined,
+    tags: parseArrayParam(query.tags),
+    themes: parseArrayParam(query.themes),
+    minRating: Number.isFinite(parsedMinRating) ? parsedMinRating : undefined,
+    date: query.date?.trim() || undefined
+  };
+};
+
+const listPlacesHandler = async (req, res) => {
+  try {
+    const { sort, limit, offset, projection, withStats } = req.query;
+    const filters = criteriaFromQuery(req.query);
+
+    const result = await placeModel.listPlaces({
+      filters,
+      sort,
+      limit,
+      offset,
+      projection: projection === 'map' ? 'map' : 'list',
+      withStats: withStats === 'true' || withStats === '1'
+    });
+
+    const data = result.rows.map(({ fallback_image_url, ...place }) => ({
       ...place,
-      image_url: place.primary_image_url || `/api/places/${place.id}/image`,
-      fetched_at: timestamp,
-      fetched_by: user
+      image_url: place.primary_image_url || fallback_image_url || null
     }));
-    
-    console.log(`[${timestamp}] Found ${places.length} places`);
-    
-    res.status(200).json(formattedPlaces);
+
+    const body = {
+      data,
+      pagination: {
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        hasMore: result.offset + data.length < result.total,
+        sort: placeModel.SORT_ORDERS[sort] ? sort : 'newest'
+      }
+    };
+
+    // Present only when asked for, so a caller cannot mistake its absence for zeroes.
+    if (result.stats) body.stats = result.stats;
+
+    res.status(200).json(body);
   } catch (error) {
-    console.error('[ERROR] Error getting places:', error);
-    res.status(500).json({ 
+    console.error('[ERROR] Error listing places:', error);
+    res.status(500).json({
       message: 'Error getting places',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -122,11 +171,10 @@ const getPlaceById = async (req, res) => {
       });
     }
 
+    const { fallback_image_url, ...placeFields } = place;
     const formattedPlace = {
-      ...place,
-      image_url: place.primary_image_url || `/api/places/${id}/image`,
-      fetched_at: timestamp,
-      fetched_by: user
+      ...placeFields,
+      image_url: place.primary_image_url || fallback_image_url || null
     };
     
     console.log(`[${timestamp}] Found place: ID=${place.id}, Name=${place.name}`);
@@ -177,6 +225,9 @@ const getPlaceImage = async (req, res) => {
         
         if (image.rows.length > 0 && image.rows[0].image_url) {
           console.log(`[${timestamp}] Redirecting to specific image: ${image.rows[0].image_url}`);
+        // A 302 with no cache policy is re-requested every time. The destination for a given
+        // place/image id is stable, so let the browser remember it.
+        res.set('Cache-Control', 'public, max-age=3600');
           return res.redirect(image.rows[0].image_url);
         }
       } catch (err) {
@@ -187,6 +238,9 @@ const getPlaceImage = async (req, res) => {
     // Use primary image URL if available
     if (place.primary_image_url) {
       console.log(`[${timestamp}] Redirecting to primary image: ${place.primary_image_url}`);
+        // A 302 with no cache policy is re-requested every time. The destination for a given
+        // place/image id is stable, so let the browser remember it.
+        res.set('Cache-Control', 'public, max-age=3600');
       return res.redirect(place.primary_image_url);
     }
     
@@ -199,6 +253,9 @@ const getPlaceImage = async (req, res) => {
       
       if (fallbackImage.rows.length > 0 && fallbackImage.rows[0].image_url) {
         console.log(`[${timestamp}] Redirecting to fallback image: ${fallbackImage.rows[0].image_url}`);
+        // A 302 with no cache policy is re-requested every time. The destination for a given
+        // place/image id is stable, so let the browser remember it.
+        res.set('Cache-Control', 'public, max-age=3600');
         return res.redirect(fallbackImage.rows[0].image_url);
       }
     } catch (err) {
@@ -376,7 +433,7 @@ const createPlace = async (req, res) => {
     
     const response = {
       ...newPlace,
-      image_url: newPlace.primary_image_url || `/api/places/${newPlace.id}/image`,
+      image_url: newPlace.primary_image_url || null,
       success: true
     };
     
@@ -445,11 +502,21 @@ const updatePlace = async (req, res) => {
           context: `place_id=${id}|user=${user}|updated=true|name=${encodeURIComponent(currentPlace.name)}`
         });
         
+        const previousImageUrl = imageUrl;
         imageUrl = result.url;
         console.log(`[${timestamp}] Updated image uploaded successfully, URL: ${imageUrl}`);
-        
-        // Explicitly log and verify URL is properly set
-        console.log(`[${timestamp}] Setting primary_image_url to: ${imageUrl}`);
+
+        // Replacing the primary image orphans the old asset. Every upload uses a fresh
+        // timestamped public_id, so the replacement never overwrites its predecessor — without
+        // this, editing a place's photo N times left N-1 assets paid for and unreachable.
+        // Only after the new upload succeeded, so a failed replace keeps the existing image.
+        const previousPublicId = publicIdFromUrl(previousImageUrl);
+        if (previousPublicId && previousPublicId !== result.public_id) {
+          const wasRemoved = await destroyImage(previousPublicId);
+          console.log(
+            `[${timestamp}] Previous image ${previousPublicId}: ${wasRemoved ? 'removed' : 'left in place'}`
+          );
+        }
       } catch (uploadError) {
         console.error(`[${timestamp}] Cloudinary upload error:`, uploadError);
         console.error('Error details:', uploadError);
@@ -485,7 +552,7 @@ const updatePlace = async (req, res) => {
     
     const response = {
       ...updatedPlace,
-      image_url: updatedPlace.primary_image_url || `/api/places/${id}/image`
+      image_url: updatedPlace.primary_image_url || null
     };
     
     res.status(200).json(response);
@@ -539,7 +606,14 @@ const deletePlace = async (req, res) => {
     if (!success) {
       throw new Error('Failed to delete place');
     }
-    
+
+    // Remote media is cleaned up only AFTER the row is gone. Doing it first would risk destroying
+    // the images of a place that then fails to delete. The call never throws — an orphaned asset
+    // costs storage, whereas failing the request after the row is already deleted would leave the
+    // caller believing the delete failed when it succeeded (IMP-024).
+    const removed = await destroyPlaceAssets(id);
+    console.log(`[${timestamp}] Cloudinary cleanup for place ${id}: ${removed} asset(s) removed`);
+
     console.log(`[${timestamp}] Place deleted successfully: ID=${id}`);
     
     res.status(200).json({ 
@@ -553,44 +627,6 @@ const deletePlace = async (req, res) => {
     console.error('[ERROR] Error deleting place:', error);
     res.status(500).json({ 
       message: 'Error deleting place',
-      // Safe by default: only an explicit NODE_ENV=development exposes driver text.
-      // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
-      // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
-      timestamp: new Date().toISOString()
-    });
-  }
-};
-
-// Search and metadata functions
-const searchPlaces = async (req, res) => {
-  try {
-    const { searchTerm, location, tags, district, state } = req.query;
-    const timestamp = new Date().toISOString();
-    const user = getCurrentUser(req);
-    
-    const criteria = {
-      searchTerm: searchTerm?.trim(),
-      location: location?.trim(),
-      district: district?.trim(),
-      state: state?.trim(),
-      tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : undefined
-    };
-    
-    const places = await placeModel.searchPlaces(criteria);
-    
-    const formattedPlaces = places.map(place => ({
-      ...place,
-      image_url: place.primary_image_url || `/api/places/${place.id}/image`,
-      fetched_at: timestamp,
-      fetched_by: user
-    }));
-    
-    res.status(200).json(formattedPlaces);
-  } catch (error) {
-    console.error('[ERROR] Error searching places:', error);
-    res.status(500).json({ 
-      message: 'Error searching places',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
       // unset, which is exactly what `npm start` does (SECURITY_AUDIT 10.4).
@@ -750,19 +786,208 @@ const createPlaceReview = async (req, res) => {
   }
 };
 
+// Editing a review is the POST upsert above - re-submitting replaces the existing row. There is
+// deliberately no PUT: a second edit path would be one more way to do the same thing, and this
+// codebase has spent two phases deleting exactly that.
+const deletePlaceReview = async (req, res) => {
+  try {
+    const { id, reviewId } = req.params;
+
+    const userId = req.user?.uid;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // The security boundary is this single statement: the DELETE is scoped to the caller's uid,
+    // so a non-owner cannot remove a row no matter what happens concurrently. Checking ownership
+    // in a separate query first and then deleting would leave a window between the two.
+    const deleted = await pool.query(
+      'DELETE FROM place_reviews WHERE id = $1 AND place_id = $2 AND user_id = $3 RETURNING id',
+      [reviewId, id, userId]
+    );
+
+    if (deleted.rowCount === 0) {
+      // Nothing was removed. Reviews are public, so their ids are not a secret - there is no
+      // reason to blur 404 into 403, and an accurate answer is far easier to debug.
+      const existing = await pool.query(
+        'SELECT user_id FROM place_reviews WHERE id = $1 AND place_id = $2',
+        [reviewId, id]
+      );
+
+      if (existing.rowCount === 0) {
+        return res.status(404).json({ message: 'Review not found' });
+      }
+      return res.status(403).json({ message: 'You can only delete your own review' });
+    }
+
+    // update_place_rating_trigger fires AFTER DELETE and recomputes rating_sum/rating_count from
+    // the remaining rows, so the place aggregate needs no work here.
+    res.status(204).send();
+  } catch (error) {
+    console.error('[ERROR] Error deleting review:', error);
+    res.status(500).json({ message: 'Error deleting review' });
+  }
+};
+
+const reportPlaceReview = async (req, res) => {
+  try {
+    const { id, reviewId } = req.params;
+    const { reason } = req.body;
+
+    const reporterUid = req.user?.uid;
+    if (!reporterUid) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const existing = await pool.query(
+      'SELECT user_id FROM place_reviews WHERE id = $1 AND place_id = $2',
+      [reviewId, id]
+    );
+
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: 'Review not found' });
+    }
+
+    if (existing.rows[0].user_id === reporterUid) {
+      return res.status(400).json({ message: 'You cannot report your own review' });
+    }
+
+    // UNIQUE (review_id, reporter_uid) makes a repeat report a no-op rather than a duplicate row,
+    // so one person cannot inflate a future moderation queue by clicking twice.
+    await pool.query(
+      `INSERT INTO review_reports (review_id, reporter_uid, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (review_id, reporter_uid) DO NOTHING`,
+      [reviewId, reporterUid, reason || null]
+    );
+
+    // Same response whether the row was new or already there. Whether they had reported it before
+    // is not information the reporter needs, and reporting twice should feel identical.
+    res.status(200).json({ message: 'Thanks - this review has been reported for moderation.' });
+  } catch (error) {
+    console.error('[ERROR] Error reporting review:', error);
+
+    // 42P01: undefined_table. The endpoint is useless until 003 is applied, so say why rather
+    // than returning a bare 500 - this is the same failure mode 001 had with place_reviews.
+    if (error.code === '42P01') {
+      console.error(
+        '   review_reports does not exist. Run: ' +
+        'psql "$DATABASE_URL" -f backend/src/config/migrations/003_sprint23.sql'
+      );
+      return res.status(500).json({
+        message: 'Reporting is temporarily unavailable - the server is missing a required table'
+      });
+    }
+
+    res.status(500).json({ message: 'Error reporting review' });
+  }
+};
+
+/**
+ * Add a gallery image to a place (admin).
+ *
+ * `place_images` has existed since the original schema, along with its read endpoint and the
+ * lightbox that renders it — but nothing ever wrote to it, so the gallery has always been an
+ * empty table behind working UI (IMP-014).
+ */
+const addPlaceImage = async (req, res) => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    const { id } = req.params;
+    const { caption } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'An image file is required' });
+    }
+
+    const place = await placeModel.getPlaceById(id);
+    if (!place) {
+      return res.status(404).json({ message: 'Place not found' });
+    }
+
+    if (!req.file.path || !fs.existsSync(req.file.path)) {
+      return res.status(400).json({ message: 'Uploaded file could not be read' });
+    }
+
+    // Same folder convention as the primary image, which is what lets destroyPlaceAssets clean up
+    // an entire place by prefix without tracking individual ids.
+    const result = await uploadImage(req.file.path, {
+      folder: `easytrip/places/${id}`,
+      public_id: `place_${id}_gallery_${Date.now()}`,
+      tags: ['place', `id_${id}`, 'gallery'],
+      context: `place_id=${id}|user=${getCurrentUser(req)}`
+    });
+
+    // New images go last. COALESCE handles the first image, where MAX over no rows is NULL.
+    const inserted = await pool.query(
+      `INSERT INTO place_images (place_id, image_url, caption, display_order, created_at)
+       VALUES ($1, $2, $3,
+               (SELECT COALESCE(MAX(display_order), -1) + 1 FROM place_images WHERE place_id = $1),
+               NOW())
+       RETURNING id, place_id, image_url, caption, display_order, created_at`,
+      [id, result.url, caption?.trim() || null]
+    );
+
+    console.log(`[${timestamp}] Gallery image added to place ${id}: ${result.public_id}`);
+    res.status(201).json(inserted.rows[0]);
+  } catch (error) {
+    console.error('[ERROR] Error adding gallery image:', error);
+    res.status(500).json({ message: 'Error adding gallery image' });
+  }
+};
+
+/**
+ * Remove a gallery image from a place (admin).
+ *
+ * Deletes the row first, then the remote asset — the row is the source of truth, and an orphaned
+ * asset is a storage cost rather than a broken gallery. The reverse order risks destroying an
+ * image that is still referenced.
+ */
+const deletePlaceImage = async (req, res) => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    const { id, imageId } = req.params;
+
+    const deleted = await pool.query(
+      'DELETE FROM place_images WHERE id = $1 AND place_id = $2 RETURNING image_url',
+      [imageId, id]
+    );
+
+    if (deleted.rowCount === 0) {
+      return res.status(404).json({ message: 'Image not found for this place' });
+    }
+
+    const publicId = publicIdFromUrl(deleted.rows[0].image_url);
+    if (publicId) {
+      const wasRemoved = await destroyImage(publicId);
+      console.log(`[${timestamp}] Gallery asset ${publicId}: ${wasRemoved ? 'removed' : 'left in place'}`);
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('[ERROR] Error deleting gallery image:', error);
+    res.status(500).json({ message: 'Error deleting gallery image' });
+  }
+};
+
 module.exports = {
-  getAllPlaces,
+  listPlaces: listPlacesHandler,
   getPlaceById,
   getPlaceImage,
   getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage,
   createPlace,
   updatePlace,
   deletePlace,
-  searchPlaces,
   getAllLocations,
   getDistricts,
   getStates,
   getTags,
   getPlaceReviews,
-  createPlaceReview
+  createPlaceReview,
+  deletePlaceReview,
+  reportPlaceReview
 };

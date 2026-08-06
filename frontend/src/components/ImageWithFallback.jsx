@@ -13,7 +13,6 @@ const ImageWithFallback = ({ src, alt, width, height, className, objectFit, prio
     setLoaded(false);
     
     // Log the image source for debugging
-    console.log(`Image source updated for ${alt}:`, src);
   }, [src, alt]);
   
   // Add cache busting for development
@@ -36,13 +35,12 @@ const ImageWithFallback = ({ src, alt, width, height, className, objectFit, prio
         height={height || 300}
         className={`${objectFit || 'object-cover'} w-full h-full rounded-lg ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
         priority={priority}
-        onError={(e) => {
+        onError={() => {
           console.error(`Image load error for: ${imgSrc}`, alt);
           setError(true);
           setLoaded(true);
         }}
         onLoad={() => {
-          console.log(`Image loaded successfully: ${alt}`);
           setLoaded(true);
         }}
       />

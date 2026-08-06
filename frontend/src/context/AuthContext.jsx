@@ -7,7 +7,7 @@ import {
   GoogleAuthProvider,
   updateProfile as updateFirebaseProfile,
   signInWithPopup,
-  signInWithCredential,
+  sendPasswordResetEmail,
   getRedirectResult
 } from 'firebase/auth';
 import axios from 'axios';
@@ -159,26 +159,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Google One Tap Sign-In
-  const handleGoogleOneTap = async (credential) => {
+  const resetPassword = async (email) => {
     try {
-      // Create a Google Auth Provider credential
-      const googleCredential = GoogleAuthProvider.credential(null, credential);
-      
-      // Sign in with the credential
-      const result = await signInWithCredential(auth, googleCredential);
-
-      console.log("Google One-Tap sign-in successful", result.user);
-      
-      return { success: true, user: result.user };
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
     } catch (error) {
-      console.error("Error with Google One-Tap sign-in", error);
-      return { 
-        success: false, 
-        error: error.message 
-      };
+      // Account enumeration guard: an unknown address must be indistinguishable from a known one,
+      // or this page becomes a way to test which emails have accounts. Only faults the caller can
+      // act on — malformed address, rate limiting, network — are surfaced. Deciding this here
+      // rather than in the page means no future caller can leak it by accident.
+      if (error.code === 'auth/user-not-found') {
+        return { success: true };
+      }
+      console.error('Password reset error:', error);
+      if (error.code === 'auth/invalid-email') {
+        return { success: false, error: 'That email address does not look valid.' };
+      }
+      if (error.code === 'auth/too-many-requests') {
+        return { success: false, error: 'Too many attempts. Please wait a few minutes and try again.' };
+      }
+      return { success: false, error: 'Could not send the reset email. Please try again.' };
     }
   };
+
+  // Google One Tap was removed in Sprint 2.2 (IMP-015): it was initialised with the Firebase Web
+  // API key in place of a Google OAuth Client ID, which are different credentials, so it could
+  // never complete a sign-in. Popup Google sign-in above is the supported path. Restoring One Tap
+  // needs a real OAuth Client ID — see KNOWN_LIMITATIONS.md.
 
   // Logout
   const logout = async () => {
@@ -245,26 +252,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Debug auth state for development - safe for SSR
-  const debugAuthState = (user, adminStatus) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('--- Auth State Update ---');
-      console.log('Current Date/Time:', new Date().toISOString());
-      
-      if (user) {
-        console.log('User:', {
-          uid: user.uid,
-          email: user.email,
-          name: user.displayName,
-          isAdmin: adminStatus
-        });
-      } else {
-        console.log('User: Not authenticated');
-      }
-
-      console.log('------------------------');
-    }
-  };
 
   // Listen for auth state changes - only after initial render.
   // The Firebase SDK's own persistence is the single source of session truth:
@@ -298,7 +285,6 @@ export const AuthProvider = ({ children }) => {
           setCurrentUser(formattedUser);
 
           // Debug for development
-          debugAuthState(formattedUser, adminStatus);
         } else {
           // User is signed out
           syncTokenCookie(null);
@@ -306,7 +292,6 @@ export const AuthProvider = ({ children }) => {
           setIsAdmin(false);
 
           // Debug for development
-          debugAuthState(null, false);
         }
       } catch (error) {
         console.error('Error in auth state change handler:', error);
@@ -322,7 +307,6 @@ export const AuthProvider = ({ children }) => {
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          console.log("Signed in with redirect", result.user);
         }
       })
       .catch((error) => {
@@ -345,7 +329,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateProfile,
     signInWithGoogle,
-    handleGoogleOneTap,
+    resetPassword,
     getIdToken,
     isClient // Expose this so components can know when it's safe to render client-only content
   };

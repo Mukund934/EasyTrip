@@ -1,10 +1,11 @@
-const { Pool } = require('pg');
+const pool = require('../config/db');
 const admin = require('firebase-admin');
 const { resolveAdminStatus } = require('../utils/authMiddleware');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+
+// One list for every profile read/write. It was repeated three times, and the profile form seeds
+// itself from whatever this returns — a column missing from one copy silently blanks that field.
+const USER_COLUMNS = 'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
 
 /**
  * Get current user profile
@@ -17,7 +18,7 @@ const getProfile = async (req, res) => {
 
     // Get user from database
     const result = await pool.query(
-      'SELECT id, firebase_uid, email, name, is_admin, created_at, updated_at FROM users WHERE firebase_uid = $1',
+      `SELECT ${USER_COLUMNS} FROM users WHERE firebase_uid = $1`,
       [uid]
     );
     
@@ -27,7 +28,7 @@ const getProfile = async (req, res) => {
       
       // Create user in database
       const newUser = await pool.query(
-        'INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
+        `INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING ${USER_COLUMNS}`,
         [userRecord.uid, userRecord.email, userRecord.displayName || '']
       );
 
@@ -49,12 +50,6 @@ const getProfile = async (req, res) => {
       accessed_by: uid
     };
 
-    // Log access to user profile
-    await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [result.rows[0].id, 'profile_access', `Profile accessed by ${uid}`, uid]
-    ).catch(err => console.error('Error logging audit:', err));
-    
     res.status(200).json(userData);
   } catch (error) {
     console.error('Error getting profile:', error);
@@ -68,14 +63,16 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { uid } = req.user;
-    const { name } = req.body;
+    const { name, location, dob } = req.body;
 
     console.log(`Profile update requested for UID: ${uid}`);
 
-    // Update in database
+    // location and dob were accepted by the validator and then dropped here, so the profile form
+    // reported success while saving nothing (IMP-008). A cleared field arrives as '', which DATE
+    // rejects, so both are normalised to NULL rather than written through.
     const result = await pool.query(
-      'UPDATE users SET name = $1, updated_at = NOW() WHERE firebase_uid = $2 RETURNING id, firebase_uid, email, name, is_admin, created_at, updated_at',
-      [name, uid]
+      `UPDATE users SET name = $1, location = $2, dob = $3, updated_at = NOW() WHERE firebase_uid = $4 RETURNING ${USER_COLUMNS}`,
+      [name, location || null, dob || null, uid]
     );
     
     if (result.rows.length === 0) {
@@ -89,12 +86,6 @@ const updateProfile = async (req, res) => {
       updated_by: uid
     };
 
-    // Log profile update
-    await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [result.rows[0].id, 'profile_update', `Profile updated by ${uid}`, uid]
-    ).catch(err => console.error('Error logging audit:', err));
-    
     console.log(`Profile updated successfully for ${result.rows[0].email}`);
     res.status(200).json(userData);
   } catch (error) {
@@ -125,12 +116,6 @@ const checkAdmin = async (req, res) => {
       return res.status(200).json({ isAdmin: false });
     }
 
-    // Log admin check for audit purposes
-    await pool.query(
-      'INSERT INTO audit_logs (user_id, action, details, performed_by, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [user.id, 'admin_check', `Admin status checked (result: ${isAdmin})`, uid]
-    ).catch(err => console.error('Error logging audit:', err));
-
     console.log(`Admin check for ${uid}: ${isAdmin ? 'Is admin' : 'Not admin'}`);
     res.status(200).json({
       isAdmin: isAdmin,
@@ -143,45 +128,14 @@ const checkAdmin = async (req, res) => {
   }
 };
 
-/**
- * Admin activity log
- */
-const logAdminActivity = async (req, res) => {
-  try {
-    const { uid } = req.user;
-    const { action, details } = req.body;
-
-    // Verify user is admin
-    const userResult = await pool.query(
-      'SELECT id, is_admin FROM users WHERE firebase_uid = $1',
-      [uid]
-    );
-    
-    if (userResult.rows.length === 0 || !userResult.rows[0].is_admin) {
-      return res.status(403).json({ message: 'Unauthorized: Admin access required' });
-    }
-    
-    // Log admin activity
-    await pool.query(
-      'INSERT INTO admin_logs (user_id, action, details, timestamp) VALUES ($1, $2, $3, NOW())',
-      [userResult.rows[0].id, action, details]
-    );
-
-    console.log(`Admin activity logged for ${uid}: ${action}`);
-    res.status(200).json({
-      success: true,
-      logged_at: new Date().toISOString(),
-      action: action
-    });
-  } catch (error) {
-    console.error('Error logging admin activity:', error);
-    res.status(500).json({ message: 'Error logging admin activity' });
-  }
-};
+// `logAdminActivity` was removed in Sprint 2.3 (IMP-010). It was exported but never routed, and it
+// wrote to an `admin_logs` table that has never existed — so it could only ever have 500'd. The
+// three `audit_logs` inserts alongside it are gone for the same reason: nothing read them, and one
+// fired on every profile page load. When moderation and admin analytics arrive (IMP-111) they bring
+// a real reader, and the audit schema should be designed around that rather than guessed at now.
 
 module.exports = {
   getProfile,
   updateProfile,
-  checkAdmin,
-  logAdminActivity
+  checkAdmin
 };

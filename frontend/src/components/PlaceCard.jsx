@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,7 +14,7 @@ import {
   FiCheck
 } from 'react-icons/fi';
 
-const PlaceCard = ({ place, timestamp, username, priority = false }) => {
+const PlaceCard = ({ place, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -29,18 +29,17 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
   const isValidPlace = place && place.id && place.name;
 
   // Get proper image URL for main image with optional cache busting in development
+  // The API now returns an absolute CDN url or null, so there is no proxy hop left to take
+  // (IMP-037). When there is no image, render the local placeholder directly — previously this
+  // fell through to `/api/places/:id/image`, which cost three server hops and two database
+  // queries only to end up serving that same placeholder.
+  //
+  // The `?t=${Date.now()}` cache-buster is gone with it. It was meant to be development-only, but
+  // it was evaluated on every render, so any re-render produced a new URL and re-downloaded the
+  // image — and it made the browser cache useless for the whole session.
   const getImageUrl = () => {
-    const cacheBuster = process.env.NODE_ENV === 'development' ? `?t=${Date.now()}` : '';
-    
-    // Prefer Cloudinary URLs or primary_image_url first
-    if (place.primary_image_url && !imageError) return `${place.primary_image_url}${cacheBuster}`;
-    if (place.image_url && !imageError) return `${place.image_url}${cacheBuster}`;
-    
-    // Fallback to API endpoint
-    if (isValidPlace && !imageError) return `/api/places/${place.id}/image${cacheBuster}`;
-    
-    // Ultimate fallback
-    return defaultImage;
+    if (imageError) return defaultImage;
+    return place.primary_image_url || place.image_url || defaultImage;
   };
 
   // Handle image error with advanced retry logic
@@ -123,11 +122,7 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
     
     observer.observe(cardRef.current);
     
-    return () => {
-      if (cardRef.current) {
-        observer.disconnect();
-      }
-    };
+    return () => observer.disconnect();
   }, []);
 
   // Shorten long text with ellipsis
@@ -414,12 +409,12 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
             {/* Footer */}
             <div className="mt-auto pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center text-xs text-gray-500">
               <div className="flex items-center">
-                <FiCalendar className="mr-1 text-gray-400" />
+                <FiCalendar className="mr-1 text-gray-500" />
                 <span className="whitespace-nowrap">{formatDate(place.created_at)}</span>
               </div>
               
               {place.updated_at && place.updated_at !== place.created_at && (
-                <div className="flex items-center text-xs text-gray-400 mr-2">
+                <div className="flex items-center text-xs text-gray-500 mr-2">
                   <FiClock className="mr-1" />
                   <span>Updated {formatDate(place.updated_at)}</span>
                 </div>
@@ -427,14 +422,14 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
               
               {place.rating_count > 0 ? (
                 <div className="flex items-center">
-                  <FiStar className={`mr-1 ${rating && parseFloat(rating.value) >= 4 ? 'text-yellow-500' : 'text-gray-400'}`} />
+                  <FiStar className={`mr-1 ${rating && parseFloat(rating.value) >= 4 ? 'text-yellow-500' : 'text-gray-500'}`} />
                   <span>
                     {place.rating_count} {place.rating_count === 1 ? 'review' : 'reviews'}
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center">
-                  <FiInfo className="mr-1 text-gray-400" />
+                  <FiInfo className="mr-1 text-gray-500" />
                   <span>No reviews yet</span>
                 </div>
               )}
@@ -456,4 +451,16 @@ const PlaceCard = ({ place, timestamp, username, priority = false }) => {
   );
 };
 
-export default PlaceCard;
+/**
+ * Memoised (IMP-045).
+ *
+ * The browse grid renders this component once per result, and each instance carries ~11
+ * motion elements, an IntersectionObserver and date formatting. Browse holds a lot of state that
+ * has nothing to do with any card — hover flags, the sort menu, the loading flag, the filter
+ * panel — and every one of those changes re-rendered every visible card, because there was no
+ * React.memo anywhere in the codebase.
+ *
+ * The default shallow comparison is the right one here: `place` is a row object replaced
+ * wholesale when the query changes, and the remaining props are primitives.
+ */
+export default memo(PlaceCard);

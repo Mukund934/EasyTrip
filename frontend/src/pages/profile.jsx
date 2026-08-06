@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import axios from 'axios';
 import { toast } from 'react-toastify';
 import { FiUser, FiMapPin, FiCalendar, FiSave } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 export default function Profile() {
-  const { currentUser, loading: authLoading, updateProfile } = useAuth();
+  const { currentUser, loading: authLoading, updateProfile, getIdToken } = useAuth();
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [dob, setDob] = useState('');
@@ -30,6 +33,35 @@ export default function Profile() {
       setDob(currentUser.dob ? new Date(currentUser.dob).toISOString().split('T')[0] : '');
     }
   }, [currentUser]);
+
+  // currentUser is built from the Firebase user object, which knows nothing about location or
+  // dob — those live only in our database. Without this the two fields came back blank on every
+  // reload even after a successful save, which reads as "it didn't save" (IMP-008). Values
+  // already typed are not overwritten, so a slow response cannot clobber the user mid-edit.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStoredProfile = async () => {
+      if (!currentUser) return;
+      try {
+        const token = await getIdToken();
+        if (!token) return;
+        const { data } = await axios.get(`${API_URL}/auth/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (cancelled || !data) return;
+        setLocation((current) => current || data.location || '');
+        setDob((current) => current || (data.dob ? new Date(data.dob).toISOString().split('T')[0] : ''));
+      } catch (error) {
+        // Non-fatal: the form still works, it just starts empty. Failing loudly here would block
+        // editing over a transient network error.
+        console.error('Could not load stored profile fields:', error);
+      }
+    };
+
+    loadStoredProfile();
+    return () => { cancelled = true; };
+  }, [currentUser, getIdToken]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,7 +102,7 @@ export default function Profile() {
         <meta name="description" content="Manage your EasyTrip profile" />
       </Head>
 
-      <div className="bg-gray-100 min-h-screen py-12">
+      <div className="bg-gray-100 min-h-screen pt-24 pb-12">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white shadow-md rounded-lg overflow-hidden">
             <div className="px-4 py-5 sm:px-6 bg-primary-600">

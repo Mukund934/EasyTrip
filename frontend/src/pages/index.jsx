@@ -2,20 +2,28 @@ import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FiArrowRight, FiArrowLeft, FiMapPin, FiStar, FiCalendar, 
-  FiCompass, FiChevronRight, FiClock, FiHeart, FiImage 
+import {
+  FiArrowRight,
+  FiArrowLeft,
+  FiMapPin,
+  FiStar,
+  FiCompass,
+  FiChevronRight,
+  FiHeart,
+  FiImage
 } from 'react-icons/fi';
-import { getAllPlaces, getLocations } from '../services/placeService';
+import { fetchPlaces } from '../services/placesApi';
 
 // CarouselImage component with better loading states
-const CarouselImage = ({ place, isActive }) => {
+const CarouselImage = ({ place }) => {
   const [imageState, setImageState] = useState('loading');
 
   const getImageUrl = () => {
     if (place?.primary_image_url) return place.primary_image_url;
     if (place?.image_url) return place.image_url;
-    return `/api/places/${place?.id}/image`;
+    // Local placeholder rather than the proxy: the API already resolved the fallback, so a
+    // missing image means there is none to fetch (IMP-037).
+    return '/images/placeholder.jpg';
   };
 
   return (
@@ -31,9 +39,9 @@ const CarouselImage = ({ place, isActive }) => {
       {imageState === 'error' && (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
           <div className="text-center">
-            <FiImage className="h-8 w-8 sm:h-12 sm:w-12 text-blue-400 mx-auto mb-2 sm:mb-3" />
-            <p className="text-blue-600 text-xs sm:text-sm font-medium">{place?.name}</p>
-            <p className="text-blue-500 text-xs">Explore this destination</p>
+            <FiImage className="h-8 w-8 sm:h-12 sm:w-12 text-primary-400 mx-auto mb-2 sm:mb-3" />
+            <p className="text-primary-600 text-xs sm:text-sm font-medium">{place?.name}</p>
+            <p className="text-primary-500 text-xs">Explore this destination</p>
           </div>
         </div>
       )}
@@ -66,7 +74,7 @@ const FeatureCard = ({ icon, title, description }) => (
     className="bg-white p-4 sm:p-6 rounded-xl shadow-lg backdrop-blur-sm border border-gray-100/50 hover:shadow-xl transition-shadow duration-300"
     whileHover={{ y: -5 }}
   >
-    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
+    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
       {icon}
     </div>
     <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 text-center">{title}</h3>
@@ -97,12 +105,13 @@ const CategoryCard = ({ category, gradient }) => (
 );
 
 // Main Home component
-const Home = () => {
-  const [places, setPlaces] = useState([]);
-  const [locations, setLocations] = useState([]);
+//
+// Data arrives as props from `getStaticProps` below, so the carousel is in the HTML the server
+// sends rather than three stages behind it (IMP-040). There is no loading state left to model:
+// by the time this component runs, `places` is already populated.
+const Home = ({ places = [], loadError = null }) => {
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const error = loadError;
   const [autoplay, setAutoplay] = useState(true);
   const [direction, setDirection] = useState(1);
   const [likedPlaces, setLikedPlaces] = useState([]);
@@ -135,69 +144,6 @@ const Home = () => {
   useEffect(() => {
     localStorage.setItem('easytrip_liked_places', JSON.stringify(likedPlaces));
   }, [likedPlaces]);
-
-  // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Check localStorage first
-        const cachedPlaces = localStorage.getItem('easytrip_carousel_places');
-        const cachedTime = localStorage.getItem('easytrip_carousel_cache_time');
-        
-        if (cachedPlaces && cachedTime) {
-          const cacheAge = Date.now() - parseInt(cachedTime);
-          if (cacheAge < 300000) { // 5 minutes cache
-            const parsedPlaces = JSON.parse(cachedPlaces);
-            if (parsedPlaces.length > 0) {
-              setPlaces(parsedPlaces.slice(0, 4));
-              setLoading(false);
-              return;
-            }
-          }
-        }
-
-        const [placesData, locationsData] = await Promise.all([getAllPlaces(), getLocations()]);
-        
-        if (!Array.isArray(placesData)) {
-          console.error('Invalid data format:', placesData);
-          setError('Invalid data format received');
-          setPlaces([]);
-          return;
-        }
-
-        // Sort places by rating (real data only)
-        const sortedByRating = [...placesData].sort((a, b) => {
-          const ratingA = a.rating_count > 0 ? a.rating_sum / a.rating_count : 0;
-          const ratingB = b.rating_count > 0 ? b.rating_sum / b.rating_count : 0;
-          return ratingB - ratingA;
-        });
-
-        // Take only top 4 places and clean the data
-        const limitedPlaces = sortedByRating.slice(0, 4).map(place => ({
-          ...place,
-          tags: place.tags || ['Destination'],
-          best_time: place.best_time || 'Year round',
-        }));
-
-        // Cache the data
-        localStorage.setItem('easytrip_carousel_places', JSON.stringify(limitedPlaces));
-        localStorage.setItem('easytrip_carousel_cache_time', Date.now().toString());
-        
-        setPlaces(limitedPlaces);
-        setLocations(locationsData);
-        
-      } catch (err) {
-        console.error('Error fetching places:', err);
-        setError('Failed to load destinations. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   // Autoplay carousel
   useEffect(() => {
@@ -301,10 +247,9 @@ const Home = () => {
         <title>EasyTrip - Discover Your Journey</title>
         <meta name="description" content="Explore curated destinations with EasyTrip, your premium travel companion." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
       </Head>
 
-      <div className="min-h-screen bg-gray-900 font-inter">
+      <div className="min-h-screen bg-gray-900">
         {/* Hero Section */}
         <div className="relative min-h-screen overflow-hidden">
           {/* Dynamic Background Image */}
@@ -338,7 +283,7 @@ const Home = () => {
                 >
                   <h1 className="text-2xl sm:text-3xl font-extrabold mb-3 leading-tight">
                     Discover Your Next
-                    <span className="block text-blue-300">Adventure</span>
+                    <span className="block text-primary-300">Adventure</span>
                   </h1>
                   
                   <p className="text-sm text-gray-200 mb-5 max-w-xs mx-auto leading-relaxed">
@@ -350,7 +295,7 @@ const Home = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-full px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center text-sm"
+                        className="w-full px-5 py-2.5 bg-primary-600 text-white font-medium rounded-lg shadow-lg hover:bg-primary-700 transition-colors flex items-center justify-center text-sm"
                       >
                         <FiCompass className="mr-2 h-4 w-4" />
                         Explore Now
@@ -381,20 +326,13 @@ const Home = () => {
                     onTouchStart={() => setAutoplay(false)}
                     onTouchEnd={() => setTimeout(() => setAutoplay(true), 3000)}
                   >
-                    {loading ? (
-                      <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
-                        <div className="text-center">
-                          <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin mb-3"></div>
-                          <p className="text-white/80 text-sm">Loading...</p>
-                        </div>
-                      </div>
-                    ) : error ? (
+                    {error ? (
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
                           <p className="mb-3 text-sm">{error}</p>
                           <button 
                             onClick={() => window.location.reload()}
-                            className="px-3 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            className="px-3 py-2 bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors text-sm"
                           >
                             Try Again
                           </button>
@@ -455,7 +393,7 @@ const Home = () => {
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={(e) => toggleLike(e, places[currentPlaceIndex]?.id)}
-                                    className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-7 h-7 flex items-center justify-center shadow-lg transition-colors ${
+                                    className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-11 h-11 flex items-center justify-center shadow-lg transition-colors ${
                                       likedPlaces.includes(places[currentPlaceIndex]?.id) 
                                         ? 'bg-red-500 text-white' 
                                         : 'bg-white/95 text-gray-700'
@@ -489,7 +427,7 @@ const Home = () => {
                                       {places[currentPlaceIndex]?.tags?.slice(0, 2).map((tag, idx) => (
                                         <span 
                                           key={idx} 
-                                          className="bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 text-xs font-medium"
+                                          className="bg-primary-100 text-primary-700 rounded-full px-2 py-0.5 text-xs font-medium"
                                         >
                                           {tag}
                                         </span>
@@ -503,7 +441,7 @@ const Home = () => {
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 px-3 py-1.5 text-xs flex items-center"
+                                        className="bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 px-3 py-1.5 text-xs flex items-center"
                                       >
                                         View Details
                                         <FiChevronRight className="ml-1 h-3 w-3" />
@@ -511,7 +449,7 @@ const Home = () => {
                                     </Link>
                                     
                                     <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
-                                      <button className="text-blue-600 hover:text-blue-800 text-xs underline underline-offset-2">
+                                      <button className="text-primary-600 hover:text-primary-800 text-xs underline underline-offset-2">
                                         More places
                                       </button>
                                     </Link>
@@ -561,7 +499,7 @@ const Home = () => {
                     className="text-white max-w-2xl"
                   >
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
-                      Discover Your Next <span className="text-blue-300">Adventure</span>
+                      Discover Your Next <span className="text-primary-300">Adventure</span>
                     </h1>
                     
                     <p className="text-lg lg:text-xl text-gray-200 mb-8 max-w-lg leading-relaxed">
@@ -573,7 +511,7 @@ const Home = () => {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center"
+                          className="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg shadow-lg hover:bg-primary-700 transition-colors flex items-center"
                         >
                           <FiCompass className="mr-2" />
                           Explore Now
@@ -604,20 +542,13 @@ const Home = () => {
                     onMouseEnter={() => setAutoplay(false)}
                     onMouseLeave={() => setAutoplay(true)}
                   >
-                    {loading ? (
-                      <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
-                        <div className="text-center">
-                          <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
-                          <p className="text-white/80 text-sm">Loading destinations...</p>
-                        </div>
-                      </div>
-                    ) : error ? (
+                    {error ? (
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
                           <p className="mb-4 text-sm">{error}</p>
                           <button 
                             onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            className="px-4 py-2 bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors text-sm"
                           >
                             Try Again
                           </button>
@@ -708,7 +639,7 @@ const Home = () => {
                                       {places[currentPlaceIndex]?.tags?.slice(0, 3).map((tag, idx) => (
                                         <span 
                                           key={idx} 
-                                          className="bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-sm font-medium"
+                                          className="bg-primary-100 text-primary-700 rounded-full px-3 py-1 text-sm font-medium"
                                         >
                                           {tag}
                                         </span>
@@ -722,7 +653,7 @@ const Home = () => {
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 px-5 py-2 text-sm flex items-center"
+                                        className="bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 px-5 py-2 text-sm flex items-center"
                                       >
                                         View Details
                                         <FiChevronRight className="ml-1 h-4 w-4" />
@@ -730,7 +661,7 @@ const Home = () => {
                                     </Link>
                                     
                                     <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
-                                      <button className="text-blue-600 hover:text-blue-800 text-sm underline underline-offset-2">
+                                      <button className="text-primary-600 hover:text-primary-800 text-sm underline underline-offset-2">
                                         More destinations
                                       </button>
                                     </Link>
@@ -748,6 +679,7 @@ const Home = () => {
                             whileTap={{ scale: 0.9 }}
                             className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-lg transition-all disabled:opacity-50"
                             onClick={goToPrevPlace}
+                            aria-label="Previous destination"
                             disabled={isTransitioning}
                           >
                             <FiArrowLeft className="h-5 w-5" />
@@ -757,6 +689,7 @@ const Home = () => {
                             whileTap={{ scale: 0.9 }}
                             className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-lg transition-all disabled:opacity-50"
                             onClick={goToNextPlace}
+                            aria-label="Next destination"
                             disabled={isTransitioning}
                           >
                             <FiArrowRight className="h-5 w-5" />
@@ -852,7 +785,7 @@ const Home = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-6 sm:px-8 py-3 bg-blue-600 text-white font-medium rounded-lg flex items-center mx-auto text-sm sm:text-base shadow-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 sm:px-8 py-3 bg-primary-600 text-white font-medium rounded-lg flex items-center mx-auto text-sm sm:text-base shadow-lg hover:bg-primary-700 transition-colors"
                 >
                   Start Exploring
                   <FiArrowRight className="ml-2 h-4 w-4" />
@@ -889,8 +822,11 @@ const Home = () => {
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
               {[
-                'Adventure', 'Historical', 'Romantic', 'Nature', 
-                'Religious', 'Beach', 'Mountain', 'City'
+                // CategoryCard links to /browse?theme=<lowercased label>, so every entry here must
+                // lowercase to a real theme id in browse.jsx's themeOptions. 'City' did not, so that
+                // tile always landed on an empty result set (IMP-021).
+                'Adventure', 'Historical', 'Romantic', 'Nature',
+                'Religious', 'Beach', 'Mountain', 'Family'
               ].map((category, index) => (
                 <CategoryCard 
                   key={category} 
@@ -905,5 +841,44 @@ const Home = () => {
     </>
   );
 };
+
+/**
+ * Pre-render the landing page and refresh it in the background (IMP-040).
+ *
+ * What this replaces: the carousel used to download **every place, all columns**, sort them in
+ * the browser, keep the top four and throw the rest away — then cache those four in localStorage
+ * for five minutes to avoid doing it again. The server can sort and limit, so the request is now
+ * for four rows instead of the catalogue, and ISR makes it the *build's* request rather than
+ * every visitor's. The localStorage cache is gone with it: a pre-rendered page already has the
+ * data in its HTML, which beats reading it back out of localStorage after hydration.
+ *
+ * `revalidate: 300` keeps the previous five-minute freshness contract, now served from the CDN
+ * edge instead of each browser's own storage.
+ */
+export async function getStaticProps() {
+  try {
+    const placesResult = await fetchPlaces({ sort: 'rating', limit: 4 });
+
+    const places = placesResult.data.map((place) => ({
+      ...place,
+      tags: place.tags || ['Destination'],
+      best_time: place.best_time || 'Year round'
+    }));
+
+    return {
+      props: { places },
+      revalidate: 300
+    };
+  } catch (error) {
+    // A build or revalidation must not fail because the API is briefly unreachable. Render the
+    // page with its error state and retry sooner than the normal interval — the alternative is
+    // a failed deploy, or a stale page with no way to recover on its own.
+    console.error('[getStaticProps] home:', error.message);
+    return {
+      props: { places: [], loadError: 'Failed to load destinations. Please try again.' },
+      revalidate: 30
+    };
+  }
+}
 
 export default Home;
