@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 import { toast } from 'react-toastify';
 import { FiUser, FiMapPin, FiCalendar, FiSave } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function Profile() {
   const { currentUser, loading: authLoading, updateProfile, getIdToken } = useAuth();
@@ -46,8 +45,9 @@ export default function Profile() {
       try {
         const token = await getIdToken();
         if (!token) return;
-        const { data } = await axios.get(`${API_URL}/auth/profile`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const { data } = await apiClient.get('/auth/profile', {
+          authToken: token,
+          requireAuth: true
         });
         if (cancelled || !data) return;
         setLocation((current) => current || data.location || '');

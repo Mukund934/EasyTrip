@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { auth } from '../config/firebase';
+import apiClient, { ApiClientError } from './apiClient';
 import {
   fetchPlaceById,
   fetchPlaceImages,
@@ -9,12 +8,9 @@ import {
   fetchTags
 } from './placesApi';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
 /**
- * This module now holds only what needs a Firebase ID token. The public reads moved to
- * `placesApi.js` so the server-rendering paths can call them without importing
- * `../config/firebase`, which this file initialises at module scope (IMP-040).
+ * This module holds only what needs a Firebase ID token. The public reads live in `placesApi.js`
+ * so the server-rendering paths can call them without importing `../config/firebase` (IMP-040).
  *
  * The read names below are re-exported rather than reimplemented: one implementation, one place
  * for a bug to live, and no import churn in the admin pages that already call them.
@@ -23,6 +19,22 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
  * array; the endpoint now returns `{ data, pagination }`, and a function that quietly discarded
  * the pagination half would hand callers a page while letting them believe it was the catalogue.
  * Callers use `fetchPlaces` from `placesApi` instead.
+ *
+ * ---------------------------------------------------------------------------
+ * What IMP-072 changed here
+ * ---------------------------------------------------------------------------
+ * Every function used to end in the same eight lines: a `console.error`, then a thrown object
+ * literal that dug through `error.response?.data?.errors?.[0]?.message ||
+ * error.response?.data?.message || <fallback>`. Eight copies, three of which had drifted into
+ * subtly different shapes — one threw `{ message, response, status }`, another
+ * `{ message, status, responseData }`, a third a bare `Error`. Callers could not know which.
+ *
+ * `apiClient` now owns the base URL, the Authorization header, and the error shape
+ * (`ApiClientError`, always with `.message` and `.status`). What is left in each function is the
+ * request and one line of fallback text — which is all these functions were ever about.
+ *
+ * The `authHeaders` helper is gone with them: the interceptor attaches the token, and
+ * `requireAuth: true` produces the same "You must be signed in" error it used to throw by hand.
  */
 const getPlaceById = fetchPlaceById;
 const getPlaceImages = fetchPlaceImages;
@@ -32,26 +44,43 @@ const getStates = fetchStates;
 const getTags = fetchTags;
 
 /**
- * Build the Authorization header for an authenticated request.
- * An explicit token from the caller wins; otherwise ask the Firebase SDK for a
- * fresh one, so a long-lived tab never sends a stale token.
+ * Replace the client's error text when it would not mean anything to a user, and keep it when it
+ * would. A 4xx from the API carries a real message — the validator's field error, "Place not
+ * found", "Admin access required". A request that never got a response carries axios's own wording
+ * ("Network Error"), which is not something to show.
  */
-const authHeaders = async (token) => {
-  let idToken = token;
-
-  if (!idToken && auth.currentUser) {
-    idToken = await auth.currentUser.getIdToken();
-  }
-
-  if (!idToken) {
-    throw {
-      message: 'You must be signed in to perform this action.',
-      status: 401
-    };
-  }
-
-  return { Authorization: `Bearer ${idToken}` };
+const withFallback = (error, fallback) => {
+  if (error instanceof ApiClientError && error.status) return error;
+  return new ApiClientError(fallback, error?.status, error?.data);
 };
+
+/**
+ * Build the multipart body for a place create/update.
+ *
+ * Shared because create and update had byte-identical copies of this loop. Objects and arrays are
+ * JSON-encoded because `FormData` stringifies everything else to `"[object Object]"`.
+ */
+const buildPlaceFormData = (placeData) => {
+  const formData = new FormData();
+
+  if (placeData.image) formData.append('image', placeData.image);
+
+  Object.entries(placeData).forEach(([key, value]) => {
+    if (key === 'image' || value === undefined || value === null) return;
+    if (typeof value === 'object' && !(value instanceof File)) {
+      formData.append(key, JSON.stringify(value));
+    } else {
+      formData.append(key, value);
+    }
+  });
+
+  return formData;
+};
+
+// `Content-Type` is deliberately not set for these. axios derives `multipart/form-data` from the
+// FormData body *including the boundary parameter*; setting the header by hand omits the boundary
+// and the server cannot parse the body. The previous adminService set it manually and only worked
+// because axios overrode it anyway.
 
 /**
  * Create place (admin)
@@ -59,44 +88,17 @@ const authHeaders = async (token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const createPlace = async (placeData, token) => {
-  const headers = await authHeaders(token);
-
   try {
-
-    const formData = new FormData();
-
-    // Add image if present
-    if (placeData.image) {
-      formData.append('image', placeData.image);
-    }
-
-    // Add all other fields to formData
-    Object.entries(placeData).forEach(([key, value]) => {
-      if (key !== 'image' && value !== undefined && value !== null) {
-        if (typeof value === 'object' && !(value instanceof File)) {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, value);
-        }
-      }
+    const response = await apiClient.post('/admin/places', buildPlaceFormData(placeData), {
+      authToken: token,
+      requireAuth: true
     });
-
-    const response = await axios.post(`${API_URL}/admin/places`, formData, { headers });
-
     return response.data;
   } catch (error) {
-    console.error('Error creating place:', {
-      message: error.response?.data?.message || error.message,
-      status: error.response?.status,
-      responseData: error.response?.data,
-      timestamp: new Date().toISOString()
-    });
-
-    throw {
-      message: error.response?.data?.message || 'Server error - please try again. If the problem persists, contact support',
-      response: error.response,
-      status: error.response?.status
-    };
+    throw withFallback(
+      error,
+      'Server error - please try again. If the problem persists, contact support'
+    );
   }
 };
 
@@ -107,43 +109,14 @@ const createPlace = async (placeData, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const updatePlace = async (id, placeData, token) => {
-  const headers = await authHeaders(token);
-
   try {
-
-    const formData = new FormData();
-
-    // Add image if present
-    if (placeData.image) {
-      formData.append('image', placeData.image);
-    }
-
-    // Add all other fields to formData
-    Object.entries(placeData).forEach(([key, value]) => {
-      if (key !== 'image' && value !== undefined && value !== null) {
-        if (typeof value === 'object' && !(value instanceof File)) {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, value);
-        }
-      }
+    const response = await apiClient.put(`/admin/places/${id}`, buildPlaceFormData(placeData), {
+      authToken: token,
+      requireAuth: true
     });
-
-    const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, { headers });
-
     return response.data;
   } catch (error) {
-    console.error(`Error updating place ${id}:`, {
-      message: error.response?.data?.message || error.message,
-      status: error.response?.status,
-      responseData: error.response?.data
-    });
-
-    throw {
-      message: error.response?.data?.message || 'Error updating place',
-      status: error.response?.status,
-      responseData: error.response?.data
-    };
+    throw withFallback(error, 'Error updating place');
   }
 };
 
@@ -153,50 +126,37 @@ const updatePlace = async (id, placeData, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const deletePlace = async (id, token) => {
-  const headers = await authHeaders(token);
-
   try {
-
-    const response = await axios.delete(`${API_URL}/admin/places/${id}`, { headers });
-
+    const response = await apiClient.delete(`/admin/places/${id}`, {
+      authToken: token,
+      requireAuth: true
+    });
     return response.data;
   } catch (error) {
-    console.error(`Error deleting place ${id}:`, error.response?.data || error.message);
-    throw {
-      message: error.response?.data?.message || 'Error deleting place',
-      status: error.response?.status
-    };
+    throw withFallback(error, 'Error deleting place');
   }
 };
 
 /**
  * Get place reviews.
  *
- * The endpoint is public, so this never requires a token — but when one is available
- * the server soft-authenticates the request and flags the caller's own review with
- * `is_own`. That flag is the only way the client can recognise its own review, since
- * the payload's `user_id` is an opaque per-place digest rather than a Firebase uid.
+ * The endpoint is public, so this never requires a token — but when one is available the server
+ * soft-authenticates the request and flags the caller's own review with `is_own`. That flag is the
+ * only way the client can recognise its own review, since the payload's `user_id` is an opaque
+ * per-place digest rather than a Firebase uid.
+ *
+ * Hence no `requireAuth`: the shared interceptor attaches a token if there is one and sends the
+ * request without it if there is not, which is exactly the behaviour this needs.
  *
  * @param {Number|String} id - Place ID
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const getPlaceReviews = async (id, token) => {
   try {
-
-    let idToken = token;
-    if (!idToken && auth.currentUser) {
-      idToken = await auth.currentUser.getIdToken().catch(() => null);
-    }
-
-    const response = await axios.get(
-      `${API_URL}/places/${id}/reviews`,
-      idToken ? { headers: { Authorization: `Bearer ${idToken}` } } : undefined
-    );
-
+    const response = await apiClient.get(`/places/${id}/reviews`, { authToken: token });
     return response.data;
   } catch (error) {
-    console.error(`Error fetching reviews for place ${id}:`, error.response?.data || error.message);
-    throw new Error('Failed to fetch reviews');
+    throw withFallback(error, 'Failed to fetch reviews');
   }
 };
 
@@ -207,31 +167,17 @@ const getPlaceReviews = async (id, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const createPlaceReview = async (id, reviewData, token) => {
-  const headers = await authHeaders(token);
-
   try {
-
-    // Only the review itself travels on the wire; the author is derived from the
-    // verified token server-side, so any client-supplied identity is dropped here.
-    const payload = {
-      rating: reviewData.rating,
-      comment: reviewData.comment
-    };
-
-    const response = await axios.post(`${API_URL}/places/${id}/reviews`, payload, { headers });
-
+    // Only the review itself travels on the wire; the author is derived from the verified token
+    // server-side, so any client-supplied identity is dropped here.
+    const response = await apiClient.post(
+      `/places/${id}/reviews`,
+      { rating: reviewData.rating, comment: reviewData.comment },
+      { authToken: token, requireAuth: true }
+    );
     return response.data;
   } catch (error) {
-    console.error(`Error creating review for place ${id}:`, error.response?.data || error.message);
-    // A 400 from the validator arrives as { message: 'Validation failed', errors: [...] };
-    // the field message is the one worth showing the reviewer.
-    throw {
-      message:
-        error.response?.data?.errors?.[0]?.message ||
-        error.response?.data?.message ||
-        'Error creating review',
-      status: error.response?.status
-    };
+    throw withFallback(error, 'Error creating review');
   }
 };
 
@@ -247,19 +193,14 @@ const createPlaceReview = async (id, reviewData, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const deletePlaceReview = async (id, reviewId, token) => {
-  const headers = await authHeaders(token);
-
   try {
-
-    await axios.delete(`${API_URL}/places/${id}/reviews/${reviewId}`, { headers });
-
+    await apiClient.delete(`/places/${id}/reviews/${reviewId}`, {
+      authToken: token,
+      requireAuth: true
+    });
     return true;
   } catch (error) {
-    console.error(`Error deleting review ${reviewId}:`, error.response?.data || error.message);
-    throw {
-      message: error.response?.data?.message || 'Error deleting review',
-      status: error.response?.status
-    };
+    throw withFallback(error, 'Error deleting review');
   }
 };
 
@@ -275,26 +216,15 @@ const deletePlaceReview = async (id, reviewId, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const reportPlaceReview = async (id, reviewId, reason, token) => {
-  const headers = await authHeaders(token);
-
   try {
-
-    const response = await axios.post(
-      `${API_URL}/places/${id}/reviews/${reviewId}/report`,
+    const response = await apiClient.post(
+      `/places/${id}/reviews/${reviewId}/report`,
       reason ? { reason } : {},
-      { headers }
+      { authToken: token, requireAuth: true }
     );
-
     return response.data;
   } catch (error) {
-    console.error(`Error reporting review ${reviewId}:`, error.response?.data || error.message);
-    throw {
-      message:
-        error.response?.data?.errors?.[0]?.message ||
-        error.response?.data?.message ||
-        'Error reporting review',
-      status: error.response?.status
-    };
+    throw withFallback(error, 'Error reporting review');
   }
 };
 
@@ -307,25 +237,18 @@ const reportPlaceReview = async (id, reviewId, reason, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const addPlaceImage = async (id, file, caption, token) => {
-  const headers = await authHeaders(token);
-
   try {
     const formData = new FormData();
     formData.append('image', file);
     if (caption) formData.append('caption', caption);
 
-    const response = await axios.post(`${API_URL}/admin/places/${id}/images`, formData, { headers });
-
+    const response = await apiClient.post(`/admin/places/${id}/images`, formData, {
+      authToken: token,
+      requireAuth: true
+    });
     return response.data;
   } catch (error) {
-    console.error(`Error adding gallery image to place ${id}:`, error.response?.data || error.message);
-    throw {
-      message:
-        error.response?.data?.errors?.[0]?.message ||
-        error.response?.data?.message ||
-        'Error adding gallery image',
-      status: error.response?.status
-    };
+    throw withFallback(error, 'Error adding gallery image');
   }
 };
 
@@ -337,21 +260,17 @@ const addPlaceImage = async (id, file, caption, token) => {
  * @param {String} [token] - Firebase ID token; resolved from the SDK when omitted
  */
 const deletePlaceImage = async (id, imageId, token) => {
-  const headers = await authHeaders(token);
-
   try {
-    await axios.delete(`${API_URL}/admin/places/${id}/images/${imageId}`, { headers });
+    await apiClient.delete(`/admin/places/${id}/images/${imageId}`, {
+      authToken: token,
+      requireAuth: true
+    });
     return true;
   } catch (error) {
-    console.error(`Error deleting gallery image ${imageId}:`, error.response?.data || error.message);
-    throw {
-      message: error.response?.data?.message || 'Error deleting gallery image',
-      status: error.response?.status
-    };
+    throw withFallback(error, 'Error deleting gallery image');
   }
 };
 
-// Export all functions
 const placeService = {
   getPlaceById,
   getLocations,

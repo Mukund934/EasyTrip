@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import { FiPlus, FiList, FiUsers } from 'react-icons/fi';
+import { requireAdminPage } from '../../services/adminGate';
 
 export default function AdminDashboard() {
   const { currentUser, loading, isAdmin } = useAuth();
@@ -144,31 +145,4 @@ export default function AdminDashboard() {
 // a document request, so it only reaches this function when the auth layer mirrors it into the
 // `et_id_token` cookie. Without a verifiable admin token the page HTML is never served; the
 // useEffect guard above stays as defence in depth for client-side navigations.
-export async function getServerSideProps({ req }) {
-  const token = req.cookies?.et_id_token;
-
-  if (!token) {
-    return { redirect: { destination: '/login', permanent: false } };
-  }
-
-  try {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const response = await fetch(`${API_URL}/auth/check-admin`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (!response.ok) {
-      return { redirect: { destination: '/login', permanent: false } };
-    }
-
-    const { isAdmin } = await response.json();
-    if (!isAdmin) {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  } catch (error) {
-    console.error('Admin gate check failed:', error.message);
-    return { redirect: { destination: '/login', permanent: false } };
-  }
-
-  return { props: {} };
-}
+export const getServerSideProps = requireAdminPage;

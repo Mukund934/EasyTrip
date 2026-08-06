@@ -1,3 +1,4 @@
+import { resolveApiBaseUrl } from '../../../../services/apiConfig';
 // This handler should not return objects - fix the warnings
 
 // Only a positive integer may be interpolated into the upstream URL, so this route can
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
   const placeId = Number(id);
 
   try {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const API_URL = resolveApiBaseUrl();
     
     try {
       // Request image from backend

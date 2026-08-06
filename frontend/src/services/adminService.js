@@ -1,164 +1,56 @@
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import apiClient from './apiClient';
 
 /**
- * Add a new place
- * @param {String} token - Firebase ID token
- * @param {Object} placeData - Place data
- * @returns {Promise<Object>} - API response
+ * Admin-user management (IMP-072).
+ *
+ * Three things changed here, all of them removals:
+ *
+ * 1. **The base URL is gone.** This module read `process.env.NEXT_PUBLIC_API_URL` with no
+ *    fallback, so with the variable unset every request went to the literal string
+ *    `undefined/admin/places`. The shared client resolves the URL once (`apiConfig.js`).
+ *
+ * 2. **The Authorization header is gone.** It was built by hand at six call sites here alone.
+ *    `apiClient`'s request interceptor attaches it now — one place to get right, which is the
+ *    point of `IMP-003`'s fix rather than a restatement of it.
+ *
+ * 3. **`addPlace`, `updatePlace` and `deletePlace` are gone.** They duplicated
+ *    `placeService.createPlace/updatePlace/deletePlace`, and nothing imported them: the only
+ *    consumer of this module is `pages/admin/users.jsx`, which uses the three admin-management
+ *    functions below. The place-management pages have always used `placeService`. Two
+ *    implementations of one feature, one of them wired — the same shape as the profile vertical
+ *    deleted in Sprint 5.1.
+ *
+ * `token` is still an explicit parameter. The pages hold one from `AuthContext` already, and
+ * passing it lets the interceptor skip a second SDK round trip; omitting it is also fine, since
+ * the interceptor falls back to asking Firebase.
  */
-const addPlace = async (token, placeData) => {
-  try {
-    // Create form data for file upload
-    const formData = new FormData();
-    
-    // Add text fields
-    formData.append('name', placeData.name);
-    formData.append('location', placeData.location);
-    if (placeData.description) formData.append('description', placeData.description);
-    if (placeData.tags) formData.append('tags', JSON.stringify(placeData.tags));
-    if (placeData.custom_keys) formData.append('custom_keys', JSON.stringify(placeData.custom_keys));
-    
-    // Add image if exists
-    if (placeData.image) formData.append('image', placeData.image);
-    
-    const response = await axios.post(`${API_URL}/admin/places`, formData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { success: false, message: error.message };
-  }
-};
 
-/**
- * Update a place
- * @param {String} token - Firebase ID token
- * @param {Number} id - Place ID
- * @param {Object} placeData - Place data
- * @returns {Promise<Object>} - API response
- */
-const updatePlace = async (token, id, placeData) => {
-  try {
-    // Create form data for file upload
-    const formData = new FormData();
-    
-    // Add text fields
-    if (placeData.name) formData.append('name', placeData.name);
-    if (placeData.location) formData.append('location', placeData.location);
-    if (placeData.description) formData.append('description', placeData.description);
-    if (placeData.tags) formData.append('tags', JSON.stringify(placeData.tags));
-    if (placeData.custom_keys) formData.append('custom_keys', JSON.stringify(placeData.custom_keys));
-    
-    // Add image if exists
-    if (placeData.image) formData.append('image', placeData.image);
-    
-    const response = await axios.put(`${API_URL}/admin/places/${id}`, formData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { success: false, message: error.message };
-  }
-};
-
-/**
- * Delete a place
- * @param {String} token - Firebase ID token
- * @param {Number} id - Place ID
- * @returns {Promise<Object>} - API response
- */
-const deletePlace = async (token, id) => {
-  try {
-    const response = await axios.delete(`${API_URL}/admin/places/${id}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { success: false, message: error.message };
-  }
-};
-
-/**
- * Add a new admin
- * @param {String} token - Firebase ID token
- * @param {String} email - Admin email
- * @returns {Promise<Object>} - API response
- */
-const addAdmin = async (token, email) => {
-  try {
-    const response = await axios.post(
-      `${API_URL}/admin/admins`,
-      { email },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      }
-    );
-    
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { success: false, message: error.message };
-  }
-};
-
-/**
- * Remove an admin
- * @param {String} token - Firebase ID token
- * @param {String} email - Admin email
- * @returns {Promise<Object>} - API response
- */
-const removeAdmin = async (token, email) => {
-  try {
-    const response = await axios.delete(`${API_URL}/admin/admins/${email}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { success: false, message: error.message };
-  }
-};
-
-/**
- * Get all admins
- * @param {String} token - Firebase ID token
- * @returns {Promise<Object>} - API response
- */
+/** Every admin (id, email, name). Returns the raw array the API sends. */
 const getAllAdmins = async (token) => {
-  try {
-    const response = await axios.get(`${API_URL}/admin/admins`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { success: false, message: error.message };
-  }
+  const response = await apiClient.get('/admin/admins', { authToken: token, requireAuth: true });
+  return response.data;
+};
+
+/** Grant admin rights to an existing user by email. */
+const addAdmin = async (token, email) => {
+  const response = await apiClient.post(
+    '/admin/admins',
+    { email },
+    { authToken: token, requireAuth: true }
+  );
+  return response.data;
+};
+
+/** Revoke admin rights. The email is a path segment, so it must be encoded. */
+const removeAdmin = async (token, email) => {
+  const response = await apiClient.delete(`/admin/admins/${encodeURIComponent(email)}`, {
+    authToken: token,
+    requireAuth: true,
+  });
+  return response.data;
 };
 
 export const adminService = {
-  addPlace,
-  updatePlace,
-  deletePlace,
   addAdmin,
   removeAdmin,
   getAllAdmins,
