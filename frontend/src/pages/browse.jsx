@@ -52,6 +52,10 @@ import { useAuth } from '../context/AuthContext';
 import debounce from 'lodash/debounce';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { getPlaceThumbnailUrl } from '../utils/placeImage';
+import { useBrowseFilters } from '../hooks/useBrowseFilters';
+import { useBrowsePlaces } from '../hooks/useBrowsePlaces';
+import { useBrowseFacets, useBrowseMapPlaces } from '../hooks/useBrowseFacets';
+import { useRecentSearches } from '../hooks/useRecentSearches';
 import { formatAverageRating, hasRating } from '../utils/rating';
 
 // Dynamically import the map component
@@ -160,36 +164,53 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Results (IMP-038 / IMP-046).
+  // ---------------------------------------------------------------------------
+  // Filters, results, facets and history now live in hooks (IMP-070).
   //
-  // There used to be three lists here — `places` (everything the API returned), `filteredPlaces`
-  // (the same data narrowed) and `displayedPlaces` (a slice of that) — kept in step by a chain
-  // of effects, one of which compared the whole dataset with `JSON.stringify` on every pass.
-  // Filtering, sorting and paging all happen in the query now, so there is one list: the rows
-  // the server returned for the current criteria, with each additional page appended to it.
-  const [places, setPlaces] = useState(initialResults?.data || []);
-  const [total, setTotal] = useState(initialResults?.pagination?.total || 0);
-  const [hasMore, setHasMore] = useState(initialResults?.pagination?.hasMore || false);
+  // This block was ~380 lines of state, effects and handlers inline in the page. The rules behind
+  // it are in `utils/browseFilters.js` as pure functions, which is what makes them testable
+  // without mounting the page; the hooks are the React layer over them.
+  //
+  // The individual filter names below are destructured back out of the one `filters` object so the
+  // markup underneath is unchanged. That is deliberate: an extraction that also rewrites 1,700
+  // lines of JSX is an extraction nobody can review.
+  // ---------------------------------------------------------------------------
+  const {
+    filters,
+    setFilter,
+    toggleTheme: handleThemeToggle,
+    toggleTag: handleTagToggle,
+    clearAllFilters: resetFilters,
+    criteria,
+    criteriaKey,
+    activeFilterCount,
+    hasActiveFilters
+  } = useBrowseFilters(initialFilters);
 
-  // Filter data
-  const [locations, setLocations] = useState(initialFacets?.locations || []);
-  const [districts, setDistricts] = useState(initialFacets?.districts || []);
-  const [states, setStates] = useState(initialFacets?.states || []);
-  const [tags, setTags] = useState(initialFacets?.tags || []);
+  const {
+    searchTerm,
+    location: selectedLocation,
+    district: selectedDistrict,
+    state: selectedState,
+    themes: selectedThemes,
+    tags: selectedTags,
+    date: selectedDate,
+    minRating: ratingFilter
+  } = filters;
 
-  // Map markers: fetched separately, only while the map is open, with a marker-sized projection.
-  // The grid is paginated and the map is not — one page of cards is the right amount of data to
-  // scroll through, and twelve pins is not a map. Splitting them means neither view pays for
-  // the other: the grid no longer downloads coordinates for the whole catalogue, and the map no
-  // longer downloads descriptions it will never render.
-  const [mapPlaces, setMapPlaces] = useState([]);
-  const [mapLoading, setMapLoading] = useState(false);
+  const setSearchTerm = useCallback((value) => setFilter('searchTerm', value), [setFilter]);
+  const setSelectedLocation = useCallback((value) => setFilter('location', value), [setFilter]);
+  const setSelectedDistrict = useCallback((value) => setFilter('district', value), [setFilter]);
+  const setSelectedState = useCallback((value) => setFilter('state', value), [setFilter]);
+  const setSelectedDate = useCallback((value) => setFilter('date', value), [setFilter]);
+  const setRatingFilter = useCallback((value) => setFilter('minRating', value), [setFilter]);
 
-  // UI state
-  const [loading, setLoading] = useState(!initialResults);
-  const [initialLoading, setInitialLoading] = useState(!initialResults);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(initialError || null);
+  const { locations, districts, states, tags } = useBrowseFacets(initialFacets);
+
+  const { recentSearches, remember, removeSearch, clearAll } = useRecentSearches();
+
+  // View state. Not filters — these change what the same result set looks like, not what it is,
+  // and they deliberately do not appear in the URL.
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', or 'map'
   const [sortOrder, setSortOrder] = useState('newest');
@@ -197,19 +218,6 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
   const [searchActive, setSearchActive] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const searchInputRef = useRef(null);
-
-  // Filter state, seeded from the URL by getServerSideProps so the server rendered the same
-  // result set the client is about to display — otherwise a shared link would paint the
-  // unfiltered catalogue and then replace it once the client re-read its own query string.
-  const [searchTerm, setSearchTerm] = useState(initialFilters?.searchTerm || '');
-  const [selectedLocation, setSelectedLocation] = useState(initialFilters?.location || '');
-  const [selectedDistrict, setSelectedDistrict] = useState(initialFilters?.district || '');
-  const [selectedState, setSelectedState] = useState(initialFilters?.state || '');
-  const [selectedTags, setSelectedTags] = useState(initialFilters?.tags || []);
-  const [selectedThemes, setSelectedThemes] = useState(initialFilters?.themes || []);
-  const [selectedDate, setSelectedDate] = useState(initialFilters?.date || 'any');
-  const [ratingFilter, setRatingFilter] = useState(initialFilters?.minRating || 0);
-  const [recentSearches, setRecentSearches] = useState([]);
   const [collapsedSections, setCollapsedSections] = useState({
     themes: false,
     location: false,
@@ -218,36 +226,41 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     tags: false
   });
 
-  // Catalogue statistics, computed by the server alongside the result count.
-  //
-  // These were derived in the browser by reducing over every place the API returned. That only
-  // worked while the browser held the entire catalogue; averaging a page of twelve under a
-  // label reading "Average Rating" would be a wrong number, not a stale one, so the aggregate
-  // moved into the same query that produces the total (`withStats`).
-  const [stats, setStats] = useState(() => ({
-    totalPlaces: initialResults?.stats?.total ?? 0,
-    avgRating: initialResults?.stats?.avgRating ?? 0,
-    topLocation: initialResults?.stats?.topLocation ?? '',
-    locationCount: initialResults?.stats?.topLocationCount ?? 0
-  }));
-
-  // When the places currently on screen were actually fetched. Set on the client only: rendering
-  // a server timestamp would mismatch the client's locale-formatted one and trip hydration.
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  // Infinite scroll
+  // Infinite scroll sentinel
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.1,
     triggerOnce: false,
     rootMargin: '400px 0px'
   });
 
+  const {
+    places,
+    total,
+    hasMore,
+    loading,
+    initialLoading,
+    loadingMore,
+    error,
+    stats,
+    lastUpdated,
+    loadMore,
+    refresh: handleRefresh
+  } = useBrowsePlaces({
+    criteria,
+    criteriaKey,
+    sortOrder,
+    initialResults,
+    initialError,
+    inView
+  });
+
+  const { mapPlaces, mapLoading } = useBrowseMapPlaces({ viewMode, criteria, criteriaKey });
+
   // Detect screen size changes.
   //
-  // The page size no longer varies with the viewport: it is a server `LIMIT` now, and changing
-  // it mid-session would shift every subsequent offset, which is how offset pagination starts
-  // duplicating and skipping rows. Infinite scroll made the responsive sizing moot anyway —
-  // it decided how many cards arrived before the next scroll, not how many fit.
+  // The page size no longer varies with the viewport: it is a server `LIMIT` now, and changing it
+  // mid-session would shift every subsequent offset, which is how offset pagination starts
+  // duplicating and skipping rows.
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 640 && viewMode === 'list') {
@@ -261,38 +274,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     return () => window.removeEventListener('resize', handleResize);
   }, [viewMode]);
 
-  // Filter vocabularies. `getServerSideProps` normally supplies these; this covers the case
-  // where it could not reach the API and rendered the page anyway, so a transient outage costs
-  // the filter lists until the next load rather than permanently.
-  useEffect(() => {
-    if (initialFacets) return;
-
-    let cancelled = false;
-    fetchFacets().then((facets) => {
-      if (cancelled) return;
-      setLocations(facets.locations);
-      setDistricts(facets.districts);
-      setStates(facets.states);
-      setTags(facets.tags);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [initialFacets]);
-
-  // Recent searches are per-browser, so they can only be read after hydration.
-  useEffect(() => {
-    const saved = localStorage.getItem('recentSearches');
-    if (!saved) return;
-    try {
-      setRecentSearches(JSON.parse(saved).slice(0, 5));
-    } catch (e) {
-      console.warn('Failed to parse recent searches:', e);
-    }
-  }, []);
-
-  // Debounced search handler.
+  // Debounced search.
   //
   // useMemo, not useCallback: the debounce() call was evaluated on every render and handed to
   // useCallback, which — with an empty dependency array — kept the first one and discarded the
@@ -301,250 +283,14 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     () =>
       debounce((term) => {
         setSearchTerm(term);
-        // Save search term to recent searches
-        if (term && term.trim() !== '') {
-          setRecentSearches((prev) => {
-            const updated = [term, ...prev.filter((s) => s !== term)].slice(0, 5);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('recentSearches', JSON.stringify(updated));
-            }
-            return updated;
-          });
-        }
+        remember(term);
       }, 300),
-    []
+    [setSearchTerm, remember]
   );
 
   // Cancel a pending search on unmount: without this the trailing call can land after the
   // component is gone and set state on it.
   useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch]);
-
-  // The filter set, in the shape the API takes. Everything downstream reads this rather than
-  // the eight individual pieces of state, so there is one definition of "the current query".
-  const criteria = useMemo(
-    () => ({
-      searchTerm: searchTerm || undefined,
-      location: selectedLocation || undefined,
-      district: selectedDistrict || undefined,
-      state: selectedState || undefined,
-      themes: selectedThemes.length ? selectedThemes : undefined,
-      tags: selectedTags.length ? selectedTags : undefined,
-      minRating: ratingFilter > 0 ? ratingFilter : undefined,
-      date: selectedDate !== 'any' ? selectedDate : undefined
-    }),
-    [
-      searchTerm,
-      selectedLocation,
-      selectedDistrict,
-      selectedState,
-      selectedThemes,
-      selectedTags,
-      ratingFilter,
-      selectedDate
-    ]
-  );
-
-  // A stable dependency for the effects below. `criteria` is rebuilt whenever any filter's
-  // identity changes — including the array literals — so depending on the object directly would
-  // refetch on renders where nothing actually changed.
-  const criteriaKey = useMemo(() => JSON.stringify(criteria), [criteria]);
-
-  const hasActiveFilters = useCallback(
-    () => Object.keys(criteria).some((key) => criteria[key] !== undefined),
-    [criteria]
-  );
-
-  // Keep the URL in step with the filters, without navigating. Separate from fetching because
-  // it is presentation: the address bar should describe the current view whether or not the
-  // request behind it succeeded.
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchTerm) params.set('q', searchTerm);
-    if (selectedLocation) params.set('location', selectedLocation);
-    if (selectedDistrict) params.set('district', selectedDistrict);
-    if (selectedState) params.set('state', selectedState);
-    if (selectedDate !== 'any') params.set('date', selectedDate);
-    if (ratingFilter > 0) params.set('rating', String(ratingFilter));
-    selectedThemes.forEach((t) => params.append('theme', t));
-    selectedTags.forEach((t) => params.append('tag', t));
-
-    const query = params.toString();
-    window.history.replaceState(
-      {},
-      '',
-      query ? `${window.location.pathname}?${query}` : window.location.pathname
-    );
-  }, [
-    criteriaKey,
-    searchTerm,
-    selectedLocation,
-    selectedDistrict,
-    selectedState,
-    selectedDate,
-    ratingFilter,
-    selectedThemes,
-    selectedTags
-  ]);
-
-  // Fetch the first page whenever the query changes.
-  //
-  // This replaces a pair of effects that fought each other: one asked the server for filtered
-  // results *and* kept a client-side reimplementation of the same filters as a fallback, the
-  // other re-sorted the result in the browser and compared old and new with `JSON.stringify`
-  // over the entire dataset to decide whether to write it back. Filtering, sorting and paging
-  // are one query now, so this is one request with one result.
-  //
-  // The client-side filter is gone rather than retained as a fallback: it could only ever see
-  // the page in memory, so after pagination it would answer a whole-catalogue question with
-  // whatever twelve rows happened to be loaded — confidently, and wrongly. A failed request
-  // reports a failure.
-  const skipNextFetchRef = useRef(Boolean(initialResults));
-
-  useEffect(() => {
-    // The server already rendered page one for these criteria; refetching it on mount would
-    // throw away the payload that was just embedded in the HTML.
-    if (skipNextFetchRef.current) {
-      skipNextFetchRef.current = false;
-      setLastUpdated(new Date());
-      return;
-    }
-
-    let cancelled = false;
-    const controller = new AbortController();
-    setLoading(true);
-
-    // Debounced so that typing in the search box issues one request, not one per keystroke.
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetchPlaces(
-          { ...criteria, sort: sortOrder, limit: PLACES_PAGE_SIZE, offset: 0 },
-          { signal: controller.signal }
-        );
-        if (cancelled) return;
-
-        setPlaces(response.data);
-        setTotal(response.pagination.total);
-        setHasMore(response.pagination.hasMore);
-        // `stats` is deliberately not requested here: it describes the catalogue, not
-        // the query, so it does not change when a filter does.
-        setError(null);
-        setLastUpdated(new Date());
-      } catch (err) {
-        // An abort is this effect superseding itself, not a failure to report.
-        if (cancelled || err.name === 'AbortError') return;
-        console.error('Failed to load places:', err);
-        setError('Failed to load places. Please try again.');
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setInitialLoading(false);
-        }
-      }
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      clearTimeout(timer);
-    };
-    // criteriaKey IS criteria, serialised. Depending on the object would refetch on every
-    // render, which is exactly what the key exists to prevent.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [criteriaKey, sortOrder]);
-
-  // Append the next page. Offsets come from how many rows are already held rather than a page
-  // counter, so a short page or a concurrent insert cannot desynchronise the two.
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
-
-    setLoadingMore(true);
-    try {
-      const response = await fetchPlaces({
-        ...criteria,
-        sort: sortOrder,
-        limit: PLACES_PAGE_SIZE,
-        offset: places.length
-      });
-      setPlaces((prev) => [...prev, ...response.data]);
-      setTotal(response.pagination.total);
-      setHasMore(response.pagination.hasMore);
-    } catch (err) {
-      console.error('Failed to load more places:', err);
-      setHasMore(false);
-      setError('Could not load more places.');
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [criteria, sortOrder, places.length, hasMore, loadingMore]);
-
-  // Markers, fetched only while the map is open and thrown away when it closes. Unpaginated by
-  // design — a map showing twelve of a hundred pins is worse than no map — which is affordable
-  // only because `projection: 'map'` returns coordinates and a label rather than full rows.
-  useEffect(() => {
-    if (viewMode !== 'map') return;
-
-    let cancelled = false;
-    const controller = new AbortController();
-    setMapLoading(true);
-
-    fetchPlaces({ ...criteria, projection: 'map' }, { signal: controller.signal })
-      .then((response) => {
-        if (!cancelled) setMapPlaces(response.data);
-      })
-      .catch((err) => {
-        if (cancelled || err.name === 'AbortError') return;
-        console.error('Failed to load map places:', err);
-        setMapPlaces([]);
-      })
-      .finally(() => {
-        if (!cancelled) setMapLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above: criteriaKey stands in for criteria.
-  }, [viewMode, criteriaKey]);
-
-  // Infinite scroll. Each page is now a real request, so the guard matters more than it did
-  // when the next page was a slice of memory: this effect re-runs every time `places` grows,
-  // and `inView` only clears asynchronously when the observer next fires, so without it one
-  // sentinel sighting would fan out into a burst of concurrent requests for the whole
-  // catalogue. One page per in-view episode; the explicit "Load More Places" button below
-  // covers the case where the appended page is too short to push the sentinel back out of view.
-  const advancedForCurrentViewRef = useRef(false);
-
-  useEffect(() => {
-    if (!inView) {
-      advancedForCurrentViewRef.current = false;
-      return;
-    }
-
-    if (advancedForCurrentViewRef.current) return;
-    if (!hasMore || loadingMore) return;
-
-    advancedForCurrentViewRef.current = true;
-    loadMore();
-  }, [inView, hasMore, loadingMore, loadMore]);
-
-  // Handle theme toggle with animation feedback
-  const handleThemeToggle = (themeId) => {
-    if (selectedThemes.includes(themeId)) {
-      setSelectedThemes(selectedThemes.filter((id) => id !== themeId));
-    } else {
-      setSelectedThemes([...selectedThemes, themeId]);
-    }
-  };
-
-  // Handle tag toggle with animation feedback
-  const handleTagToggle = (tag) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter((t) => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
-  };
 
   // Handle section toggle with animation
   const toggleSection = (section) => {
@@ -554,86 +300,20 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     });
   };
 
-  // Clear all filters with animation
+  // Clear all filters. The flash-highlight stays here rather than in the hook: it is a DOM effect
+  // on one specific element, and a hook that reaches for getElementById cannot be tested.
   const clearAllFilters = () => {
-    // Animate the reset by applying a temporary class
     document.getElementById('filter-panel')?.classList.add('flash-highlight');
     setTimeout(() => {
       document.getElementById('filter-panel')?.classList.remove('flash-highlight');
     }, 500);
 
-    setSearchTerm('');
-    setSelectedLocation('');
-    setSelectedDistrict('');
-    setSelectedState('');
-    setSelectedThemes([]);
-    setSelectedTags([]);
-    setSelectedDate('any');
-    setRatingFilter(0);
-    window.history.replaceState({}, '', window.location.pathname);
+    resetFilters();
   };
-
-  // Re-run the current query from page one. It has to respect the active filters — the old
-  // version fetched the unfiltered catalogue and then only applied it when no filters were set,
-  // so pressing refresh with a filter active downloaded everything and displayed none of it.
-  const handleRefresh = async () => {
-    setLoading(true);
-    try {
-      const response = await fetchPlaces({
-        ...criteria,
-        sort: sortOrder,
-        limit: PLACES_PAGE_SIZE,
-        offset: 0,
-        withStats: true
-      });
-      setPlaces(response.data);
-      setTotal(response.pagination.total);
-      setHasMore(response.pagination.hasMore);
-      if (response.stats) {
-        setStats({
-          totalPlaces: response.stats.total,
-          avgRating: response.stats.avgRating ?? 0,
-          topLocation: response.stats.topLocation || '',
-          locationCount: response.stats.topLocationCount
-        });
-      }
-      setLastUpdated(new Date());
-      setError(null);
-    } catch (err) {
-      console.error('Error refreshing places:', err);
-      setError('Failed to refresh. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Count active filters for badge
-  const activeFilterCount = useMemo(() => {
-    return (
-      (searchTerm ? 1 : 0) +
-      (selectedLocation ? 1 : 0) +
-      (selectedDistrict ? 1 : 0) +
-      (selectedState ? 1 : 0) +
-      selectedThemes.length +
-      selectedTags.length +
-      (selectedDate !== 'any' ? 1 : 0) +
-      (ratingFilter > 0 ? 1 : 0)
-    );
-  }, [
-    searchTerm,
-    selectedLocation,
-    selectedDistrict,
-    selectedState,
-    selectedThemes,
-    selectedTags,
-    selectedDate,
-    ratingFilter
-  ]);
 
   // Handle search input focus
   const handleSearchFocus = () => {
     setSearchActive(true);
-    // Focus the input
     searchInputRef.current?.focus();
   };
 
@@ -641,29 +321,20 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
   const applySearchSuggestion = (term) => {
     setSearchTerm(term);
     setSearchActive(false);
-
-    // Move this term to the top of recent searches
-    const updatedSearches = [term, ...recentSearches.filter((s) => s !== term)].slice(0, 5);
-
-    setRecentSearches(updatedSearches);
-    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
+    remember(term);
   };
 
   // Clear a specific search term from history
   const clearSearchTerm = (term, e) => {
     e.stopPropagation();
-    const updatedSearches = recentSearches.filter((s) => s !== term);
-    setRecentSearches(updatedSearches);
-    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
+    removeSearch(term);
   };
 
   // Clear all search history
   const clearAllSearchHistory = (e) => {
     e.stopPropagation();
-    setRecentSearches([]);
-    localStorage.removeItem('recentSearches');
+    clearAll();
   };
-
   return (
     <>
       <Head>
@@ -1299,7 +970,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
           </div>
 
           {/* Active filters with enhanced animations */}
-          {hasActiveFilters() && (
+          {hasActiveFilters && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -2396,7 +2067,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
                   {viewMode !== 'map' && (
                     <div className="text-center text-sm text-gray-500 bg-white rounded-xl py-4 shadow-sm">
                       Showing {places.length} of {total} results
-                      {hasActiveFilters() && (
+                      {hasActiveFilters && (
                         <span className="ml-2">
                           •{' '}
                           <button
