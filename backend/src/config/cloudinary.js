@@ -1,5 +1,6 @@
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
+const logger = require('../utils/logger');
 
 // Configure Cloudinary
 cloudinary.config({
@@ -8,19 +9,18 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-console.log('Cloudinary configured with cloud name:', process.env.CLOUDINARY_CLOUD_NAME);
+logger.debug({ cloudName: process.env.CLOUDINARY_CLOUD_NAME }, 'Cloudinary configured');
 
 // Direct upload function for programmatic use
 const uploadImage = async (filePath, options = {}) => {
   try {
-    console.log(`Uploading image to Cloudinary from path: ${filePath}`);
     
     if (!fs.existsSync(filePath)) {
       throw new Error(`File does not exist at path: ${filePath}`);
     }
     
     const fileStats = fs.statSync(filePath);
-    console.log(`File size: ${fileStats.size} bytes`);
+    logger.debug({ bytes: fileStats.size }, 'Uploading image to Cloudinary');
     
     if (fileStats.size === 0) {
       throw new Error('File is empty');
@@ -39,10 +39,10 @@ const uploadImage = async (filePath, options = {}) => {
         },
         (error, result) => {
           if (error) {
-            console.error('Cloudinary upload error:', error);
+            logger.error({ err: error }, 'Cloudinary upload stream error');
             reject(error);
           } else {
-            console.log('Cloudinary upload success:', result.secure_url);
+            logger.debug({ url: result.secure_url }, 'Cloudinary upload succeeded');
             resolve(result);
           }
         }
@@ -57,7 +57,7 @@ const uploadImage = async (filePath, options = {}) => {
       format: result.format
     };
   } catch (error) {
-    console.error('Cloudinary upload error:', error);
+    logger.error({ err: error }, 'Cloudinary upload failed');
     throw error;
   } finally {
     // In a `finally`, because the cleanup used to sit after the upload resolved: a rejected upload
@@ -68,7 +68,7 @@ const uploadImage = async (filePath, options = {}) => {
         fs.unlinkSync(filePath);
       }
     } catch (cleanupError) {
-      console.warn('Error cleaning up temporary file:', cleanupError);
+      logger.warn({ err: cleanupError }, 'Could not clean up temporary upload file');
     }
   }
 };
@@ -128,11 +128,11 @@ const destroyImage = async (publicId) => {
     // 'not found' is a success for our purposes — the goal is "this asset is gone".
     const ok = result?.result === 'ok' || result?.result === 'not found';
     if (!ok) {
-      console.warn(`Cloudinary destroy returned '${result?.result}' for ${publicId}`);
+      logger.warn({ publicId, result: result?.result }, 'Cloudinary destroy returned an unexpected result');
     }
     return ok;
   } catch (error) {
-    console.error(`Cloudinary destroy failed for ${publicId}:`, error.message);
+    logger.error({ err: error, publicId }, 'Cloudinary destroy failed');
     return false;
   }
 };
@@ -154,7 +154,7 @@ const destroyPlaceAssets = async (placeId) => {
   try {
     const result = await cloudinary.api.delete_resources_by_prefix(prefix);
     const deleted = Object.keys(result?.deleted || {});
-    console.log(`Cloudinary: removed ${deleted.length} asset(s) under ${prefix}`);
+    logger.debug({ prefix, count: deleted.length }, 'Cloudinary assets removed');
 
     // Tidy the now-empty folder. Cloudinary 404s when the folder never existed (a place with no
     // uploads), which is not an error worth surfacing.
@@ -162,13 +162,13 @@ const destroyPlaceAssets = async (placeId) => {
       await cloudinary.api.delete_folder(prefix);
     } catch (folderError) {
       if (folderError?.error?.http_code !== 404 && folderError?.http_code !== 404) {
-        console.warn(`Could not remove Cloudinary folder ${prefix}:`, folderError.message);
+        logger.warn({ err: folderError, prefix }, 'Could not remove Cloudinary folder');
       }
     }
 
     return deleted.length;
   } catch (error) {
-    console.error(`Cloudinary prefix delete failed for ${prefix}:`, error.message);
+    logger.error({ err: error, prefix }, 'Cloudinary prefix delete failed');
     return 0;
   }
 };

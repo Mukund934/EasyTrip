@@ -19,6 +19,8 @@ const rateLimit = require('express-rate-limit');
 const pool = require('./src/config/db');
 const { listMigrationFiles } = require('./src/config/migrationFiles');
 const { errorHandler } = require('./src/utils/errorHandler');
+const logger = require('./src/utils/logger');
+const requestLogger = require('./src/utils/requestLogger');
 
 // Import routes
 const placeRoutes = require('./src/routes/placeRoutes');
@@ -55,6 +57,12 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
+// Per-request logging (IMP-071). Registered here — after the security headers, before CORS and the
+// rate limiters — so that rejected requests are logged too. A 403 from the origin check and a 429
+// from a rate limiter are exactly the requests worth seeing, and a logger mounted after them would
+// record neither. It logs on response finish, so it captures the status either way.
+app.use(requestLogger);
+
 // Middleware
 const allowedOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
@@ -65,9 +73,9 @@ if (allowedOrigins.length === 0) {
   if (process.env.NODE_ENV === 'production') {
     // An empty allowlist in production 403s every browser request. Refusing to boot
     // surfaces that as one obvious error instead of a site-wide CORS mystery.
-    console.error(
-      'FATAL: CORS_ALLOWED_ORIGINS is not set. In production every browser origin ' +
-      'would be rejected. Set it to a comma-separated origin list, e.g. ' +
+    logger.fatal(
+      'CORS_ALLOWED_ORIGINS is not set. In production every browser origin would be rejected. ' +
+      'Set it to a comma-separated origin list, e.g. ' +
       'CORS_ALLOWED_ORIGINS=https://easytrip-psi.vercel.app'
     );
     process.exit(1);
@@ -216,19 +224,19 @@ async function warnIfMigrationsPending() {
       .filter((name) => !applied.has(name));
 
     if (pending.length === 0) {
-      console.log(`✅ Database schema is up to date (${applied.size} migration(s) applied)`);
+      logger.info({ applied: applied.size }, 'Database schema is up to date');
       return;
     }
 
-    console.warn(
-      `⚠️  ${pending.length} unapplied migration(s): ${pending.join(', ')}\n` +
-      '   The schema this build expects is not the schema the database has. Run:\n' +
-      '       npm run migrate'
+    logger.warn(
+      { pending, count: pending.length },
+      `${pending.length} unapplied migration(s) — the schema this build expects is not the ` +
+      'schema the database has. Run: npm run migrate'
     );
   } catch (error) {
     // A database that is unreachable is already reported by the connection check below; this
     // should not add a second, more confusing error about migrations on top of it.
-    console.error('Could not check migration status:', error.message);
+    logger.error({ err: error }, 'Could not check migration status');
   }
 }
 
@@ -267,33 +275,32 @@ app.use(errorHandler);
 // Test database connection
 pool.query('SELECT NOW() as current_time')
   .then(result => {
-    console.log('Database connected successfully at', result.rows[0].current_time);
-    console.log('✅ PostgreSQL connected successfully');
+    logger.info({ serverTime: result.rows[0].current_time }, 'PostgreSQL connected');
   })
   .catch(err => {
-    console.error('❌ Database connection error:', err.message);
+    logger.error({ err }, 'Database connection failed');
 
     // The specific failure introduced by turning on certificate verification (IMP-063). Managed
     // providers commonly issue certificates from their own root, which Node does not trust out of
     // the box, and the raw driver message ("self-signed certificate in certificate chain") reads
     // like a broken database rather than a missing CA bundle.
     if (/self[- ]signed certificate|unable to verify the first certificate/i.test(err.message)) {
-      console.error(
-        '\n   This is TLS certificate verification, not a connectivity problem. Either:\n' +
-        '     • set DATABASE_CA_CERT to your provider\'s CA certificate (preferred), or\n' +
-        '     • set DATABASE_SSL_NO_VERIFY=true to accept an unverified certificate.\n' +
-        '   See backend/.env.example.\n'
+      logger.error(
+        'This is TLS certificate verification, not a connectivity problem. Either set ' +
+        'DATABASE_CA_CERT to your provider\'s CA certificate (preferred), or set ' +
+        'DATABASE_SSL_NO_VERIFY=true to accept an unverified certificate. See backend/.env.example.'
       );
     }
   });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 API base URL: http://localhost:${PORT}/api`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`📍 Places: http://localhost:${PORT}/api/places`);
-  console.log(`🔐 Auth: http://localhost:${PORT}/api/auth`);
-  console.log(`⚙️  Admin: http://localhost:${PORT}/api/admin`);
+  // One line, not six. The old banner printed every route's base URL on every boot — a development
+  // convenience that cost six lines in every production log, and that went stale the moment a
+  // router was added or removed.
+  logger.info(
+    { port: PORT, env: process.env.NODE_ENV || 'development' },
+    `Server listening on port ${PORT}`
+  );
 });
 
 

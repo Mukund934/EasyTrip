@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const admin = require('firebase-admin');
+const logger = require('../utils/logger');
 
 
 /**
@@ -33,7 +34,7 @@ const getAllAdmins = async (req, res) => {
     );
     res.status(200).json(result.rows);
   } catch (error) {
-    console.error('Error getting admins:', error);
+    logger.error({ err: error }, 'Error getting admins');
     res.status(500).json({ message: 'Error getting admins' });
   }
 };
@@ -80,7 +81,7 @@ const addAdmin = async (req, res) => {
     try {
       await syncAdminClaim(userRecord, true);
     } catch (claimError) {
-      console.error('Error setting admin custom claim:', claimError.message);
+      logger.error({ err: claimError }, 'Error setting admin custom claim');
       return res.status(500).json({
         message: `${email} was granted admin in the database, but the Firebase admin claim could not be set. They will be denied admin access until this call succeeds — please retry.`
       });
@@ -88,7 +89,7 @@ const addAdmin = async (req, res) => {
 
     res.status(200).json({ message: `${email} is now an admin` });
   } catch (error) {
-    console.error('Error adding admin:', error);
+    logger.error({ err: error }, 'Error adding admin');
     res.status(500).json({ message: 'Error adding admin' });
   }
 };
@@ -124,7 +125,7 @@ const removeAdmin = async (req, res) => {
     try {
       await syncAdminClaim(userRecord, false);
     } catch (claimError) {
-      console.error('Error clearing admin custom claim:', claimError.message);
+      logger.error({ err: claimError }, 'Error clearing admin custom claim');
       return res.status(500).json({
         message: `${email} was removed as an admin in the database, but the stale Firebase admin claim could not be cleared. Admin access is already denied; please retry to clear the claim.`
       });
@@ -132,7 +133,7 @@ const removeAdmin = async (req, res) => {
 
     res.status(200).json({ message: `${email} is no longer an admin` });
   } catch (error) {
-    console.error('Error removing admin:', error);
+    logger.error({ err: error }, 'Error removing admin');
     res.status(500).json({ message: 'Error removing admin' });
   }
 };

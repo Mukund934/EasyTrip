@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const logger = require('../utils/logger');
 
 /**
  * The single Postgres connection pool for the server process (IMP-044).
@@ -18,7 +19,7 @@ const { Pool } = require('pg');
 if (!process.env.DATABASE_URL) {
   // Fail loudly at require time. A pool built on `undefined` connects to a default local socket and
   // produces confusing "database does not exist" errors far from the real cause.
-  console.error('DATABASE_URL is not set — the server cannot reach Postgres.');
+  logger.error('DATABASE_URL is not set — the server cannot reach Postgres.');
 }
 
 /**
@@ -47,10 +48,10 @@ const buildSslConfig = () => {
   if (process.env.NODE_ENV !== 'production') return false;
 
   if (process.env.DATABASE_SSL_NO_VERIFY === 'true') {
-    console.warn(
-      '⚠️  DATABASE_SSL_NO_VERIFY=true — the Postgres TLS certificate is NOT being verified.\n' +
-      '   The connection is encrypted but the peer is unauthenticated, so it is not protected\n' +
-      '   against an active man-in-the-middle. Set DATABASE_CA_CERT to the provider CA instead.'
+    logger.warn(
+      'DATABASE_SSL_NO_VERIFY=true — the Postgres TLS certificate is NOT being verified. The ' +
+      'connection is encrypted but the peer is unauthenticated, so it is not protected against ' +
+      'an active man-in-the-middle. Set DATABASE_CA_CERT to the provider CA instead.'
     );
     return { rejectUnauthorized: false };
   }
@@ -83,7 +84,7 @@ const pool = new Pool({
 // A pooled client can be dropped by the server (idle timeout, failover). Without a listener, that
 // arrives as an unhandled 'error' event and takes the process down.
 pool.on('error', (error) => {
-  console.error('Unexpected error on an idle Postgres client:', error.message);
+  logger.error({ err: error }, 'Unexpected error on an idle Postgres client');
 });
 
 // Export the pool itself and nothing more. An earlier version also assigned

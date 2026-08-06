@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const logger = require('./logger');
 
 // Uploads are staged on disk and then streamed to Cloudinary by the controllers,
 // which read `req.file.path` — this must resolve to the same directory that
@@ -121,7 +122,7 @@ const inspectFileContents = (file) => {
   try {
     header = readHeader(file.path);
   } catch (error) {
-    console.error('Could not read uploaded file header:', error.message);
+    logger.error({ err: error }, 'Could not read uploaded file header');
     return 'Uploaded file could not be read';
   }
 
@@ -158,7 +159,7 @@ const removeTempFile = (filePath) => {
   }
   fs.promises.unlink(filePath).catch((error) => {
     if (error.code !== 'ENOENT') {
-      console.warn(`Could not remove temporary upload ${filePath}:`, error.message);
+      logger.warn({ err: error }, 'Could not remove temporary upload');
     }
   });
 };

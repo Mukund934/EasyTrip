@@ -3,6 +3,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const placeModel = require('../models/placeModel');
 const { uploadImage, destroyImage, destroyPlaceAssets, publicIdFromUrl } = require('../config/cloudinary');
+const logger = require('../utils/logger');
 
 
 // Get current user from request.
@@ -134,7 +135,7 @@ const listPlacesHandler = async (req, res) => {
 
     res.status(200).json(body);
   } catch (error) {
-    console.error('[ERROR] Error listing places:', error);
+    logger.error({ err: error }, 'Error listing places');
     res.status(500).json({
       message: 'Error getting places',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
@@ -155,7 +156,6 @@ const getPlaceById = async (req, res) => {
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
     
-    console.log(`[${timestamp}] Getting place by ID: ${id} - Requested by: ${user}`);
     
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
@@ -177,11 +177,10 @@ const getPlaceById = async (req, res) => {
       image_url: place.primary_image_url || fallback_image_url || null
     };
     
-    console.log(`[${timestamp}] Found place: ID=${place.id}, Name=${place.name}`);
     
     res.status(200).json(formattedPlace);
   } catch (error) {
-    console.error('[ERROR] Error getting place:', error);
+    logger.error({ err: error }, 'Error getting place');
     res.status(500).json({ 
       message: 'Error getting place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
@@ -200,9 +199,7 @@ const getPlaceImage = async (req, res) => {
   try {
     const { id, imageId } = req.params;
     const timestamp = new Date().toISOString();
-    const user = getCurrentUser(req);
     
-    console.log(`[${timestamp}] Image request - Place ID: ${id}, Image ID: ${imageId || 'primary'} - By: ${user}`);
     
     if (isNaN(parseInt(id))) {
       return sendDefaultImage(res, timestamp, id);
@@ -224,20 +221,18 @@ const getPlaceImage = async (req, res) => {
         );
         
         if (image.rows.length > 0 && image.rows[0].image_url) {
-          console.log(`[${timestamp}] Redirecting to specific image: ${image.rows[0].image_url}`);
         // A 302 with no cache policy is re-requested every time. The destination for a given
         // place/image id is stable, so let the browser remember it.
         res.set('Cache-Control', 'public, max-age=3600');
           return res.redirect(image.rows[0].image_url);
         }
       } catch (err) {
-        console.warn(`[${timestamp}] Error getting specific image:`, err.message);
+        logger.debug({ err }, 'No specific image row; falling through');
       }
     }
     
     // Use primary image URL if available
     if (place.primary_image_url) {
-      console.log(`[${timestamp}] Redirecting to primary image: ${place.primary_image_url}`);
         // A 302 with no cache policy is re-requested every time. The destination for a given
         // place/image id is stable, so let the browser remember it.
         res.set('Cache-Control', 'public, max-age=3600');
@@ -252,20 +247,19 @@ const getPlaceImage = async (req, res) => {
       );
       
       if (fallbackImage.rows.length > 0 && fallbackImage.rows[0].image_url) {
-        console.log(`[${timestamp}] Redirecting to fallback image: ${fallbackImage.rows[0].image_url}`);
         // A 302 with no cache policy is re-requested every time. The destination for a given
         // place/image id is stable, so let the browser remember it.
         res.set('Cache-Control', 'public, max-age=3600');
         return res.redirect(fallbackImage.rows[0].image_url);
       }
     } catch (err) {
-      console.warn(`[${timestamp}] Error getting fallback image:`, err.message);
+      logger.debug({ err }, 'No fallback image row available');
     }
     
     // No image found, return default
     return sendDefaultImage(res, timestamp, id);
   } catch (error) {
-    console.error('[ERROR] Error getting place image:', error);
+    logger.error({ err: error }, 'Error getting place image');
     return sendDefaultImage(res, new Date().toISOString(), req.params.id);
   }
 };
@@ -310,7 +304,6 @@ const sendDefaultImage = (res, timestamp, placeId) => {
   try {
     const svgPlaceholder = buildPlaceholderSvg(placeId);
 
-    console.log(`[${timestamp}] Serving SVG placeholder for place: ${placeId}`);
     res.set({
       'Content-Type': 'image/svg+xml',
       'Cache-Control': 'public, max-age=3600',
@@ -318,7 +311,7 @@ const sendDefaultImage = (res, timestamp, placeId) => {
     });
     return res.send(svgPlaceholder);
   } catch (err) {
-    console.error(`[${timestamp}] Error serving placeholder:`, err);
+    logger.error({ err }, 'Error serving SVG placeholder');
     return res.status(404).json({
       message: 'Image not found',
       place_id: Number.parseInt(placeId, 10) || null,
@@ -334,17 +327,7 @@ const createPlace = async (req, res) => {
   try {
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    const userName = getCurrentUserName(req);
     
-    console.log(`[${timestamp}] Creating new place - User: ${userName} (${user})`);
-    console.log(`[${timestamp}] Request body:`, {
-      name: req.body.name,
-      location: req.body.location,
-      district: req.body.district,
-      state: req.body.state,
-      hasImage: !!req.file,
-      imageSize: req.file ? `${Math.round(req.file.size/1024)}KB` : 'none'
-    });
     
     const { 
       name, description, location, district, state, locality, pin_code,
@@ -353,7 +336,7 @@ const createPlace = async (req, res) => {
     
     // Validate required fields
     if (!name || !location) {
-      console.warn(`[${timestamp}] Missing required fields`);
+      logger.warn('Place create rejected: missing required fields');
       return res.status(400).json({ 
         message: 'Name and location are required',
         timestamp
@@ -379,28 +362,15 @@ const createPlace = async (req, res) => {
       updated_by: user
     };
     
-    console.log(`[${timestamp}] Creating place with data:`, {
-      name: placeData.name,
-      location: placeData.location,
-      hasImage: !!req.file,
-      themesCount: Array.isArray(placeData.themes) ? placeData.themes.length : 0,
-      tagsCount: Array.isArray(placeData.tags) ? placeData.tags.length : 0
-    });
     
     // Insert place into database first
     const newPlace = await placeModel.createPlace(placeData);
-    console.log(`[${timestamp}] Place created in database: ID=${newPlace.id}, Name=${newPlace.name}`);
+    logger.info({ placeId: newPlace.id }, 'Place created');
     
     // Process image upload if present
     let imageUrl = null;
     if (req.file) {
       try {
-        console.log(`[${timestamp}] Uploading image to Cloudinary...`);
-        console.log(`[${timestamp}] File details:`, {
-          path: req.file.path,
-          size: req.file.size,
-          mimetype: req.file.mimetype
-        });
         
         // Check if file exists and has size
         if (!req.file.path || !fs.existsSync(req.file.path)) {
@@ -416,18 +386,16 @@ const createPlace = async (req, res) => {
         });
         
         imageUrl = result.url;
-        console.log(`[${timestamp}] Image uploaded successfully: ${imageUrl}`);
+        logger.debug({ imageUrl }, 'Image uploaded to Cloudinary');
         
         // Update the place record with the image URL
         await placeModel.updatePlace(newPlace.id, { primary_image_url: imageUrl });
-        console.log(`[${timestamp}] Place record updated with image URL`);
         
         // Update the newPlace object with the image URL
         newPlace.primary_image_url = imageUrl;
       } catch (uploadError) {
-        console.error(`[${timestamp}] Cloudinary upload error:`, uploadError);
-        // Don't fail the request, just log the error
-        console.log(`[${timestamp}] Continuing without image due to upload error`);
+        // Don't fail the request; the place is created without an image.
+        logger.error({ err: uploadError }, 'Cloudinary upload failed; place created without an image');
       }
     }
     
@@ -440,7 +408,7 @@ const createPlace = async (req, res) => {
     res.status(201).json(response);
     
   } catch (error) {
-    console.error(`[ERROR] Error creating place:`, error);
+    logger.error({ err: error }, 'Error creating place');
     res.status(500).json({ 
       message: 'Error creating place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
@@ -458,11 +426,8 @@ const createPlace = async (req, res) => {
 const updatePlace = async (req, res) => {
   try {
     const { id } = req.params;
-    const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    const userName = getCurrentUserName(req);
     
-    console.log(`[${timestamp}] Updating place ID: ${id} - User: ${userName} (${user})`);
     
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
@@ -482,12 +447,6 @@ const updatePlace = async (req, res) => {
     let imageUrl = currentPlace.primary_image_url;
     if (req.file) {
       try {
-        console.log(`[${timestamp}] Uploading updated image to Cloudinary...`);
-        console.log(`[${timestamp}] File details:`, {
-          path: req.file.path,
-          size: req.file.size,
-          mimetype: req.file.mimetype
-        });
         
         // Check if file exists and has size
         if (!req.file.path || !fs.existsSync(req.file.path)) {
@@ -504,7 +463,7 @@ const updatePlace = async (req, res) => {
         
         const previousImageUrl = imageUrl;
         imageUrl = result.url;
-        console.log(`[${timestamp}] Updated image uploaded successfully, URL: ${imageUrl}`);
+        logger.debug({ imageUrl }, 'Replacement image uploaded to Cloudinary');
 
         // Replacing the primary image orphans the old asset. Every upload uses a fresh
         // timestamped public_id, so the replacement never overwrites its predecessor — without
@@ -513,15 +472,11 @@ const updatePlace = async (req, res) => {
         const previousPublicId = publicIdFromUrl(previousImageUrl);
         if (previousPublicId && previousPublicId !== result.public_id) {
           const wasRemoved = await destroyImage(previousPublicId);
-          console.log(
-            `[${timestamp}] Previous image ${previousPublicId}: ${wasRemoved ? 'removed' : 'left in place'}`
-          );
+          logger.debug({ previousPublicId, removed: wasRemoved }, 'Previous image cleanup');
         }
       } catch (uploadError) {
-        console.error(`[${timestamp}] Cloudinary upload error:`, uploadError);
-        console.error('Error details:', uploadError);
-        // Keep the old image URL
-        console.log(`[${timestamp}] Keeping old image URL: ${imageUrl}`);
+        // Keep the old image URL rather than failing the whole update.
+        logger.error({ err: uploadError }, 'Cloudinary upload failed; keeping the existing image');
       }
     }
     
@@ -542,13 +497,9 @@ const updatePlace = async (req, res) => {
       updated_by: user
     };
     
-    console.log(`[${timestamp}] Final update data:`, {
-      name: placeData.name,
-      imageUrl: placeData.primary_image_url 
-    });
 
     const updatedPlace = await placeModel.updatePlace(id, placeData);
-    console.log(`[${timestamp}] Place updated successfully: ID=${updatedPlace.id}`);
+    logger.info({ placeId: updatedPlace.id }, 'Place updated');
     
     const response = {
       ...updatedPlace,
@@ -557,7 +508,7 @@ const updatePlace = async (req, res) => {
     
     res.status(200).json(response);
   } catch (error) {
-    console.error('[ERROR] Error updating place:', error);
+    logger.error({ err: error }, 'Error updating place');
     res.status(500).json({ 
       message: 'Error updating place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
@@ -576,7 +527,7 @@ function parseJsonField(field, defaultValue) {
   try {
     return typeof field === 'string' ? JSON.parse(field) : field;
   } catch (e) {
-    console.warn(`Error parsing JSON field:`, e.message);
+    logger.warn({ err: e }, 'Could not parse JSON field; using raw value');
     return defaultValue;
   }
 }
@@ -589,9 +540,7 @@ const deletePlace = async (req, res) => {
     const { id } = req.params;
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    const userName = getCurrentUserName(req);
     
-    console.log(`[${timestamp}] Deleting place ID: ${id} - User: ${userName} (${user})`);
     
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
@@ -612,9 +561,9 @@ const deletePlace = async (req, res) => {
     // costs storage, whereas failing the request after the row is already deleted would leave the
     // caller believing the delete failed when it succeeded (IMP-024).
     const removed = await destroyPlaceAssets(id);
-    console.log(`[${timestamp}] Cloudinary cleanup for place ${id}: ${removed} asset(s) removed`);
+    logger.debug({ placeId: id, removed }, 'Cloudinary cleanup for deleted place');
 
-    console.log(`[${timestamp}] Place deleted successfully: ID=${id}`);
+    logger.info({ placeId: id }, 'Place deleted');
     
     res.status(200).json({ 
       message: 'Place deleted successfully',
@@ -624,7 +573,7 @@ const deletePlace = async (req, res) => {
       deleted_at: timestamp 
     });
   } catch (error) {
-    console.error('[ERROR] Error deleting place:', error);
+    logger.error({ err: error }, 'Error deleting place');
     res.status(500).json({ 
       message: 'Error deleting place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
@@ -651,7 +600,7 @@ const getPlaceImages = async (req, res) => {
     
     res.status(200).json(images.rows);
   } catch (error) {
-    console.error('[ERROR] Error getting place images:', error);
+    logger.error({ err: error }, 'Error getting place images');
     res.status(500).json({ 
       message: 'Error getting place images',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
@@ -668,7 +617,7 @@ const getAllLocations = async (req, res) => {
     const locations = await placeModel.getUniqueLocations();
     res.status(200).json(locations);
   } catch (error) {
-    console.error('[ERROR] Error getting locations:', error);
+    logger.error({ err: error }, 'Error getting locations');
     res.status(500).json({ message: 'Error getting locations' });
   }
 };
@@ -678,7 +627,7 @@ const getDistricts = async (req, res) => {
     const districts = await placeModel.getUniqueDistricts();
     res.status(200).json(districts);
   } catch (error) {
-    console.error('[ERROR] Error getting districts:', error);
+    logger.error({ err: error }, 'Error getting districts');
     res.status(500).json({ message: 'Error getting districts' });
   }
 };
@@ -688,7 +637,7 @@ const getStates = async (req, res) => {
     const states = await placeModel.getUniqueStates();
     res.status(200).json(states);
   } catch (error) {
-    console.error('[ERROR] Error getting states:', error);
+    logger.error({ err: error }, 'Error getting states');
     res.status(500).json({ message: 'Error getting states' });
   }
 };
@@ -698,7 +647,7 @@ const getTags = async (req, res) => {
     const tags = await placeModel.getUniqueTags();
     res.status(200).json(tags);
   } catch (error) {
-    console.error('[ERROR] Error getting tags:', error);
+    logger.error({ err: error }, 'Error getting tags');
     res.status(500).json({ message: 'Error getting tags' });
   }
 };
@@ -721,7 +670,7 @@ const getPlaceReviews = async (req, res) => {
 
     res.status(200).json(result.rows.map((row) => toPublicReview(row, viewerUid)));
   } catch (error) {
-    console.error('[ERROR] Error getting reviews:', error);
+    logger.error({ err: error }, 'Error getting reviews');
     res.status(500).json({ message: 'Error getting reviews' });
   }
 };
@@ -767,15 +716,15 @@ const createPlaceReview = async (req, res) => {
 
     res.status(review.inserted ? 201 : 200).json(toPublicReview(review, userId));
   } catch (error) {
-    console.error('[ERROR] Error creating review:', error);
+    logger.error({ err: error }, 'Error creating review');
 
     // 42P10: "no unique or exclusion constraint matching the ON CONFLICT specification".
     // The upsert needs UNIQUE (place_id, user_id); app.js adds it at boot, but that fails
     // when the table still holds duplicate rows. Say so instead of returning a bare 500.
     if (error.code === '42P10') {
-      console.error(
-        '   place_reviews is missing UNIQUE (place_id, user_id). Back up the table, then ' +
-        'run: psql "$DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql'
+      logger.error(
+        'place_reviews is missing UNIQUE (place_id, user_id). Back up the table, then run: ' +
+        'npm run migrate'
       );
       return res.status(500).json({
         message: 'Reviews are temporarily unavailable — the server is missing a required database constraint'
@@ -824,7 +773,7 @@ const deletePlaceReview = async (req, res) => {
     // the remaining rows, so the place aggregate needs no work here.
     res.status(204).send();
   } catch (error) {
-    console.error('[ERROR] Error deleting review:', error);
+    logger.error({ err: error }, 'Error deleting review');
     res.status(500).json({ message: 'Error deleting review' });
   }
 };
@@ -865,15 +814,12 @@ const reportPlaceReview = async (req, res) => {
     // is not information the reporter needs, and reporting twice should feel identical.
     res.status(200).json({ message: 'Thanks - this review has been reported for moderation.' });
   } catch (error) {
-    console.error('[ERROR] Error reporting review:', error);
+    logger.error({ err: error }, 'Error reporting review');
 
     // 42P01: undefined_table. The endpoint is useless until 003 is applied, so say why rather
     // than returning a bare 500 - this is the same failure mode 001 had with place_reviews.
     if (error.code === '42P01') {
-      console.error(
-        '   review_reports does not exist. Run: ' +
-        'psql "$DATABASE_URL" -f backend/src/config/migrations/003_sprint23.sql'
-      );
+      logger.error('review_reports does not exist. Run: npm run migrate');
       return res.status(500).json({
         message: 'Reporting is temporarily unavailable - the server is missing a required table'
       });
@@ -891,7 +837,6 @@ const reportPlaceReview = async (req, res) => {
  * empty table behind working UI (IMP-014).
  */
 const addPlaceImage = async (req, res) => {
-  const timestamp = new Date().toISOString();
 
   try {
     const { id } = req.params;
@@ -929,10 +874,10 @@ const addPlaceImage = async (req, res) => {
       [id, result.url, caption?.trim() || null]
     );
 
-    console.log(`[${timestamp}] Gallery image added to place ${id}: ${result.public_id}`);
+    logger.info({ placeId: id, publicId: result.public_id }, 'Gallery image added');
     res.status(201).json(inserted.rows[0]);
   } catch (error) {
-    console.error('[ERROR] Error adding gallery image:', error);
+    logger.error({ err: error }, 'Error adding gallery image');
     res.status(500).json({ message: 'Error adding gallery image' });
   }
 };
@@ -945,7 +890,6 @@ const addPlaceImage = async (req, res) => {
  * image that is still referenced.
  */
 const deletePlaceImage = async (req, res) => {
-  const timestamp = new Date().toISOString();
 
   try {
     const { id, imageId } = req.params;
@@ -962,12 +906,12 @@ const deletePlaceImage = async (req, res) => {
     const publicId = publicIdFromUrl(deleted.rows[0].image_url);
     if (publicId) {
       const wasRemoved = await destroyImage(publicId);
-      console.log(`[${timestamp}] Gallery asset ${publicId}: ${wasRemoved ? 'removed' : 'left in place'}`);
+      logger.debug({ publicId, removed: wasRemoved }, 'Gallery asset cleanup');
     }
 
     res.status(204).send();
   } catch (error) {
-    console.error('[ERROR] Error deleting gallery image:', error);
+    logger.error({ err: error }, 'Error deleting gallery image');
     res.status(500).json({ message: 'Error deleting gallery image' });
   }
 };

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const admin = require('firebase-admin');
+const logger = require('./logger');
 
 
 const extractToken = (req) => {
@@ -53,7 +54,7 @@ const loadDbUser = async (decodedToken) => {
 
     return newUserResult.rows[0];
   } catch (error) {
-    console.error('Error loading user record:', error.message);
+    logger.error({ err: error }, 'Error loading user record');
     return null;
   }
 };
@@ -74,7 +75,7 @@ const authenticateRequest = async (req, res, { checkRevoked = false } = {}) => {
   try {
     decodedToken = await admin.auth().verifyIdToken(token, checkRevoked);
   } catch (error) {
-    console.warn('Token verification failed:', error.code || error.message);
+    logger.warn({ code: error.code }, 'Token verification failed');
     res.status(401).json({ message: 'Invalid or expired token' });
     return null;
   }
@@ -115,8 +116,11 @@ const resolveAdminStatus = async (decodedToken) => {
   const claimIsAdmin = decodedToken.admin === true;
 
   if (hasAdminClaim && claimIsAdmin !== dbIsAdmin) {
-    console.warn(
-      `Admin claim/database mismatch for ${userId}: claim=${claimIsAdmin}, is_admin=${dbIsAdmin}`
+    // The uid is deliberately NOT logged. This fires on a privilege inconsistency, which is
+    // exactly the kind of event that gets exported to a wider audience than ordinary logs.
+    logger.warn(
+      { claimIsAdmin, dbIsAdmin },
+      'Admin claim/database mismatch — denying admin access'
     );
     return { isAdmin: false, mismatch: true, user: row };
   }
@@ -147,7 +151,7 @@ const attachUserIfPresent = async (req, res, next) => {
     };
   } catch (error) {
     // An unusable token on a public route just means "treat this caller as anonymous".
-    console.warn('Optional token verification failed:', error.code || error.message);
+    logger.debug({ code: error.code }, 'Optional token verification failed');
   }
 
   next();
@@ -163,7 +167,7 @@ const isAuthenticated = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Authentication error:', error.message);
+    logger.error({ err: error }, 'Authentication error');
     return res.status(500).json({ message: 'Authentication error' });
   }
 };
@@ -181,7 +185,7 @@ const isAuthenticatedStrict = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Authentication error:', error.message);
+    logger.error({ err: error }, 'Authentication error');
     return res.status(500).json({ message: 'Authentication error' });
   }
 };
@@ -202,7 +206,7 @@ const isAdmin = async (req, res, next) => {
     try {
       adminStatus = await resolveAdminStatus(decodedToken);
     } catch (adminCheckError) {
-      console.error('Admin check error:', adminCheckError.message);
+      logger.error({ err: adminCheckError }, 'Admin check error');
       return res.status(500).json({ message: 'Error checking admin status' });
     }
 
@@ -212,7 +216,7 @@ const isAdmin = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Admin middleware error:', error.message);
+    logger.error({ err: error }, 'Admin middleware error');
     return res.status(500).json({ message: 'Server error' });
   }
 };
