@@ -80,9 +80,26 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Reuses update_modified_column() from schema.sql, the same trigger function places and
--- place_reviews use. DROP-then-CREATE because Postgres has no CREATE TRIGGER IF NOT EXISTS, and
--- this file has to stay re-runnable.
+-- The same trigger function places and place_reviews use.
+--
+-- Declared here rather than assumed. This file previously said it "reuses update_modified_column()
+-- from schema.sql" — which made the migration depend on an object that no migration creates. Any
+-- database created from schema.sql does have it, so this was latent rather than breaking; but a
+-- migration should be able to carry a database forward on its own rather than assuming which other
+-- files were run first. Surfaced while applying the full set to a scratch database during IMP-069.
+--
+-- CREATE OR REPLACE, so it is a no-op on any database that already has it — including one created
+-- from the current schema.sql, where the definition is byte-identical to this one.
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- DROP-then-CREATE because Postgres has no CREATE TRIGGER IF NOT EXISTS, and this file has to stay
+-- re-runnable.
 DROP TRIGGER IF EXISTS update_newsletter_subscribers_modtime ON newsletter_subscribers;
 CREATE TRIGGER update_newsletter_subscribers_modtime
 BEFORE UPDATE ON newsletter_subscribers

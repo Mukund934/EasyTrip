@@ -1,5 +1,11 @@
 require('dotenv').config();
 
+// Validate the environment before anything reads it (IMP-100). This must stay above the config
+// requires below: firebase-admin and cloudinary both consume these variables at require time, so
+// validating after them means the SDK's own error arrives first — and the SDK's error describes a
+// malformed credential, not the missing variable that produced it.
+require('./src/config/env').validateEnv();
+
 // Initialize configurations first. Firebase Admin must be initialized before any
 // route is mounted, otherwise admin.auth() throws on every authenticated request.
 require('./src/config/firebase-admin');
@@ -11,6 +17,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const pool = require('./src/config/db');
+const { listMigrationFiles } = require('./src/config/migrationFiles');
 const { errorHandler } = require('./src/utils/errorHandler');
 
 // Import routes
@@ -177,76 +184,55 @@ app.use((req, res, next) => {
   next();
 });
 
-// Check database schema compatibility
-
-async function ensureDatabaseSchema() {
-  try {
-    console.log('Checking database schema compatibility...');
-    
-    // Add primary_image_url column to places table if it doesn't exist
-    await pool.query(`
-      ALTER TABLE places 
-      ADD COLUMN IF NOT EXISTS primary_image_url TEXT;
-    `);
-    
-    // Add image_url column to place_images table if it doesn't exist
-    await pool.query(`
-      ALTER TABLE place_images
-      ADD COLUMN IF NOT EXISTS image_url TEXT;
-    `);
-
-    console.log('✅ Database schema is compatible');
-  } catch (error) {
-    console.error('❌ Database schema check failed:', error.message);
-  }
-
-  await ensureReviewUniqueConstraint();
-}
-
-// The review upsert in placeController targets `place_reviews_place_id_user_id_key` by
-// name. schema.sql declares it, but only inside CREATE TABLE IF NOT EXISTS, so a database
-// that predates Phase 1 never gets it — and there is no migration runner, which would make
-// every review POST fail with 42P10 until someone remembered to run the SQL by hand.
+// Report unapplied migrations at boot — READ-ONLY (IMP-069).
 //
-// Adding the constraint is safe and idempotent. De-duplicating the rows it requires is NOT,
-// so that stays in the reviewed migration (src/config/migrations/001_phase1.sql): boot must
-// never silently delete a user's reviews.
-async function ensureReviewUniqueConstraint() {
+// This replaces `ensureDatabaseSchema()`, which used to run `ALTER TABLE ... IF NOT EXISTS` on
+// every start. That was self-healing, which is a real property to give up, so this is what takes
+// its place: boot no longer *fixes* schema drift, but it still *notices* it. Removing the DDL
+// without adding this would mean a deploy that forgot `npm run migrate` looks completely healthy
+// until the first request touches a missing column.
+//
+// Two deliberate choices:
+//   - It only SELECTs. The whole point of retiring boot-time DDL is that the runtime database role
+//     no longer needs DDL privileges (TD-004); a boot check that wrote would hand them straight
+//     back.
+//   - A pending migration warns, it does not exit. During a rolling deploy the new process can
+//     legitimately start seconds before the migration job finishes, and refusing to boot would
+//     turn a routine ordering gap into an outage.
+async function warnIfMigrationsPending() {
   try {
-    await pool.query(`
-      DO $$
-      BEGIN
-        IF to_regclass('public.place_reviews') IS NOT NULL THEN
-          IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conrelid = to_regclass('public.place_reviews')::oid
-              AND conname = 'place_reviews_place_id_user_id_key'
-          ) THEN
-            ALTER TABLE place_reviews
-              ADD CONSTRAINT place_reviews_place_id_user_id_key UNIQUE (place_id, user_id);
-          END IF;
-        END IF;
-      END
-      $$;
-    `);
+    const applied = await pool
+      .query('SELECT filename FROM schema_migrations')
+      .then(({ rows }) => new Set(rows.map((row) => row.filename)))
+      // 42P01 = undefined_table. The migrations table itself is created by the runner, so its
+      // absence means the runner has never run here — every migration is pending.
+      .catch((error) => {
+        if (error.code === '42P01') return new Set();
+        throw error;
+      });
 
-    console.log('✅ Review uniqueness constraint is present');
+    const pending = listMigrationFiles()
+      .map((file) => file.name)
+      .filter((name) => !applied.has(name));
+
+    if (pending.length === 0) {
+      console.log(`✅ Database schema is up to date (${applied.size} migration(s) applied)`);
+      return;
+    }
+
+    console.warn(
+      `⚠️  ${pending.length} unapplied migration(s): ${pending.join(', ')}\n` +
+      '   The schema this build expects is not the schema the database has. Run:\n' +
+      '       npm run migrate'
+    );
   } catch (error) {
-    console.error(
-      '❌ Could not add UNIQUE (place_id, user_id) to place_reviews:',
-      error.message
-    );
-    console.error(
-      '   Reviews will fail to save until this is resolved. Duplicate rows are the ' +
-      'usual cause — back up the table, then run: ' +
-      'psql "$DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql'
-    );
+    // A database that is unreachable is already reported by the connection check below; this
+    // should not add a second, more confusing error about migrations on top of it.
+    console.error('Could not check migration status:', error.message);
   }
 }
 
-// Run schema check
-ensureDatabaseSchema();
+warnIfMigrationsPending();
 
 // Health check endpoint — deliberately minimal: environment name, driver error
 // text, and provider configuration are all reconnaissance material.
@@ -286,6 +272,19 @@ pool.query('SELECT NOW() as current_time')
   })
   .catch(err => {
     console.error('❌ Database connection error:', err.message);
+
+    // The specific failure introduced by turning on certificate verification (IMP-063). Managed
+    // providers commonly issue certificates from their own root, which Node does not trust out of
+    // the box, and the raw driver message ("self-signed certificate in certificate chain") reads
+    // like a broken database rather than a missing CA bundle.
+    if (/self[- ]signed certificate|unable to verify the first certificate/i.test(err.message)) {
+      console.error(
+        '\n   This is TLS certificate verification, not a connectivity problem. Either:\n' +
+        '     • set DATABASE_CA_CERT to your provider\'s CA certificate (preferred), or\n' +
+        '     • set DATABASE_SSL_NO_VERIFY=true to accept an unverified certificate.\n' +
+        '   See backend/.env.example.\n'
+      );
+    }
   });
 
 app.listen(PORT, () => {

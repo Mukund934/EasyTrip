@@ -5,7 +5,10 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "lint": "eslint . --ext .js"
+    "lint": "eslint . --ext .js",
+    "migrate": "node script/migrate.js",
+    "migrate:status": "node script/migrate.js status",
+    "migrate:dry-run": "node script/migrate.js --dry-run"
   },
   "keywords": [
     "easytrip",

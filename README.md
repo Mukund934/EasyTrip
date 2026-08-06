@@ -286,21 +286,41 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
 
 ### Database Setup
 
-1. **Create the PostgreSQL database:**
+**Option A — Docker (recommended).** Starts Postgres and creates the schema on first run:
+
 ```bash
-createdb easytrip
-# or, from psql:  CREATE DATABASE easytrip;
+docker compose up -d
 ```
 
-2. **Run the schema** (tables, timestamp triggers, and the rating-aggregate trigger):
+The matching `DATABASE_URL` for `backend/.env` is
+`postgresql://easytrip:easytrip@localhost:5432/easytrip`. To start completely over:
+`docker compose down -v && docker compose up -d`.
+
+**Option B — an existing PostgreSQL install.** Create the database and apply the schema:
+
 ```bash
+createdb easytrip
 psql "$DATABASE_URL" -f backend/src/config/schema.sql
 ```
 
-3. **Apply migrations** — required for databases created before the current schema:
+**Then, either way, bring the schema up to date:**
+
 ```bash
-psql "$DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql
+npm run migrate
 ```
+
+This applies every unapplied file in `backend/src/config/migrations/` and records it in a
+`schema_migrations` table. It is safe to re-run — every migration is idempotent — and safe on a
+database whose migrations were previously applied by hand, which it will simply record.
+
+```bash
+npm run migrate:status
+```
+
+shows what is applied and what is pending without changing anything. The server also reports
+unapplied migrations at boot, read-only. See
+[`backend/src/config/migrations/README.md`](backend/src/config/migrations/README.md) for the
+conventions, and `ADR-025` for why there is a hand-written runner rather than node-pg-migrate.
 
 ---
 
@@ -387,16 +407,25 @@ NEXT_PUBLIC_API_URL=https://your-domain.com/api
 pg_dump "$DATABASE_URL" > backup.sql
 ```
 
-2. **Apply the schema to the production database:**
+2. **Apply the schema — only for a database that does not exist yet:**
 ```bash
 psql "$PRODUCTION_DATABASE_URL" -f backend/src/config/schema.sql
-psql "$PRODUCTION_DATABASE_URL" -f backend/src/config/migrations/001_phase1.sql
 ```
 
-> There is no migration *tool* yet — migrations are hand-run SQL files under
-> `backend/src/config/migrations/`, applied in filename order. `schema.sql` is idempotent for table
-> creation (`CREATE TABLE IF NOT EXISTS`) but its trigger statements are not, so re-running it
-> against an existing database will error on the `CREATE TRIGGER` lines.
+3. **Migrate — for every deploy, including the first:**
+```bash
+DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run migrate
+```
+
+> Run this **before** starting the new build. The server no longer patches the schema at boot; it
+> reports unapplied migrations and keeps running, so a deploy that skips this step looks healthy
+> until the first request touches a column that is not there.
+>
+> Safe to run against a database whose migrations were previously applied by hand: every migration
+> is idempotent, so the first run re-applies them as no-ops and records them. `npm run migrate:status`
+> shows the state without changing anything. `schema.sql` is now fully re-runnable too — its
+> `CREATE TRIGGER` statements are preceded by `DROP TRIGGER IF EXISTS`, which they were not before
+> Sprint 5.2.
 
 ---
 

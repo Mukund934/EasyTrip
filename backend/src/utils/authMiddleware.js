@@ -32,16 +32,22 @@ const loadDbUser = async (decodedToken) => {
       return userResult.rows[0];
     }
 
+    // `photo_url` used to be a fifth column here. It existed in no schema and no migration, so on
+    // any database built from schema.sql this INSERT failed with "column photo_url does not
+    // exist" — and the catch below turns that into a null return, which means **every first-time
+    // user silently failed to be provisioned**. It was written here and read nowhere in either
+    // tier (the Navbar renders Firebase's own `photoURL` from the token, not the database), so the
+    // reconciliation IMP-069 called for resolves to dropping the write rather than adding a column
+    // nothing would read.
     const newUserResult = await pool.query(
       `INSERT INTO users
-       (firebase_uid, email, name, photo_url, created_at)
-       VALUES ($1, $2, $3, $4, NOW())
+       (firebase_uid, email, name, created_at)
+       VALUES ($1, $2, $3, NOW())
        RETURNING *`,
       [
         decodedToken.uid,
         decodedToken.email || null,
-        decodedToken.name || decodedToken.email || null,
-        decodedToken.picture || null
+        decodedToken.name || decodedToken.email || null
       ]
     );
 

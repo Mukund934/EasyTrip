@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 
+// Fail-fast environment validation (IMP-100). next.config.js is loaded by `dev`, `build`, `start`
+// and `lint` alike, which makes it the only hook that runs before the app regardless of how it was
+// started. A missing NEXT_PUBLIC_* is inlined into the bundle as `undefined` at build time, so it
+// has to be caught here — after the build it is baked into the artifact.
+//
+// Only `next build` is fatal; every other command warns. See env.validation.js for why.
+require('./env.validation').validateEnv();
+
 // Browser-tier security headers (IMP-058). helmet covers the Express API; nothing
 // covered the pages the browser actually loads, so the site was framable — a
 // clickjacking route straight at the admin console (SECURITY_AUDIT 10.2).

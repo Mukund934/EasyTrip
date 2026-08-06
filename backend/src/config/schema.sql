@@ -102,21 +102,33 @@ END;
 $$ language 'plpgsql';
 
 -- Apply trigger to tables
+--
+-- Every CREATE TRIGGER below is preceded by DROP TRIGGER IF EXISTS. Postgres has no
+-- CREATE TRIGGER IF NOT EXISTS and no CREATE OR REPLACE TRIGGER before v14, so without the drop
+-- this file errors with "trigger already exists" the second time it runs — while every CREATE
+-- TABLE above it is guarded with IF NOT EXISTS and succeeds. That made the file look re-runnable
+-- when it was not: it would get most of the way through and then fail, which is the worst of both.
+-- It matters now because docker-compose runs this on database init and it is the fresh-database
+-- path the migrations are checked against.
+DROP TRIGGER IF EXISTS update_places_modtime ON places;
 CREATE TRIGGER update_places_modtime
 BEFORE UPDATE ON places
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
+DROP TRIGGER IF EXISTS update_place_reviews_modtime ON place_reviews;
 CREATE TRIGGER update_place_reviews_modtime
 BEFORE UPDATE ON place_reviews
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
+DROP TRIGGER IF EXISTS update_users_modtime ON users;
 CREATE TRIGGER update_users_modtime
 BEFORE UPDATE ON users
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
+DROP TRIGGER IF EXISTS update_newsletter_subscribers_modtime ON newsletter_subscribers;
 CREATE TRIGGER update_newsletter_subscribers_modtime
 BEFORE UPDATE ON newsletter_subscribers
 FOR EACH ROW
@@ -146,6 +158,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_place_rating_trigger ON place_reviews;
 CREATE TRIGGER update_place_rating_trigger
 AFTER INSERT OR UPDATE OR DELETE ON place_reviews
 FOR EACH ROW EXECUTE FUNCTION update_place_rating();
