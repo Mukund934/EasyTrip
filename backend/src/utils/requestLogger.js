@@ -30,7 +30,15 @@ const logger = require('./logger');
  * credential (removed in Phase 1). Anything that ever authenticated a request must never be logged,
  * including after it stops being honoured — logs outlive the code that wrote them.
  */
-const SENSITIVE_QUERY_PARAMS = new Set(['user', 'token', 'idtoken', 'access_token', 'key', 'apikey', 'password']);
+const SENSITIVE_QUERY_PARAMS = new Set([
+  'user',
+  'token',
+  'idtoken',
+  'access_token',
+  'key',
+  'apikey',
+  'password'
+]);
 
 const sanitizeUrl = (url) => {
   if (typeof url !== 'string') return url;
@@ -63,9 +71,10 @@ const requestLogger = pinoHttp({
   // counter is not once there is more than one process.
   genReqId: (req, res) => {
     const existing = req.headers['x-request-id'];
-    const id = typeof existing === 'string' && existing.length > 0 && existing.length <= 200
-      ? existing
-      : crypto.randomUUID();
+    const id =
+      typeof existing === 'string' && existing.length > 0 && existing.length <= 200
+        ? existing
+        : crypto.randomUUID();
     // Echoed back so a user reporting a problem can quote something that finds the log line.
     res.setHeader('x-request-id', id);
     return id;
@@ -77,18 +86,18 @@ const requestLogger = pinoHttp({
     req: (req) => ({
       id: req.id,
       method: req.method,
-      url: sanitizeUrl(req.url),
+      url: sanitizeUrl(req.url)
     }),
     res: (res) => ({
-      statusCode: res.statusCode,
+      statusCode: res.statusCode
     }),
     err: (err) => ({
       type: err.type,
       message: err.message,
       // Stack traces in development only. In production they are noise in the common case and a
       // disclosure risk if logs are ever surfaced to a user-facing tool.
-      ...(process.env.NODE_ENV === 'production' ? {} : { stack: err.stack }),
-    }),
+      ...(process.env.NODE_ENV === 'production' ? {} : { stack: err.stack })
+    })
   },
 
   customLogLevel: (req, res, err) => {
@@ -102,7 +111,7 @@ const requestLogger = pinoHttp({
 
   customSuccessMessage: (req, res) => `${req.method} ${sanitizeUrl(req.url)} ${res.statusCode}`,
   customErrorMessage: (req, res, err) =>
-    `${req.method} ${sanitizeUrl(req.url)} ${res.statusCode} — ${err.message}`,
+    `${req.method} ${sanitizeUrl(req.url)} ${res.statusCode} — ${err.message}`
 });
 
 module.exports = requestLogger;

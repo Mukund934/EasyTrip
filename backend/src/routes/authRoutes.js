@@ -4,11 +4,7 @@ const { body } = require('express-validator');
 const { isAuthenticated, isAuthenticatedStrict } = require('../utils/authMiddleware');
 const { handleValidationErrors } = require('../utils/errorHandler');
 
-const {
-  getProfile,
-  updateProfile,
-  checkAdmin,
-} = require('../controllers/authController');
+const { getProfile, updateProfile, checkAdmin } = require('../controllers/authController');
 
 const profileRules = [
   body('name')

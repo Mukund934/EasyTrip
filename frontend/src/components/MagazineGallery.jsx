@@ -49,7 +49,9 @@ const MagazineGallery = ({ images, placeName }) => {
       if (event.key !== 'Tab') return;
 
       // Focus trap: cycle within the dialog rather than escaping to the page behind it.
-      const focusable = dialogRef.current?.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+      const focusable = dialogRef.current?.querySelectorAll(
+        'button, [href], [tabindex]:not([tabindex="-1"])'
+      );
       if (!focusable || focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -76,7 +78,7 @@ const MagazineGallery = ({ images, placeName }) => {
       openerRef.current?.focus();
     };
   }, [lightboxOpen, showPrevious, showNext]);
-  
+
   if (!images || images.length === 0) {
     return (
       <div className="bg-gray-50 rounded-xl p-8 text-center">
@@ -142,7 +144,7 @@ const MagazineGallery = ({ images, placeName }) => {
             >
               <FiX className="h-6 w-6" />
             </button>
-            
+
             {/* Navigation buttons */}
             <button
               className="absolute left-4 text-white p-3 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 z-10"
@@ -154,7 +156,7 @@ const MagazineGallery = ({ images, placeName }) => {
             >
               <FiChevronLeft className="h-6 w-6" />
             </button>
-            
+
             <button
               className="absolute right-4 text-white p-3 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 z-10"
               aria-label="Next image"
@@ -165,7 +167,7 @@ const MagazineGallery = ({ images, placeName }) => {
             >
               <FiChevronRight className="h-6 w-6" />
             </button>
-            
+
             {/* Current image */}
             <motion.div
               key={activeIndex}
@@ -182,9 +184,13 @@ const MagazineGallery = ({ images, placeName }) => {
                   e.target.src = '/images/placeholder.jpg';
                 }}
               />
-              
+
               {/* Image counter */}
-              <div role="status" aria-live="polite" className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-4 py-2 rounded-full text-sm">
+              <div
+                role="status"
+                aria-live="polite"
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-4 py-2 rounded-full text-sm"
+              >
                 {activeIndex + 1} / {images.length}
               </div>
             </motion.div>

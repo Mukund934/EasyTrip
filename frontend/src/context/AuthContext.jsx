@@ -107,20 +107,20 @@ export const AuthProvider = ({ children }) => {
   const register = async (email, password, name) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
+
       // Update profile with name
       if (name) {
         await updateFirebaseProfile(userCredential.user, {
           displayName: name
         });
       }
-      
+
       return { success: true, user: userCredential.user };
     } catch (error) {
       console.error('Registration error:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -133,9 +133,9 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: userCredential.user };
     } catch (error) {
       console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -148,10 +148,10 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: result.user };
     } catch (error) {
-      console.error("Error signing in with Google", error);
-      return { 
-        success: false, 
-        error: error.message 
+      console.error('Error signing in with Google', error);
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -173,7 +173,10 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: 'That email address does not look valid.' };
       }
       if (error.code === 'auth/too-many-requests') {
-        return { success: false, error: 'Too many attempts. Please wait a few minutes and try again.' };
+        return {
+          success: false,
+          error: 'Too many attempts. Please wait a few minutes and try again.'
+        };
       }
       return { success: false, error: 'Could not send the reset email. Please try again.' };
     }
@@ -194,9 +197,9 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Logout error:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -207,14 +210,14 @@ export const AuthProvider = ({ children }) => {
       if (!currentUser) {
         throw new Error('No user logged in');
       }
-      
+
       // Update profile in Firebase if needed
       if (data.name) {
         await updateFirebaseProfile(auth.currentUser, {
           displayName: data.name
         });
       }
-      
+
       // Update custom user data in your backend
       const token = await getIdToken();
       if (!token) {
@@ -247,7 +250,6 @@ export const AuthProvider = ({ children }) => {
       };
     }
   };
-
 
   // Listen for auth state changes - only after initial render.
   // The Firebase SDK's own persistence is the single source of session truth:
@@ -306,7 +308,7 @@ export const AuthProvider = ({ children }) => {
         }
       })
       .catch((error) => {
-        console.error("Error with redirect sign-in", error);
+        console.error('Error with redirect sign-in', error);
       });
 
     return () => unsubscribe();
@@ -330,11 +332,7 @@ export const AuthProvider = ({ children }) => {
     isClient // Expose this so components can know when it's safe to render client-only content
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export default AuthProvider;

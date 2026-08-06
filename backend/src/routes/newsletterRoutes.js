@@ -18,7 +18,11 @@ const subscribeRules = [
     .withMessage('Email must be at most 254 characters')
     // Only case-folds the domain and strips nothing else. Full normalisation would collapse
     // Gmail dot-aliases, which are different addresses as far as a subscriber is concerned.
-    .normalizeEmail({ all_lowercase: true, gmail_remove_dots: false, gmail_remove_subaddress: false }),
+    .normalizeEmail({
+      all_lowercase: true,
+      gmail_remove_dots: false,
+      gmail_remove_subaddress: false
+    }),
   body('source')
     .optional({ values: 'falsy' })
     .isString()

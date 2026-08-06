@@ -44,8 +44,8 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
-        pathname: '/**',
-      },
+        pathname: '/**'
+      }
     ],
     // Modern formats first; Next falls back to the original when the browser cannot accept them.
     formats: ['image/avif', 'image/webp'],
@@ -54,16 +54,16 @@ const nextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [64, 96, 128, 256, 384],
     // Optimized derivatives are immutable for their URL, so let the browser keep them.
-    minimumCacheTTL: 60 * 60 * 24 * 30,
+    minimumCacheTTL: 60 * 60 * 24 * 30
   },
   async headers() {
     return [
       {
         source: '/(.*)',
-        headers: securityHeaders,
-      },
+        headers: securityHeaders
+      }
     ];
   }
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

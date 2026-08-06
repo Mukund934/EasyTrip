@@ -17,7 +17,7 @@ function fileExists(filePath) {
 try {
   // First, check if a service account file exists
   const serviceAccountPath = path.join(__dirname, '../service-account.json');
-  
+
   if (fileExists(serviceAccountPath)) {
     // Use service account file if it exists
     const serviceAccount = require(serviceAccountPath);
@@ -25,15 +25,17 @@ try {
       credential: admin.credential.cert(serviceAccount)
     });
     console.log('Firebase initialized with service account file.');
-  } else if (process.env.FIREBASE_PROJECT_ID && 
-            process.env.FIREBASE_CLIENT_EMAIL && 
-            process.env.FIREBASE_PRIVATE_KEY) {
+  } else if (
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY
+  ) {
     // Use environment variables if service account file doesn't exist
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
       })
     });
     console.log('Firebase initialized with environment variables.');
@@ -41,7 +43,9 @@ try {
     console.error('Error: No Firebase credentials found.');
     console.error('Please either:');
     console.error('1. Create a service-account.json file in the backend directory, or');
-    console.error('2. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in your .env file');
+    console.error(
+      '2. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in your .env file'
+    );
     process.exit(1);
   }
 } catch (error) {
@@ -57,9 +61,9 @@ try {
     console.error('Please set it in your .env file.');
     process.exit(1);
   }
-  
+
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL
   });
   console.log('PostgreSQL pool initialized.');
 } catch (error) {
@@ -79,7 +83,7 @@ if (!email) {
 async function makeAdmin() {
   try {
     console.log(`Attempting to make ${email} an admin...`);
-    
+
     // Test database connection
     try {
       await pool.query('SELECT NOW()');
@@ -89,7 +93,7 @@ async function makeAdmin() {
       console.error('Please check your DATABASE_URL environment variable.');
       process.exit(1);
     }
-    
+
     // Get user from Firebase
     let userRecord;
     try {
@@ -100,7 +104,7 @@ async function makeAdmin() {
       console.error('Make sure the user has registered with Firebase Authentication.');
       process.exit(1);
     }
-    
+
     // Check if users table exists and create it if it doesn't
     try {
       const tableCheck = await pool.query(`
@@ -110,7 +114,7 @@ async function makeAdmin() {
           AND table_name = 'users'
         );
       `);
-      
+
       if (!tableCheck.rows[0].exists) {
         console.log('Users table does not exist. Creating it now...');
         await pool.query(`
@@ -131,13 +135,12 @@ async function makeAdmin() {
       console.error('Error checking or creating users table:', error);
       process.exit(1);
     }
-    
+
     // Check if user exists in database
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE firebase_uid = $1',
-      [userRecord.uid]
-    );
-    
+    const userResult = await pool.query('SELECT * FROM users WHERE firebase_uid = $1', [
+      userRecord.uid
+    ]);
+
     if (userResult.rows.length > 0) {
       // User exists, update admin status
       await pool.query(
@@ -153,7 +156,7 @@ async function makeAdmin() {
       );
       console.log(`Added new user ${email} with admin status.`);
     }
-    
+
     // Also set custom claims in Firebase (optional but recommended)
     try {
       await admin.auth().setCustomUserClaims(userRecord.uid, { admin: true });
@@ -162,7 +165,7 @@ async function makeAdmin() {
       console.warn('Warning: Could not set Firebase custom claims:', error.message);
       console.warn('The user will still be an admin in the database.');
     }
-    
+
     console.log(`Success! ${email} is now an admin.`);
   } catch (error) {
     console.error('Error making user an admin:', error);

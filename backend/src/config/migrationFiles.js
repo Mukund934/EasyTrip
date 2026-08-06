@@ -30,7 +30,7 @@ const listMigrationFiles = () =>
       return {
         name,
         sql,
-        checksum: crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex'),
+        checksum: crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex')
       };
     });
 

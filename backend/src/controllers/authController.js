@@ -3,10 +3,10 @@ const admin = require('firebase-admin');
 const { resolveAdminStatus } = require('../utils/authMiddleware');
 const logger = require('../utils/logger');
 
-
 // One list for every profile read/write. It was repeated three times, and the profile form seeds
 // itself from whatever this returns — a column missing from one copy silently blanks that field.
-const USER_COLUMNS = 'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
+const USER_COLUMNS =
+  'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
 
 /**
  * Get current user profile
@@ -15,17 +15,15 @@ const getProfile = async (req, res) => {
   try {
     const { uid } = req.user;
 
-
     // Get user from database
-    const result = await pool.query(
-      `SELECT ${USER_COLUMNS} FROM users WHERE firebase_uid = $1`,
-      [uid]
-    );
-    
+    const result = await pool.query(`SELECT ${USER_COLUMNS} FROM users WHERE firebase_uid = $1`, [
+      uid
+    ]);
+
     if (result.rows.length === 0) {
       // User not in database yet, get from Firebase
       const userRecord = await admin.auth().getUser(uid);
-      
+
       // Create user in database
       const newUser = await pool.query(
         `INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING ${USER_COLUMNS}`,
@@ -38,11 +36,11 @@ const getProfile = async (req, res) => {
         last_login: new Date().toISOString(),
         accessed_by: uid
       };
-      
+
       logger.info('New user row provisioned');
       return res.status(200).json(userData);
     }
-    
+
     // Add last login time and requesting user for audit purposes
     const userData = {
       ...result.rows[0],
@@ -65,7 +63,6 @@ const updateProfile = async (req, res) => {
     const { uid } = req.user;
     const { name, location, dob } = req.body;
 
-
     // location and dob were accepted by the validator and then dropped here, so the profile form
     // reported success while saving nothing (IMP-008). A cleared field arrives as '', which DATE
     // rejects, so both are normalised to NULL rather than written through.
@@ -73,11 +70,11 @@ const updateProfile = async (req, res) => {
       `UPDATE users SET name = $1, location = $2, dob = $3, updated_at = NOW() WHERE firebase_uid = $4 RETURNING ${USER_COLUMNS}`,
       [name, location || null, dob || null, uid]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     // Add audit data
     const userData = {
       ...result.rows[0],
@@ -99,7 +96,6 @@ const updateProfile = async (req, res) => {
 const checkAdmin = async (req, res) => {
   try {
     const { uid } = req.user;
-
 
     // This endpoint is the sole authority behind the four /admin/* server-side page
     // gates, so it must answer exactly as the isAdmin API gate would — same DB column,

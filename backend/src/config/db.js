@@ -50,8 +50,8 @@ const buildSslConfig = () => {
   if (process.env.DATABASE_SSL_NO_VERIFY === 'true') {
     logger.warn(
       'DATABASE_SSL_NO_VERIFY=true — the Postgres TLS certificate is NOT being verified. The ' +
-      'connection is encrypted but the peer is unauthenticated, so it is not protected against ' +
-      'an active man-in-the-middle. Set DATABASE_CA_CERT to the provider CA instead.'
+        'connection is encrypted but the peer is unauthenticated, so it is not protected against ' +
+        'an active man-in-the-middle. Set DATABASE_CA_CERT to the provider CA instead.'
     );
     return { rejectUnauthorized: false };
   }
@@ -62,7 +62,7 @@ const buildSslConfig = () => {
       // Providers hand this out as a PEM block. Supporting the literal `\n` form as well means it
       // survives being pasted into a single-line .env or a dashboard secret field, which is how it
       // is usually supplied — the same escaping the Firebase private key already needs.
-      ca: process.env.DATABASE_CA_CERT.replace(/\\n/g, '\n'),
+      ca: process.env.DATABASE_CA_CERT.replace(/\\n/g, '\n')
     };
   }
 
@@ -78,7 +78,7 @@ const pool = new Pool({
   // process. 10 is pg's default; stating it makes the ceiling visible next to the reasoning above.
   max: Number(process.env.PG_POOL_MAX) || 10,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 10_000
 });
 
 // A pooled client can be dropped by the server (idle timeout, failover). Without a listener, that

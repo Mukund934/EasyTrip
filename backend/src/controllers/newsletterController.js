@@ -1,15 +1,13 @@
 const pool = require('../config/db');
 const logger = require('../utils/logger');
 
-
 // Where a signup came from. Kept here rather than as a database CHECK so adding a surface is a
 // one-line change with no migration; the API is the layer that knows which surfaces exist.
 // Anything unrecognised is stored as 'unknown' rather than rejected — a caller getting the source
 // wrong should not cost the user their subscription.
 const KNOWN_SOURCES = new Set(['footer', 'place_page', 'landing', 'api']);
 
-const normaliseSource = (source) =>
-  KNOWN_SOURCES.has(source) ? source : 'unknown';
+const normaliseSource = (source) => (KNOWN_SOURCES.has(source) ? source : 'unknown');
 
 /**
  * Subscribe an email address to the newsletter.
@@ -50,7 +48,8 @@ const subscribe = async (req, res) => {
     if (error.code === '42P01') {
       logger.error('newsletter_subscribers does not exist. Run: npm run migrate');
       return res.status(500).json({
-        message: 'Subscriptions are temporarily unavailable — the server is missing a required table'
+        message:
+          'Subscriptions are temporarily unavailable — the server is missing a required table'
       });
     }
 

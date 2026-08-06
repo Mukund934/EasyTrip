@@ -16,7 +16,7 @@ const VARIANTS = {
   primary: 'bg-primary-600 text-white hover:bg-primary-700 border border-transparent',
   secondary: 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300',
   danger: 'bg-red-600 text-white hover:bg-red-700 border border-transparent',
-  ghost: 'bg-transparent text-primary-700 hover:bg-primary-50 border border-transparent',
+  ghost: 'bg-transparent text-primary-700 hover:bg-primary-50 border border-transparent'
 };
 
 // min-h values keep every size at or above the 44 px touch target on the two that are used on
@@ -24,7 +24,7 @@ const VARIANTS = {
 const SIZES = {
   sm: 'text-sm px-3 py-1.5 min-h-[36px]',
   md: 'text-sm px-4 py-2.5 min-h-[44px]',
-  lg: 'text-base px-6 py-3 min-h-[48px]',
+  lg: 'text-base px-6 py-3 min-h-[48px]'
 };
 
 const BASE =
@@ -47,7 +47,7 @@ const Button = ({
     VARIANTS[variant] || VARIANTS.primary,
     SIZES[size] || SIZES.md,
     fullWidth ? 'w-full' : '',
-    className,
+    className
   ]
     .filter(Boolean)
     .join(' ');

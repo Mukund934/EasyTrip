@@ -39,20 +39,20 @@ import { requireAdminPage } from '../../services/adminGate';
 // Presentation only — ids/labels/descriptions come from the shared vocabulary so this form can
 // always assign every theme the browse filters offer (IMP-118).
 const THEME_PRESENTATION = {
-  hot:        { icon: <FiSun className="mr-2" />,       color: 'orange' },
-  cold:       { icon: <FiThermometer className="mr-2" />, color: 'blue' },
-  rainy:      { icon: <FiCloudRain className="mr-2" />,  color: 'gray' },
-  romantic:   { icon: <FiHeart className="mr-2" />,      color: 'pink' },
-  religious:  { icon: <FiBook className="mr-2" />,       color: 'purple' },
-  historical: { icon: <FiClock className="mr-2" />,      color: 'amber' },
-  science:    { icon: <FiCpu className="mr-2" />,        color: 'green' },
-  tech:       { icon: <FiCpu className="mr-2" />,        color: 'indigo' },
-  adventure:  { icon: <FiMap className="mr-2" />,        color: 'red' },
-  nature:     { icon: <FiGlobe className="mr-2" />,      color: 'green' },
-  beach:      { icon: <FiGlobe className="mr-2" />,      color: 'sky' },
-  mountain:   { icon: <FiMap className="mr-2" />,        color: 'stone' },
-  family:     { icon: <FiHome className="mr-2" />,       color: 'blue' },
-  weekend:    { icon: <FiClock className="mr-2" />,      color: 'teal' }
+  hot: { icon: <FiSun className="mr-2" />, color: 'orange' },
+  cold: { icon: <FiThermometer className="mr-2" />, color: 'blue' },
+  rainy: { icon: <FiCloudRain className="mr-2" />, color: 'gray' },
+  romantic: { icon: <FiHeart className="mr-2" />, color: 'pink' },
+  religious: { icon: <FiBook className="mr-2" />, color: 'purple' },
+  historical: { icon: <FiClock className="mr-2" />, color: 'amber' },
+  science: { icon: <FiCpu className="mr-2" />, color: 'green' },
+  tech: { icon: <FiCpu className="mr-2" />, color: 'indigo' },
+  adventure: { icon: <FiMap className="mr-2" />, color: 'red' },
+  nature: { icon: <FiGlobe className="mr-2" />, color: 'green' },
+  beach: { icon: <FiGlobe className="mr-2" />, color: 'sky' },
+  mountain: { icon: <FiMap className="mr-2" />, color: 'stone' },
+  family: { icon: <FiHome className="mr-2" />, color: 'blue' },
+  weekend: { icon: <FiClock className="mr-2" />, color: 'teal' }
 };
 
 const themeOptions = THEMES.map((theme) => ({
@@ -64,10 +64,27 @@ const themeOptions = THEMES.map((theme) => ({
 
 // Common tag suggestions
 const tagSuggestions = [
-  'family-friendly', 'weekend', 'nature', 'photography', 'trekking', 
-  'peaceful', 'crowded', 'budget-friendly', 'luxury', 'heritage',
-  'beach', 'mountain', 'temple', 'museum', 'park', 'market',
-  'shopping', 'food', 'nightlife', 'cultural', 'educational'
+  'family-friendly',
+  'weekend',
+  'nature',
+  'photography',
+  'trekking',
+  'peaceful',
+  'crowded',
+  'budget-friendly',
+  'luxury',
+  'heritage',
+  'beach',
+  'mountain',
+  'temple',
+  'museum',
+  'park',
+  'market',
+  'shopping',
+  'food',
+  'nightlife',
+  'cultural',
+  'educational'
 ];
 
 export default function AddPlace() {
@@ -146,7 +163,7 @@ export default function AddPlace() {
 
   const collectErrors = () => {
     const newErrors = {};
-    
+
     // Required fields
     if (!formData.name.trim()) {
       newErrors.name = 'Place name is required';
@@ -155,39 +172,45 @@ export default function AddPlace() {
     } else if (formData.name.length > 100) {
       newErrors.name = 'Place name must be less than 100 characters';
     }
-    
+
     if (!formData.location.trim()) {
       newErrors.location = 'Location is required';
     } else if (formData.location.length < 2) {
       newErrors.location = 'Location must be at least 2 characters';
     }
-    
+
     // Optional but validated fields
     if (formData.latitude && isNaN(parseFloat(formData.latitude))) {
       newErrors.latitude = 'Latitude must be a valid number';
-    } else if (formData.latitude && (parseFloat(formData.latitude) < -90 || parseFloat(formData.latitude) > 90)) {
+    } else if (
+      formData.latitude &&
+      (parseFloat(formData.latitude) < -90 || parseFloat(formData.latitude) > 90)
+    ) {
       newErrors.latitude = 'Latitude must be between -90 and 90';
     }
-    
+
     if (formData.longitude && isNaN(parseFloat(formData.longitude))) {
       newErrors.longitude = 'Longitude must be a valid number';
-    } else if (formData.longitude && (parseFloat(formData.longitude) < -180 || parseFloat(formData.longitude) > 180)) {
+    } else if (
+      formData.longitude &&
+      (parseFloat(formData.longitude) < -180 || parseFloat(formData.longitude) > 180)
+    ) {
       newErrors.longitude = 'Longitude must be between -180 and 180';
     }
-    
+
     if (formData.pin_code && !/^\d{6}$/.test(formData.pin_code)) {
       newErrors.pin_code = 'PIN code must be exactly 6 digits';
     }
-    
+
     if (formData.description && formData.description.length > 2000) {
       newErrors.description = 'Description must be less than 2000 characters';
     }
-    
+
     // Image validation
     if (primaryImage && primaryImage.size > 5 * 1024 * 1024) {
       newErrors.image = 'Image size must be less than 5MB';
     }
-    
+
     return newErrors;
   };
 
@@ -200,7 +223,7 @@ export default function AddPlace() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors({ ...errors, [name]: '' });
@@ -211,7 +234,7 @@ export default function AddPlace() {
     setFormData({
       ...formData,
       themes: formData.themes.includes(themeId)
-        ? formData.themes.filter(id => id !== themeId)
+        ? formData.themes.filter((id) => id !== themeId)
         : [...formData.themes, themeId]
     });
   };
@@ -224,17 +247,17 @@ export default function AddPlace() {
         setErrors({ ...errors, image: 'Image size must be less than 5MB' });
         return;
       }
-      
+
       // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error('Only image files are allowed');
         setErrors({ ...errors, image: 'Only image files are allowed' });
         return;
       }
-      
+
       setPrimaryImage(file);
       setErrors({ ...errors, image: '' });
-      
+
       // Create preview
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -261,7 +284,7 @@ export default function AddPlace() {
   const handleRemoveTag = (tagToRemove) => {
     setFormData({
       ...formData,
-      tags: formData.tags.filter(tag => tag !== tagToRemove)
+      tags: formData.tags.filter((tag) => tag !== tagToRemove)
     });
     toast.info(`Tag "${tagToRemove}" removed`);
   };
@@ -269,18 +292,18 @@ export default function AddPlace() {
   const handleAddCustomKey = () => {
     const key = newKeyName.trim();
     const value = newKeyValue.trim();
-    
+
     if (key && value) {
       if (formData.custom_keys[key]) {
         toast.error('This detail key already exists');
         return;
       }
-      
+
       if (Object.keys(formData.custom_keys).length >= 10) {
         toast.error('Maximum 10 custom details allowed');
         return;
       }
-      
+
       setFormData({
         ...formData,
         custom_keys: {
@@ -305,7 +328,7 @@ export default function AddPlace() {
   // Enhanced form submission with better error handling
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       toast.error('Please fix the errors before submitting');
       return;
@@ -313,7 +336,7 @@ export default function AddPlace() {
 
     setIsSubmitting(true);
     setErrors({});
-    
+
     try {
       const token = await getIdToken();
       if (!token) {
@@ -327,14 +350,12 @@ export default function AddPlace() {
         image: primaryImage
       };
 
-      
       // Submit the form - let the service handle FormData creation
       const response = await createPlace(placeData, token);
-      
+
       setIsSubmitting(false);
       toast.success('Place created successfully!');
       router.push(`/places/${response.id}`);
-      
     } catch (error) {
       setIsSubmitting(false);
       console.error('Error creating place:', error);
@@ -348,7 +369,7 @@ export default function AddPlace() {
       toast.error('Please enter a location first');
       return;
     }
-    
+
     toast.info('🔍 Location lookup feature coming soon!');
     // TODO: Implement geocoding API integration
   };
@@ -399,8 +420,12 @@ export default function AddPlace() {
               <FiArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
               <span className="text-sm sm:text-base">Back to Admin Dashboard</span>
             </button>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Add New Place</h1>
-            <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Create a new destination with detailed information</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
+              Add New Place
+            </h1>
+            <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+              Create a new destination with detailed information
+            </p>
           </motion.div>
 
           {/* Progress Indicator */}
@@ -413,23 +438,19 @@ export default function AddPlace() {
               {/* Mobile Progress */}
               <div className="block sm:hidden">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600">
-                    Step {step} of 4
-                  </span>
+                  <span className="text-sm font-medium text-gray-600">Step {step} of 4</span>
                   <span className="text-xs text-gray-500">
                     {Math.round((step / 4) * 100)}% Complete
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(step / 4) * 100}%` }}
                   ></div>
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-sm font-semibold text-primary-600">
-                    {stepTitles[step]}
-                  </h3>
+                  <h3 className="text-sm font-semibold text-primary-600">{stepTitles[step]}</h3>
                 </div>
               </div>
 
@@ -438,24 +459,30 @@ export default function AddPlace() {
                 <div className="flex items-center justify-between">
                   {Object.entries(stepTitles).map(([stepNum, title]) => (
                     <div key={stepNum} className="flex items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        parseInt(stepNum) === step 
-                          ? 'bg-primary-600 text-white' 
-                          : parseInt(stepNum) < step 
-                            ? 'bg-green-500 text-white' 
-                            : 'bg-gray-200 text-gray-600'
-                      }`}>
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                          parseInt(stepNum) === step
+                            ? 'bg-primary-600 text-white'
+                            : parseInt(stepNum) < step
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-200 text-gray-600'
+                        }`}
+                      >
                         {parseInt(stepNum) < step ? <FiCheck className="w-4 h-4" /> : stepNum}
                       </div>
-                      <span className={`ml-2 text-xs sm:text-sm font-medium ${
-                        parseInt(stepNum) === step ? 'text-primary-600' : 'text-gray-500'
-                      }`}>
+                      <span
+                        className={`ml-2 text-xs sm:text-sm font-medium ${
+                          parseInt(stepNum) === step ? 'text-primary-600' : 'text-gray-500'
+                        }`}
+                      >
                         {title}
                       </span>
                       {stepNum !== '4' && (
-                        <div className={`w-8 sm:w-12 h-1 mx-2 sm:mx-4 ${
-                          parseInt(stepNum) < step ? 'bg-green-500' : 'bg-gray-200'
-                        }`} />
+                        <div
+                          className={`w-8 sm:w-12 h-1 mx-2 sm:mx-4 ${
+                            parseInt(stepNum) < step ? 'bg-green-500' : 'bg-gray-200'
+                          }`}
+                        />
                       )}
                     </div>
                   ))}
@@ -468,7 +495,7 @@ export default function AddPlace() {
           <motion.form
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleSubmit} 
+            onSubmit={handleSubmit}
             className="bg-white shadow-xl rounded-xl sm:rounded-2xl overflow-hidden"
           >
             <AnimatePresence mode="wait">
@@ -485,12 +512,17 @@ export default function AddPlace() {
                     <div className="p-2 sm:p-3 bg-primary-100 rounded-lg mr-3 sm:mr-4">
                       <FiInfo className="text-primary-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Basic Information</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                      Basic Information
+                    </h2>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="md:col-span-2 lg:col-span-1">
-                      <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="name"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         Place Name *
                       </label>
                       <input
@@ -518,7 +550,10 @@ export default function AddPlace() {
                     </div>
 
                     <div className="md:col-span-2 lg:col-span-1">
-                      <label htmlFor="location" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="location"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         Location *
                       </label>
                       <div className="relative">
@@ -559,7 +594,10 @@ export default function AddPlace() {
                   </div>
 
                   <div className="mt-6">
-                    <label htmlFor="description" className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label
+                      htmlFor="description"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Description
                     </label>
                     <textarea
@@ -615,12 +653,17 @@ export default function AddPlace() {
                     <div className="p-2 sm:p-3 bg-green-100 rounded-lg mr-3 sm:mr-4">
                       <FiLocation className="text-green-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Location Details</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                      Location Details
+                    </h2>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div>
-                      <label htmlFor="district" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="district"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         District
                       </label>
                       <input
@@ -635,7 +678,10 @@ export default function AddPlace() {
                     </div>
 
                     <div>
-                      <label htmlFor="state" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="state"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         State
                       </label>
                       <input
@@ -650,7 +696,10 @@ export default function AddPlace() {
                     </div>
 
                     <div>
-                      <label htmlFor="locality" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="locality"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         Locality
                       </label>
                       <input
@@ -665,7 +714,10 @@ export default function AddPlace() {
                     </div>
 
                     <div>
-                      <label htmlFor="pin_code" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="pin_code"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         PIN Code
                       </label>
                       <input
@@ -695,7 +747,10 @@ export default function AddPlace() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-6">
                     <div>
-                      <label htmlFor="latitude" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="latitude"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         Latitude
                       </label>
                       <input
@@ -722,7 +777,10 @@ export default function AddPlace() {
                     </div>
 
                     <div>
-                      <label htmlFor="longitude" className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="longitude"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         Longitude
                       </label>
                       <input
@@ -788,12 +846,15 @@ export default function AddPlace() {
 
                   {/* Primary Image Section */}
                   <div className="mb-8">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Primary Image</h3>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
+                      Primary Image
+                    </h3>
                     <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                      Upload a main image for this place (max 5MB). You can add more images after creating the place.
+                      Upload a main image for this place (max 5MB). You can add more images after
+                      creating the place.
                     </p>
-                    
-                    <ImageUpload 
+
+                    <ImageUpload
                       onImageSelect={(file) => {
                         if (file) {
                           handleImageChange(file);
@@ -807,7 +868,7 @@ export default function AddPlace() {
                       preview={true}
                       className="w-full"
                     />
-                    
+
                     {errors.image && (
                       <motion.p
                         initial={{ opacity: 0, y: -10 }}
@@ -822,13 +883,15 @@ export default function AddPlace() {
 
                   {/* Themes Section */}
                   <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Theme Categories</h3>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
+                      Theme Categories
+                    </h3>
                     <p className="text-xs sm:text-sm text-gray-600 mb-4">
                       Select all themes that apply to this destination
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {themeOptions.map(theme => (
+                      {themeOptions.map((theme) => (
                         <motion.div
                           key={theme.id}
                           whileHover={{ scale: 1.02 }}
@@ -843,19 +906,20 @@ export default function AddPlace() {
                                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                             }`}
                           >
-                            <div className="flex-shrink-0 text-sm sm:text-base">
-                              {theme.icon}
-                            </div>
+                            <div className="flex-shrink-0 text-sm sm:text-base">{theme.icon}</div>
                             <div className="text-left">
                               <div className="font-medium text-sm sm:text-base">{theme.label}</div>
-                              <div className="text-xs opacity-75 hidden sm:block">{theme.description}</div>
+                              <div className="text-xs opacity-75 hidden sm:block">
+                                {theme.description}
+                              </div>
                             </div>
                           </button>
                         </motion.div>
                       ))}
                     </div>
                     <p className="text-xs text-gray-500 mt-3">
-                      Selected: {formData.themes.length} theme{formData.themes.length !== 1 ? 's' : ''}
+                      Selected: {formData.themes.length} theme
+                      {formData.themes.length !== 1 ? 's' : ''}
                     </p>
                   </div>
 
@@ -893,13 +957,15 @@ export default function AddPlace() {
                     <div className="p-2 sm:p-3 bg-yellow-100 rounded-lg mr-3 sm:mr-4">
                       <FiTag className="text-yellow-600 h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Tags & Additional Details</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                      Tags & Additional Details
+                    </h2>
                   </div>
 
                   {/* Tags Section */}
                   <div className="mb-8">
                     <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Tags</h3>
-                    
+
                     <div className="flex flex-wrap gap-2 mb-4">
                       {formData.tags.map((tag, index) => (
                         <motion.div
@@ -947,7 +1013,7 @@ export default function AddPlace() {
                           Add
                         </button>
                       </div>
-                      
+
                       {/* Tag Suggestions */}
                       {showTagSuggestions && (
                         <motion.div
@@ -956,12 +1022,13 @@ export default function AddPlace() {
                           className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
                         >
                           {tagSuggestions
-                            .filter(suggestion => 
-                              suggestion.toLowerCase().includes(newTag.toLowerCase()) &&
-                              !formData.tags.includes(suggestion)
+                            .filter(
+                              (suggestion) =>
+                                suggestion.toLowerCase().includes(newTag.toLowerCase()) &&
+                                !formData.tags.includes(suggestion)
                             )
                             .slice(0, 8)
-                            .map(suggestion => (
+                            .map((suggestion) => (
                               <button
                                 key={suggestion}
                                 type="button"
@@ -981,7 +1048,9 @@ export default function AddPlace() {
 
                   {/* Custom Details Section */}
                   <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Additional Details</h3>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
+                      Additional Details
+                    </h3>
 
                     <div className="space-y-3 mb-6">
                       {Object.entries(formData.custom_keys).map(([key, value], index) => (
@@ -992,8 +1061,12 @@ export default function AddPlace() {
                           className="flex items-center bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-200"
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-gray-800 text-sm sm:text-base truncate">{key}</div>
-                            <div className="text-gray-600 text-xs sm:text-sm break-words">{value}</div>
+                            <div className="font-semibold text-gray-800 text-sm sm:text-base truncate">
+                              {key}
+                            </div>
+                            <div className="text-gray-600 text-xs sm:text-sm break-words">
+                              {value}
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -1093,11 +1166,16 @@ export default function AddPlace() {
               >
                 <div className="flex items-center mb-4">
                   <FiLoader className="animate-spin h-5 w-5 text-primary-600 mr-3" />
-                  <h3 className="text-base sm:text-lg font-semibold text-primary-900">Creating Your Place...</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-primary-900">
+                    Creating Your Place...
+                  </h3>
                 </div>
                 <div className="text-xs sm:text-sm text-primary-700 space-y-1">
                   <p>• Validating form data</p>
-                  <p>• {primaryImage ? 'Uploading image to Firebase Storage' : 'Preparing place data'}</p>
+                  <p>
+                    •{' '}
+                    {primaryImage ? 'Uploading image to Firebase Storage' : 'Preparing place data'}
+                  </p>
                   <p>• Saving to database</p>
                   <p>• Setting up admin permissions</p>
                 </div>

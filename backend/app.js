@@ -42,20 +42,24 @@ if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
 // gzip/brotli for every response above the threshold. Place lists are large, highly repetitive
 // JSON — the same ~20 keys repeated per row — which compresses extremely well. Registered before
 // the routers so it wraps their output (IMP-038).
-app.use(compression({
-  // Below ~1 KB the compression header overhead outweighs the saving.
-  threshold: 1024,
-  // Honour an explicit opt-out, which image redirects and already-compressed payloads can set.
-  filter: (req, res) => (res.getHeader('x-no-compression') ? false : compression.filter(req, res))
-}));
+app.use(
+  compression({
+    // Below ~1 KB the compression header overhead outweighs the saving.
+    threshold: 1024,
+    // Honour an explicit opt-out, which image redirects and already-compressed payloads can set.
+    filter: (req, res) => (res.getHeader('x-no-compression') ? false : compression.filter(req, res))
+  })
+);
 
 // Security headers
 app.disable('x-powered-by');
-app.use(helmet({
-  // This API serves place images cross-origin to the frontend, so the default
-  // same-origin resource policy would block them.
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
-}));
+app.use(
+  helmet({
+    // This API serves place images cross-origin to the frontend, so the default
+    // same-origin resource policy would block them.
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+  })
+);
 
 // Per-request logging (IMP-071). Registered here — after the security headers, before CORS and the
 // rate limiters — so that rejected requests are logged too. A 403 from the origin check and a 429
@@ -75,8 +79,8 @@ if (allowedOrigins.length === 0) {
     // surfaces that as one obvious error instead of a site-wide CORS mystery.
     logger.fatal(
       'CORS_ALLOWED_ORIGINS is not set. In production every browser origin would be rejected. ' +
-      'Set it to a comma-separated origin list, e.g. ' +
-      'CORS_ALLOWED_ORIGINS=https://easytrip-psi.vercel.app'
+        'Set it to a comma-separated origin list, e.g. ' +
+        'CORS_ALLOWED_ORIGINS=https://easytrip-psi.vercel.app'
     );
     process.exit(1);
   }
@@ -87,18 +91,20 @@ if (allowedOrigins.length === 0) {
 // to CORS and pass through.
 const isAllowedOrigin = (origin) => !origin || allowedOrigins.includes(origin);
 
-app.use(cors({
-  origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
-  credentials: true,
-  // Without this the browser re-runs a preflight OPTIONS before *every* cross-origin request that
-  // carries an Authorization header — doubling the request count on an authenticated page for no
-  // information gain. 24h is the maximum Chromium honours; Firefox caps at 24h too (IMP-039).
-  maxAge: 86400,
-  // Named explicitly so the preflight response is cacheable and stable. The client sends only
-  // Authorization and Content-Type; the former X-User header is gone (IMP-003).
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+    credentials: true,
+    // Without this the browser re-runs a preflight OPTIONS before *every* cross-origin request that
+    // carries an Authorization header — doubling the request count on an authenticated page for no
+    // information gain. 24h is the maximum Chromium honours; Firefox caps at 24h too (IMP-039).
+    maxAge: 86400,
+    // Named explicitly so the preflight response is cacheable and stable. The client sends only
+    // Authorization and Content-Type; the former X-User header is gone (IMP-003).
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+  })
+);
 
 // A disallowed origin gets a clean 403 rather than a thrown error surfacing as a 500.
 // Registered AFTER cors() on purpose: Express runs middleware in registration order, so
@@ -139,21 +145,30 @@ const isImageRead = (req) =>
 const globalLimiter = rateLimit(
   limiterOptions(15 * 60 * 1000, 1000, 'Too many requests, please try again later', isImageRead)
 );
-const reviewWriteLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 10, 'Too many reviews submitted, please try again later'));
-const uploadLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 30, 'Too many uploads, please try again later'));
-const adminWriteLimiter = rateLimit(limiterOptions(15 * 60 * 1000, 60, 'Too many admin requests, please try again later'));
+const reviewWriteLimiter = rateLimit(
+  limiterOptions(60 * 60 * 1000, 10, 'Too many reviews submitted, please try again later')
+);
+const uploadLimiter = rateLimit(
+  limiterOptions(60 * 60 * 1000, 30, 'Too many uploads, please try again later')
+);
+const adminWriteLimiter = rateLimit(
+  limiterOptions(15 * 60 * 1000, 60, 'Too many admin requests, please try again later')
+);
 // The newsletter endpoint is the only unauthenticated write in the API, so the rate limit is the
 // only thing bounding it. Deliberately tighter than the review limiter: a person subscribes once,
 // not ten times an hour.
-const newsletterLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 5, 'Too many subscription attempts, please try again later'));
+const newsletterLimiter = rateLimit(
+  limiterOptions(60 * 60 * 1000, 5, 'Too many subscription attempts, please try again later')
+);
 // Reporting is authenticated and idempotent per review, but one account can still report many
 // different reviews; this bounds that without getting in a genuine user's way.
-const reportLimiter = rateLimit(limiterOptions(60 * 60 * 1000, 20, 'Too many reports submitted, please try again later'));
+const reportLimiter = rateLimit(
+  limiterOptions(60 * 60 * 1000, 20, 'Too many reports submitted, please try again later')
+);
 
 const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const onWrites = (limiter) => (req, res, next) => (
-  writeMethods.has(req.method) ? limiter(req, res, next) : next()
-);
+const onWrites = (limiter) => (req, res, next) =>
+  writeMethods.has(req.method) ? limiter(req, res, next) : next();
 
 app.use(globalLimiter);
 app.post('/api/places/:id/reviews', reviewWriteLimiter);
@@ -231,7 +246,7 @@ async function warnIfMigrationsPending() {
     logger.warn(
       { pending, count: pending.length },
       `${pending.length} unapplied migration(s) — the schema this build expects is not the ` +
-      'schema the database has. Run: npm run migrate'
+        'schema the database has. Run: npm run migrate'
     );
   } catch (error) {
     // A database that is unreachable is already reported by the connection check below; this
@@ -245,7 +260,8 @@ warnIfMigrationsPending();
 // Health check endpoint — deliberately minimal: environment name, driver error
 // text, and provider configuration are all reconnaissance material.
 app.get('/api/health', async (req, res) => {
-  const database = await pool.query('SELECT 1')
+  const database = await pool
+    .query('SELECT 1')
     .then(() => true)
     .catch(() => false);
 
@@ -254,8 +270,6 @@ app.get('/api/health', async (req, res) => {
     database
   });
 });
-
-
 
 // Routes
 app.use('/api', placeRoutes);
@@ -273,11 +287,12 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // Test database connection
-pool.query('SELECT NOW() as current_time')
-  .then(result => {
+pool
+  .query('SELECT NOW() as current_time')
+  .then((result) => {
     logger.info({ serverTime: result.rows[0].current_time }, 'PostgreSQL connected');
   })
-  .catch(err => {
+  .catch((err) => {
     logger.error({ err }, 'Database connection failed');
 
     // The specific failure introduced by turning on certificate verification (IMP-063). Managed
@@ -287,8 +302,8 @@ pool.query('SELECT NOW() as current_time')
     if (/self[- ]signed certificate|unable to verify the first certificate/i.test(err.message)) {
       logger.error(
         'This is TLS certificate verification, not a connectivity problem. Either set ' +
-        'DATABASE_CA_CERT to your provider\'s CA certificate (preferred), or set ' +
-        'DATABASE_SSL_NO_VERIFY=true to accept an unverified certificate. See backend/.env.example.'
+          "DATABASE_CA_CERT to your provider's CA certificate (preferred), or set " +
+          'DATABASE_SSL_NO_VERIFY=true to accept an unverified certificate. See backend/.env.example.'
       );
     }
   });
@@ -303,6 +318,4 @@ app.listen(PORT, () => {
   );
 });
 
-
 module.exports = app;
-

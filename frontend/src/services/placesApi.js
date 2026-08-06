@@ -97,8 +97,7 @@ const buildQuery = (params = {}) => {
 export const fetchPlaces = async (params = {}, options = {}) =>
   request(`/places${buildQuery(params)}`, options);
 
-export const fetchPlaceById = async (id, options = {}) =>
-  request(`/places/${id}`, options);
+export const fetchPlaceById = async (id, options = {}) => request(`/places/${id}`, options);
 
 export const fetchPlaceImages = async (id, options = {}) =>
   request(`/places/${id}/images`, options);

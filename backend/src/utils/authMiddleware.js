@@ -2,20 +2,19 @@ const pool = require('../config/db');
 const admin = require('firebase-admin');
 const logger = require('./logger');
 
-
 const extractToken = (req) => {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader) {
     return null;
   }
-  
+
   const parts = authHeader.split(' ');
-  
+
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
     return null;
   }
-  
+
   return parts[1];
 };
 
@@ -24,10 +23,9 @@ const extractToken = (req) => {
 // never treat a null result as an authorization decision.
 const loadDbUser = async (decodedToken) => {
   try {
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE firebase_uid = $1',
-      [decodedToken.uid]
-    );
+    const userResult = await pool.query('SELECT * FROM users WHERE firebase_uid = $1', [
+      decodedToken.uid
+    ]);
 
     if (userResult.rows.length > 0) {
       return userResult.rows[0];
@@ -104,10 +102,9 @@ const authenticateRequest = async (req, res, { checkRevoked = false } = {}) => {
 const resolveAdminStatus = async (decodedToken) => {
   const userId = decodedToken.uid;
 
-  const adminResult = await pool.query(
-    'SELECT id, is_admin FROM users WHERE firebase_uid = $1',
-    [userId]
-  );
+  const adminResult = await pool.query('SELECT id, is_admin FROM users WHERE firebase_uid = $1', [
+    userId
+  ]);
 
   const row = adminResult.rows[0] || null;
   const dbIsAdmin = Boolean(row && row.is_admin === true);

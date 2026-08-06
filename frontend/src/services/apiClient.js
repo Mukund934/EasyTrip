@@ -35,7 +35,7 @@ const apiClient = axios.create({
   // Long enough for a slow mobile upload, short enough that a hung request surfaces as an error
   // rather than a spinner that never resolves.
   timeout: 30_000,
-  headers: { Accept: 'application/json' },
+  headers: { Accept: 'application/json' }
 });
 
 /**

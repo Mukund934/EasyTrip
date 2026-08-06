@@ -22,6 +22,7 @@ import ImageWithFallback from '../../components/ImageWithFallback';
 import { deletePlace } from '../../services/placeService';
 import { fetchPlaces } from '../../services/placesApi';
 import { requireAdminPage } from '../../services/adminGate';
+import { getPlaceImageUrl } from '../../utils/placeImage';
 
 // Utility function to format dates
 const formatDate = (dateString) => {
@@ -90,7 +91,10 @@ export default function ManagePlaces() {
         let truncated = false;
 
         for (let page = 0; ; page += 1) {
-          if (page >= PAGE_CAP) { truncated = true; break; }
+          if (page >= PAGE_CAP) {
+            truncated = true;
+            break;
+          }
           const { data: rows, pagination } = await fetchPlaces({ limit: PAGE_SIZE, offset });
           data.push(...rows);
           if (!pagination.hasMore || rows.length === 0) break;
@@ -113,7 +117,7 @@ export default function ManagePlaces() {
       } catch (error) {
         console.error('Error fetching places:', {
           message: error.message,
-          status: error.status,
+          status: error.status
         });
         setLoadError(error.message || 'Could not reach the server.');
         toast.error(error.message || 'Failed to load places');
@@ -177,7 +181,7 @@ export default function ManagePlaces() {
       console.error('Error deleting place:', {
         message: error.message,
         status: error.status,
-        placeId: placeToDelete.id,
+        placeId: placeToDelete.id
       });
       toast.error(error.message || 'Failed to delete place');
     } finally {
@@ -294,7 +298,10 @@ export default function ManagePlaces() {
               <div className={`${showFilters ? 'block' : 'hidden'} sm:block`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label
+                      htmlFor="location"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
                       Filter by Location
                     </label>
                     <select
@@ -385,13 +392,16 @@ export default function ManagePlaces() {
               {/* Mobile Card View (default for mobile) */}
               <div className="block sm:hidden space-y-4">
                 {filteredPlaces.map((place) => (
-                  <div key={place.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div
+                    key={place.id}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                  >
                     <div className="flex p-4">
                       {/* Place Image */}
                       <div className="flex-shrink-0 mr-4">
                         <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
                           <ImageWithFallback
-                            src={place.image_url}
+                            src={getPlaceImageUrl(place)}
                             alt={place.name}
                             width={64}
                             height={64}
@@ -488,11 +498,14 @@ export default function ManagePlaces() {
                 {viewMode === 'card' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredPlaces.map((place) => (
-                      <div key={place.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                      <div
+                        key={place.id}
+                        className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                      >
                         {/* Card Image */}
                         <div className="aspect-video bg-gray-100">
                           <ImageWithFallback
-                            src={place.image_url}
+                            src={getPlaceImageUrl(place)}
                             alt={place.name}
                             width={400}
                             height={225}
@@ -569,9 +582,7 @@ export default function ManagePlaces() {
                           <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
                             <div className="flex items-center">
                               <FiUser className="w-3 h-3 mr-1" />
-                              <span className="truncate">
-                                {place.updated_by_name || 'Unknown'}
-                              </span>
+                              <span className="truncate">{place.updated_by_name || 'Unknown'}</span>
                             </div>
                             <div className="flex items-center">
                               <FiClock className="w-3 h-3 mr-1" />
@@ -613,7 +624,7 @@ export default function ManagePlaces() {
                                 <div className="flex items-center">
                                   <div className="flex-shrink-0 h-10 w-10 rounded-lg overflow-hidden">
                                     <ImageWithFallback
-                                      src={place.image_url}
+                                      src={getPlaceImageUrl(place)}
                                       alt={place.name}
                                       width={40}
                                       height={40}
@@ -649,7 +660,7 @@ export default function ManagePlaces() {
                                     href={`/places/${place.id}`}
                                     className="text-gray-600 hover:text-primary-600 p-1 rounded transition-colors"
                                     title="View Place"
-                                aria-label={`View ${place.name}`}
+                                    aria-label={`View ${place.name}`}
                                   >
                                     <FiEye className="h-4 w-4" />
                                   </Link>
@@ -657,7 +668,7 @@ export default function ManagePlaces() {
                                     href={`/admin/editPlace/${place.id}`}
                                     className="text-primary-600 hover:text-primary-800 p-1 rounded transition-colors"
                                     title="Edit Place"
-                                aria-label={`Edit ${place.name}`}
+                                    aria-label={`Edit ${place.name}`}
                                   >
                                     <FiEdit className="h-4 w-4" />
                                   </Link>
@@ -665,7 +676,7 @@ export default function ManagePlaces() {
                                     onClick={() => confirmDelete(place)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
                                     title="Delete Place"
-                                aria-label={`Delete ${place.name}`}
+                                    aria-label={`Delete ${place.name}`}
                                   >
                                     <FiTrash2 className="h-4 w-4" />
                                   </button>
@@ -692,10 +703,7 @@ export default function ManagePlaces() {
               <div className="absolute inset-0 bg-gray-900 opacity-50"></div>
             </div>
 
-            <span
-              className="hidden sm:inline-block sm:align-middle sm:h-screen"
-              aria-hidden="true"
-            >
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
               &#8203;
             </span>
 
@@ -706,12 +714,11 @@ export default function ManagePlaces() {
                     <FiTrash2 className="h-6 w-6 text-red-600" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Delete Place
-                    </h3>
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">Delete Place</h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500">
-                        Are you sure you want to delete <span className="font-medium">&quot;{placeToDelete?.name}&quot;</span>? This
+                        Are you sure you want to delete{' '}
+                        <span className="font-medium">&quot;{placeToDelete?.name}&quot;</span>? This
                         action cannot be undone and will permanently remove all associated data.
                       </p>
                     </div>

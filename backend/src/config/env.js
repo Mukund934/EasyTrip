@@ -50,18 +50,18 @@ const RULES = [
         return 'has no database name after the host';
       }
       return null;
-    },
+    }
   },
   {
     name: 'FIREBASE_PROJECT_ID',
     required: true,
-    describe: 'Firebase project id — "project_id" in the service-account JSON',
+    describe: 'Firebase project id — "project_id" in the service-account JSON'
   },
   {
     name: 'FIREBASE_CLIENT_EMAIL',
     required: true,
     describe: 'Service-account email — "client_email" in the service-account JSON',
-    validate: (value) => (value.includes('@') ? null : 'does not look like an email address'),
+    validate: (value) => (value.includes('@') ? null : 'does not look like an email address')
   },
   {
     name: 'FIREBASE_PRIVATE_KEY',
@@ -78,7 +78,7 @@ const RULES = [
         return 'has no line breaks — wrap it in double quotes and keep the literal \\n sequences';
       }
       return null;
-    },
+    }
   },
   {
     name: 'CORS_ALLOWED_ORIGINS',
@@ -86,25 +86,25 @@ const RULES = [
     describe: 'Comma-separated browser origins allowed to call this API',
     // In production an empty allowlist 403s every browser request, which presents as a site-wide
     // outage with no server error. Development falls back to http://localhost:3000 in app.js.
-    productionReason: 'every browser request would be rejected with a CORS failure',
+    productionReason: 'every browser request would be rejected with a CORS failure'
   },
   {
     name: 'CLOUDINARY_CLOUD_NAME',
     productionOnly: true,
     describe: 'Cloudinary cloud name',
-    productionReason: 'image uploads would fail',
+    productionReason: 'image uploads would fail'
   },
   {
     name: 'CLOUDINARY_API_KEY',
     productionOnly: true,
     describe: 'Cloudinary API key',
-    productionReason: 'image uploads would fail',
+    productionReason: 'image uploads would fail'
   },
   {
     name: 'CLOUDINARY_API_SECRET',
     productionOnly: true,
     describe: 'Cloudinary API secret — treat as a password',
-    productionReason: 'image uploads would fail',
+    productionReason: 'image uploads would fail'
   },
   {
     name: 'PORT',
@@ -115,7 +115,7 @@ const RULES = [
       return Number.isInteger(port) && port > 0 && port < 65536
         ? null
         : 'is not a port number between 1 and 65535';
-    },
+    }
   },
   {
     name: 'TRUST_PROXY_HOPS',
@@ -126,7 +126,7 @@ const RULES = [
       return Number.isInteger(hops) && hops >= 0
         ? null
         : 'is not a non-negative integer — leave it unset when nothing proxies the app';
-    },
+    }
   },
   {
     name: 'PG_POOL_MAX',
@@ -135,8 +135,8 @@ const RULES = [
     validate: (value) => {
       const max = Number(value);
       return Number.isInteger(max) && max > 0 ? null : 'is not a positive integer';
-    },
-  },
+    }
+  }
 ];
 
 /**
@@ -200,9 +200,7 @@ const validateEnv = (env = process.env) => {
     return true;
   }
 
-  console.error(
-    `\n❌ FATAL: the environment is not usable — ${errors.length} problem(s) found.\n`
-  );
+  console.error(`\n❌ FATAL: the environment is not usable — ${errors.length} problem(s) found.\n`);
   for (const error of errors) {
     console.error(`   • ${error}`);
   }

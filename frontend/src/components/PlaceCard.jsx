@@ -14,6 +14,9 @@ import {
   FiCheck
 } from 'react-icons/fi';
 
+import { getPlaceImageUrl } from '../utils/placeImage';
+import { formatAverageRating, getRatingCount, getAverageRating } from '../utils/rating';
+
 const PlaceCard = ({ place, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -21,7 +24,7 @@ const PlaceCard = ({ place, priority = false }) => {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef(null);
   const defaultImage = '/images/placeholder.jpg';
-  
+
   // Image loading statuses
   const [loadStatus, setLoadStatus] = useState('pending'); // 'pending', 'loading', 'loaded', 'error'
 
@@ -39,7 +42,7 @@ const PlaceCard = ({ place, priority = false }) => {
   // image — and it made the browser cache useless for the whole session.
   const getImageUrl = () => {
     if (imageError) return defaultImage;
-    return place.primary_image_url || place.image_url || defaultImage;
+    return getPlaceImageUrl(place, defaultImage);
   };
 
   // Handle image error with advanced retry logic
@@ -47,7 +50,7 @@ const PlaceCard = ({ place, priority = false }) => {
     console.warn(`Image failed to load for place: ${place.name || 'Unknown'}`);
     setImageError(true);
     setLoadStatus('error');
-    
+
     if (e && e.target) {
       e.target.src = defaultImage;
     }
@@ -66,14 +69,14 @@ const PlaceCard = ({ place, priority = false }) => {
       const now = new Date();
       const diffTime = Math.abs(now - date);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+
       // Show relative time for recent items
       if (diffDays < 7) {
         if (diffDays === 0) return 'Today';
         if (diffDays === 1) return 'Yesterday';
         return `${diffDays} days ago`;
       }
-      
+
       // Standard date format for older items
       return date.toLocaleDateString(undefined, {
         year: 'numeric',
@@ -85,20 +88,20 @@ const PlaceCard = ({ place, priority = false }) => {
     }
   };
 
-  // Calculate and format average rating
+  // Colour coding compares numbers, not strings. The previous version compared the *formatted*
+  // value ("4.5" >= 4.5), which JavaScript coerces — so it happened to work, and would have
+  // stopped working the moment the format gained a suffix.
   const getRatingDisplay = () => {
-    if (!place.rating_count || place.rating_count === 0) return null;
-    
-    const avgRating = (place.rating_sum / place.rating_count).toFixed(1);
-    
-    // Color coding based on rating
+    const average = getAverageRating(place);
+    if (average === null) return null;
+
     let colorClass = 'bg-yellow-500';
-    if (avgRating >= 4.5) colorClass = 'bg-green-500';
-    else if (avgRating < 3) colorClass = 'bg-orange-500';
-    
+    if (average >= 4.5) colorClass = 'bg-green-500';
+    else if (average < 3) colorClass = 'bg-orange-500';
+
     return {
-      value: avgRating,
-      count: place.rating_count,
+      value: formatAverageRating(place),
+      count: getRatingCount(place),
       colorClass
     };
   };
@@ -108,7 +111,7 @@ const PlaceCard = ({ place, priority = false }) => {
   // Intersection Observer to detect when card is visible
   useEffect(() => {
     if (!cardRef.current) return;
-    
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -119,9 +122,9 @@ const PlaceCard = ({ place, priority = false }) => {
       },
       { threshold: 0.1 }
     );
-    
+
     observer.observe(cardRef.current);
-    
+
     return () => observer.disconnect();
   }, []);
 
@@ -163,13 +166,13 @@ const PlaceCard = ({ place, priority = false }) => {
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
       initial={{ opacity: 0, y: 20 }}
-      animate={{ 
-        opacity: isVisible ? 1 : 0, 
-        y: isVisible ? 0 : 20 
+      animate={{
+        opacity: isVisible ? 1 : 0,
+        y: isVisible ? 0 : 20
       }}
-      transition={{ 
-        duration: 0.4, 
-        ease: [0.4, 0, 0.2, 1] 
+      transition={{
+        duration: 0.4,
+        ease: [0.4, 0, 0.2, 1]
       }}
     >
       <Link href={`/places/${place.id}`} className="block h-full">
@@ -179,7 +182,7 @@ const PlaceCard = ({ place, priority = false }) => {
             {/* Loading State */}
             <AnimatePresence mode="wait">
               {(loadStatus === 'pending' || loadStatus === 'loading') && !imageLoaded && (
-                <motion.div 
+                <motion.div
                   className="absolute inset-0 bg-gray-100 flex items-center justify-center z-10"
                   initial={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -189,7 +192,7 @@ const PlaceCard = ({ place, priority = false }) => {
                     {loadStatus === 'loading' ? (
                       <motion.div
                         animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                        transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
                       >
                         <FiLoader className="h-8 w-8 text-primary-500 mx-auto" />
                       </motion.div>
@@ -201,7 +204,7 @@ const PlaceCard = ({ place, priority = false }) => {
                 </motion.div>
               )}
             </AnimatePresence>
-            
+
             {/* Main Image */}
             <div className="absolute inset-0 bg-gray-50">
               {isVisible && (
@@ -213,14 +216,14 @@ const PlaceCard = ({ place, priority = false }) => {
                     ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onError={handleImageError}
                   onLoad={handleImageLoad}
-                  loading={priority ? "eager" : "lazy"}
+                  loading={priority ? 'eager' : 'lazy'}
                 />
               )}
             </div>
-            
+
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-300"></div>
-            
+
             {/* Main Details */}
             <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
               <h3 className="text-xl font-bold mb-1 line-clamp-1 group-hover:underline decoration-2 underline-offset-2 transition-all">
@@ -232,10 +235,12 @@ const PlaceCard = ({ place, priority = false }) => {
                   {place.location}
                   {place.district && `, ${place.district}`}
                 </span>
-                
+
                 {/* Rating Badge */}
                 {rating && (
-                  <div className={`ml-auto flex items-center ${rating.colorClass} text-white rounded-full px-2 py-0.5 text-xs`}>
+                  <div
+                    className={`ml-auto flex items-center ${rating.colorClass} text-white rounded-full px-2 py-0.5 text-xs`}
+                  >
                     <FiStar className="mr-1" />
                     <span>{rating.value}</span>
                   </div>
@@ -243,7 +248,7 @@ const PlaceCard = ({ place, priority = false }) => {
               </div>
             </div>
           </div>
-          
+
           {/* Theme/Tag Badges */}
           {(place.themes || place.tags) && (
             <div className="absolute top-3 left-3 flex flex-wrap gap-1 max-w-[75%] z-10">
@@ -261,7 +266,7 @@ const PlaceCard = ({ place, priority = false }) => {
                     </motion.span>
                   ))}
                   {place.themes.length > 2 && (
-                    <motion.span 
+                    <motion.span
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 }}
@@ -285,7 +290,7 @@ const PlaceCard = ({ place, priority = false }) => {
                     </motion.span>
                   ))}
                   {place.tags.length > 2 && (
-                    <motion.span 
+                    <motion.span
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 }}
@@ -298,10 +303,10 @@ const PlaceCard = ({ place, priority = false }) => {
               ) : null}
             </div>
           )}
-          
+
           {/* Location Badge */}
           {(place.state || place.district) && (
-            <motion.div 
+            <motion.div
               className="absolute top-3 right-3 z-10"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -312,7 +317,7 @@ const PlaceCard = ({ place, priority = false }) => {
               </span>
             </motion.div>
           )}
-          
+
           {/* View Details Button */}
           <motion.div
             className="absolute bottom-3 right-3 z-20"
@@ -325,10 +330,10 @@ const PlaceCard = ({ place, priority = false }) => {
               View Details
             </span>
           </motion.div>
-          
+
           {/* Image Load Status Indicator */}
           {loadStatus === 'loaded' && (
-            <motion.div 
+            <motion.div
               className="absolute top-3 left-1/2 -translate-x-1/2 z-20"
               initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 0, y: -10 }}
@@ -340,7 +345,7 @@ const PlaceCard = ({ place, priority = false }) => {
               </span>
             </motion.div>
           )}
-          
+
           {/* Card Content */}
           <div className="p-5 flex-grow flex flex-col">
             {/* Description */}
@@ -355,30 +360,45 @@ const PlaceCard = ({ place, priority = false }) => {
             {/* Responsive Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-2">
               {/* Custom Keys */}
-              {place.custom_keys && typeof place.custom_keys === 'object' && Object.keys(place.custom_keys).length > 0 && (
-                <div className="col-span-1">
-                  <h4 className="text-xs font-semibold text-gray-700 mb-1 flex items-center">
-                    <FiInfo className="mr-1 text-primary-500" />
-                    Details:
-                  </h4>
-                  <div className="space-y-1">
-                    {Object.entries(place.custom_keys)
-                      .filter(([key]) => !['created_by', 'created_at', 'updated_by', 'updated_at'].includes(key))
-                      .slice(0, 2)
-                      .map(([key, value]) => (
-                        <div key={key} className="flex text-xs">
-                          <span className="font-medium text-gray-700 mr-1">{key}:</span>
-                          <span className="text-gray-600 truncate">{value}</span>
+              {place.custom_keys &&
+                typeof place.custom_keys === 'object' &&
+                Object.keys(place.custom_keys).length > 0 && (
+                  <div className="col-span-1">
+                    <h4 className="text-xs font-semibold text-gray-700 mb-1 flex items-center">
+                      <FiInfo className="mr-1 text-primary-500" />
+                      Details:
+                    </h4>
+                    <div className="space-y-1">
+                      {Object.entries(place.custom_keys)
+                        .filter(
+                          ([key]) =>
+                            !['created_by', 'created_at', 'updated_by', 'updated_at'].includes(key)
+                        )
+                        .slice(0, 2)
+                        .map(([key, value]) => (
+                          <div key={key} className="flex text-xs">
+                            <span className="font-medium text-gray-700 mr-1">{key}:</span>
+                            <span className="text-gray-600 truncate">{value}</span>
+                          </div>
+                        ))}
+                      {Object.keys(place.custom_keys).filter(
+                        (key) =>
+                          !['created_by', 'created_at', 'updated_by', 'updated_at'].includes(key)
+                      ).length > 2 && (
+                        <div className="text-xs text-primary-600 font-medium hover:underline cursor-pointer">
+                          +
+                          {Object.keys(place.custom_keys).filter(
+                            (key) =>
+                              !['created_by', 'created_at', 'updated_by', 'updated_at'].includes(
+                                key
+                              )
+                          ).length - 2}{' '}
+                          more details
                         </div>
-                      ))}
-                    {Object.keys(place.custom_keys).filter(key => !['created_by', 'created_at', 'updated_by', 'updated_at'].includes(key)).length > 2 && (
-                      <div className="text-xs text-primary-600 font-medium hover:underline cursor-pointer">
-                        +{Object.keys(place.custom_keys).filter(key => !['created_by', 'created_at', 'updated_by', 'updated_at'].includes(key)).length - 2} more details
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Tags list */}
               {place.tags && Array.isArray(place.tags) && place.tags.length > 0 && (
@@ -412,17 +432,19 @@ const PlaceCard = ({ place, priority = false }) => {
                 <FiCalendar className="mr-1 text-gray-500" />
                 <span className="whitespace-nowrap">{formatDate(place.created_at)}</span>
               </div>
-              
+
               {place.updated_at && place.updated_at !== place.created_at && (
                 <div className="flex items-center text-xs text-gray-500 mr-2">
                   <FiClock className="mr-1" />
                   <span>Updated {formatDate(place.updated_at)}</span>
                 </div>
               )}
-              
+
               {place.rating_count > 0 ? (
                 <div className="flex items-center">
-                  <FiStar className={`mr-1 ${rating && parseFloat(rating.value) >= 4 ? 'text-yellow-500' : 'text-gray-500'}`} />
+                  <FiStar
+                    className={`mr-1 ${rating && parseFloat(rating.value) >= 4 ? 'text-yellow-500' : 'text-gray-500'}`}
+                  />
                   <span>
                     {place.rating_count} {place.rating_count === 1 ? 'review' : 'reviews'}
                   </span>
@@ -434,7 +456,7 @@ const PlaceCard = ({ place, priority = false }) => {
                 </div>
               )}
             </div>
-            
+
             {/* Image Status */}
             {place.primary_image_url && (
               <div className="absolute top-1 left-1 z-10">

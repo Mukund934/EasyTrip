@@ -1,25 +1,35 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
-const ImageWithFallback = ({ src, alt, width, height, className, objectFit, priority, showTimestamp }) => {
+const ImageWithFallback = ({
+  src,
+  alt,
+  width,
+  height,
+  className,
+  objectFit,
+  priority,
+  showTimestamp
+}) => {
   const [imgSrc, setImgSrc] = useState('');
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  
+
   useEffect(() => {
     // Reset state when source changes
     setImgSrc(src);
     setError(false);
     setLoaded(false);
-    
+
     // Log the image source for debugging
   }, [src, alt]);
-  
+
   // Add cache busting for development
-  const finalSrc = process.env.NODE_ENV === 'development' 
-    ? `${imgSrc || '/images/placeholder.jpg'}${imgSrc && imgSrc.includes('?') ? '&' : '?'}t=${Date.now()}` 
-    : (imgSrc || '/images/placeholder.jpg');
-  
+  const finalSrc =
+    process.env.NODE_ENV === 'development'
+      ? `${imgSrc || '/images/placeholder.jpg'}${imgSrc && imgSrc.includes('?') ? '&' : '?'}t=${Date.now()}`
+      : imgSrc || '/images/placeholder.jpg';
+
   return (
     <div className={`relative ${className || ''}`}>
       {!loaded && !error && (
@@ -27,7 +37,7 @@ const ImageWithFallback = ({ src, alt, width, height, className, objectFit, prio
           <span className="text-gray-500 text-sm">Loading...</span>
         </div>
       )}
-      
+
       <Image
         src={error ? '/images/placeholder.jpg' : finalSrc}
         alt={alt || 'Image'}
@@ -44,7 +54,7 @@ const ImageWithFallback = ({ src, alt, width, height, className, objectFit, prio
           setLoaded(true);
         }}
       />
-      
+
       {showTimestamp && (
         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1">
           {new Date().toISOString()}

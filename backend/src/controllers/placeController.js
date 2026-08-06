@@ -2,9 +2,13 @@ const pool = require('../config/db');
 const fs = require('fs');
 const crypto = require('crypto');
 const placeModel = require('../models/placeModel');
-const { uploadImage, destroyImage, destroyPlaceAssets, publicIdFromUrl } = require('../config/cloudinary');
+const {
+  uploadImage,
+  destroyImage,
+  destroyPlaceAssets,
+  publicIdFromUrl
+} = require('../config/cloudinary');
 const logger = require('../utils/logger');
-
 
 // Get current user from request.
 // Identity comes only from the token the auth middleware verified: the former x-user /
@@ -155,16 +159,15 @@ const getPlaceById = async (req, res) => {
     const { id } = req.params;
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    
-    
+
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
     }
-    
+
     const place = await placeModel.getPlaceById(id);
 
     if (!place) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         message: 'Place not found',
         timestamp,
         requested_by: user
@@ -176,12 +179,11 @@ const getPlaceById = async (req, res) => {
       ...placeFields,
       image_url: place.primary_image_url || fallback_image_url || null
     };
-    
-    
+
     res.status(200).json(formattedPlace);
   } catch (error) {
     logger.error({ err: error }, 'Error getting place');
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error getting place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -199,19 +201,18 @@ const getPlaceImage = async (req, res) => {
   try {
     const { id, imageId } = req.params;
     const timestamp = new Date().toISOString();
-    
-    
+
     if (isNaN(parseInt(id))) {
       return sendDefaultImage(res, timestamp, id);
     }
-    
+
     // Get place data
     const place = await placeModel.getPlaceById(id);
-    
+
     if (!place) {
       return sendDefaultImage(res, timestamp, id);
     }
-    
+
     // If specific image ID requested
     if (imageId) {
       try {
@@ -219,33 +220,33 @@ const getPlaceImage = async (req, res) => {
           'SELECT image_url FROM place_images WHERE id = $1 AND place_id = $2',
           [imageId, id]
         );
-        
+
         if (image.rows.length > 0 && image.rows[0].image_url) {
-        // A 302 with no cache policy is re-requested every time. The destination for a given
-        // place/image id is stable, so let the browser remember it.
-        res.set('Cache-Control', 'public, max-age=3600');
+          // A 302 with no cache policy is re-requested every time. The destination for a given
+          // place/image id is stable, so let the browser remember it.
+          res.set('Cache-Control', 'public, max-age=3600');
           return res.redirect(image.rows[0].image_url);
         }
       } catch (err) {
         logger.debug({ err }, 'No specific image row; falling through');
       }
     }
-    
+
     // Use primary image URL if available
     if (place.primary_image_url) {
-        // A 302 with no cache policy is re-requested every time. The destination for a given
-        // place/image id is stable, so let the browser remember it.
-        res.set('Cache-Control', 'public, max-age=3600');
+      // A 302 with no cache policy is re-requested every time. The destination for a given
+      // place/image id is stable, so let the browser remember it.
+      res.set('Cache-Control', 'public, max-age=3600');
       return res.redirect(place.primary_image_url);
     }
-    
+
     // Try to get first available image
     try {
       const fallbackImage = await pool.query(
         'SELECT image_url FROM place_images WHERE place_id = $1 ORDER BY display_order, created_at LIMIT 1',
         [id]
       );
-      
+
       if (fallbackImage.rows.length > 0 && fallbackImage.rows[0].image_url) {
         // A 302 with no cache policy is re-requested every time. The destination for a given
         // place/image id is stable, so let the browser remember it.
@@ -255,7 +256,7 @@ const getPlaceImage = async (req, res) => {
     } catch (err) {
       logger.debug({ err }, 'No fallback image row available');
     }
-    
+
     // No image found, return default
     return sendDefaultImage(res, timestamp, id);
   } catch (error) {
@@ -327,22 +328,31 @@ const createPlace = async (req, res) => {
   try {
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    
-    
-    const { 
-      name, description, location, district, state, locality, pin_code,
-      latitude, longitude, themes, tags, custom_keys 
+
+    const {
+      name,
+      description,
+      location,
+      district,
+      state,
+      locality,
+      pin_code,
+      latitude,
+      longitude,
+      themes,
+      tags,
+      custom_keys
     } = req.body;
-    
+
     // Validate required fields
     if (!name || !location) {
       logger.warn('Place create rejected: missing required fields');
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Name and location are required',
         timestamp
       });
     }
-    
+
     // Create place data without image initially
     const placeData = {
       name: name.trim(),
@@ -361,22 +371,20 @@ const createPlace = async (req, res) => {
       created_by: user,
       updated_by: user
     };
-    
-    
+
     // Insert place into database first
     const newPlace = await placeModel.createPlace(placeData);
     logger.info({ placeId: newPlace.id }, 'Place created');
-    
+
     // Process image upload if present
     let imageUrl = null;
     if (req.file) {
       try {
-        
         // Check if file exists and has size
         if (!req.file.path || !fs.existsSync(req.file.path)) {
           throw new Error(`File not found at path: ${req.file.path}`);
         }
-        
+
         // Upload to Cloudinary
         const result = await uploadImage(req.file.path, {
           folder: `easytrip/places/${newPlace.id}`,
@@ -384,32 +392,34 @@ const createPlace = async (req, res) => {
           tags: ['place', `id_${newPlace.id}`, 'primary'],
           context: `place_id=${newPlace.id}|user=${user}|name=${encodeURIComponent(newPlace.name)}`
         });
-        
+
         imageUrl = result.url;
         logger.debug({ imageUrl }, 'Image uploaded to Cloudinary');
-        
+
         // Update the place record with the image URL
         await placeModel.updatePlace(newPlace.id, { primary_image_url: imageUrl });
-        
+
         // Update the newPlace object with the image URL
         newPlace.primary_image_url = imageUrl;
       } catch (uploadError) {
         // Don't fail the request; the place is created without an image.
-        logger.error({ err: uploadError }, 'Cloudinary upload failed; place created without an image');
+        logger.error(
+          { err: uploadError },
+          'Cloudinary upload failed; place created without an image'
+        );
       }
     }
-    
+
     const response = {
       ...newPlace,
       image_url: newPlace.primary_image_url || null,
       success: true
     };
-    
+
     res.status(201).json(response);
-    
   } catch (error) {
     logger.error({ err: error }, 'Error creating place');
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error creating place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -427,32 +437,40 @@ const updatePlace = async (req, res) => {
   try {
     const { id } = req.params;
     const user = getCurrentUser(req);
-    
-    
+
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
     }
-    
+
     const currentPlace = await placeModel.getPlaceById(id);
     if (!currentPlace) {
       return res.status(404).json({ message: 'Place not found' });
     }
-    
-    const { 
-      name, description, location, district, state, locality, pin_code,
-      latitude, longitude, themes, tags, custom_keys 
+
+    const {
+      name,
+      description,
+      location,
+      district,
+      state,
+      locality,
+      pin_code,
+      latitude,
+      longitude,
+      themes,
+      tags,
+      custom_keys
     } = req.body;
-    
+
     // Process image upload if present
     let imageUrl = currentPlace.primary_image_url;
     if (req.file) {
       try {
-        
         // Check if file exists and has size
         if (!req.file.path || !fs.existsSync(req.file.path)) {
           throw new Error(`File not found at path: ${req.file.path}`);
         }
-        
+
         // Upload to Cloudinary
         const result = await uploadImage(req.file.path, {
           folder: `easytrip/places/${id}`,
@@ -460,7 +478,7 @@ const updatePlace = async (req, res) => {
           tags: ['place', `id_${id}`, 'primary', 'updated'],
           context: `place_id=${id}|user=${user}|updated=true|name=${encodeURIComponent(currentPlace.name)}`
         });
-        
+
         const previousImageUrl = imageUrl;
         imageUrl = result.url;
         logger.debug({ imageUrl }, 'Replacement image uploaded to Cloudinary');
@@ -479,7 +497,7 @@ const updatePlace = async (req, res) => {
         logger.error({ err: uploadError }, 'Cloudinary upload failed; keeping the existing image');
       }
     }
-    
+
     const placeData = {
       name: name || currentPlace.name,
       description: description !== undefined ? description : currentPlace.description,
@@ -488,28 +506,33 @@ const updatePlace = async (req, res) => {
       state: state !== undefined ? state : currentPlace.state,
       locality: locality !== undefined ? locality : currentPlace.locality,
       pin_code: pin_code !== undefined ? pin_code : currentPlace.pin_code,
-      latitude: latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : currentPlace.latitude,
-      longitude: longitude !== undefined ? (longitude ? parseFloat(longitude) : null) : currentPlace.longitude,
+      latitude:
+        latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : currentPlace.latitude,
+      longitude:
+        longitude !== undefined
+          ? longitude
+            ? parseFloat(longitude)
+            : null
+          : currentPlace.longitude,
       primary_image_url: imageUrl,
       themes: parseJsonField(themes, currentPlace.themes || []),
       tags: parseJsonField(tags, currentPlace.tags || []),
       custom_keys: parseJsonField(custom_keys, currentPlace.custom_keys || {}),
       updated_by: user
     };
-    
 
     const updatedPlace = await placeModel.updatePlace(id, placeData);
     logger.info({ placeId: updatedPlace.id }, 'Place updated');
-    
+
     const response = {
       ...updatedPlace,
       image_url: updatedPlace.primary_image_url || null
     };
-    
+
     res.status(200).json(response);
   } catch (error) {
     logger.error({ err: error }, 'Error updating place');
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error updating place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -523,7 +546,7 @@ const updatePlace = async (req, res) => {
 // Helper function to parse JSON fields
 function parseJsonField(field, defaultValue) {
   if (!field) return defaultValue;
-  
+
   try {
     return typeof field === 'string' ? JSON.parse(field) : field;
   } catch (e) {
@@ -540,17 +563,16 @@ const deletePlace = async (req, res) => {
     const { id } = req.params;
     const timestamp = new Date().toISOString();
     const user = getCurrentUser(req);
-    
-    
+
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
     }
-    
+
     const place = await placeModel.getPlaceById(id);
     if (!place) {
       return res.status(404).json({ message: 'Place not found' });
     }
-    
+
     const success = await placeModel.deletePlace(id);
     if (!success) {
       throw new Error('Failed to delete place');
@@ -564,17 +586,17 @@ const deletePlace = async (req, res) => {
     logger.debug({ placeId: id, removed }, 'Cloudinary cleanup for deleted place');
 
     logger.info({ placeId: id }, 'Place deleted');
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       message: 'Place deleted successfully',
       id,
       name: place.name,
       deleted_by: user,
-      deleted_at: timestamp 
+      deleted_at: timestamp
     });
   } catch (error) {
     logger.error({ err: error }, 'Error deleting place');
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error deleting place',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -588,20 +610,20 @@ const deletePlace = async (req, res) => {
 const getPlaceImages = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
     }
-    
+
     const images = await pool.query(
       'SELECT id, place_id, image_url, caption, display_order, created_at FROM place_images WHERE place_id = $1 ORDER BY display_order, created_at',
       [id]
     );
-    
+
     res.status(200).json(images.rows);
   } catch (error) {
     logger.error({ err: error }, 'Error getting place images');
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error getting place images',
       // Safe by default: only an explicit NODE_ENV=development exposes driver text.
       // The old `=== 'production' ? safe : leak` test leaked whenever NODE_ENV was
@@ -656,11 +678,11 @@ const getTags = async (req, res) => {
 const getPlaceReviews = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (isNaN(parseInt(id))) {
       return res.status(400).json({ message: 'Invalid place ID format' });
     }
-    
+
     const result = await pool.query(
       'SELECT id, place_id, user_id, user_name, rating, comment, created_at, updated_at FROM place_reviews WHERE place_id = $1 ORDER BY created_at DESC',
       [id]
@@ -724,10 +746,11 @@ const createPlaceReview = async (req, res) => {
     if (error.code === '42P10') {
       logger.error(
         'place_reviews is missing UNIQUE (place_id, user_id). Back up the table, then run: ' +
-        'npm run migrate'
+          'npm run migrate'
       );
       return res.status(500).json({
-        message: 'Reviews are temporarily unavailable — the server is missing a required database constraint'
+        message:
+          'Reviews are temporarily unavailable — the server is missing a required database constraint'
       });
     }
 
@@ -837,7 +860,6 @@ const reportPlaceReview = async (req, res) => {
  * empty table behind working UI (IMP-014).
  */
 const addPlaceImage = async (req, res) => {
-
   try {
     const { id } = req.params;
     const { caption } = req.body;
@@ -890,7 +912,6 @@ const addPlaceImage = async (req, res) => {
  * image that is still referenced.
  */
 const deletePlaceImage = async (req, res) => {
-
   try {
     const { id, imageId } = req.params;
 

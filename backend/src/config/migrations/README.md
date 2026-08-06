@@ -19,7 +19,7 @@ Run from `backend/`, or use the root-level `npm run migrate` which does the `cd`
 Lexical order is the applied order. `10_x.sql` would sort before `2_x.sql`; `010_x.sql` does not.
 
 **2. Every migration must be re-runnable.**
-This is a hard requirement, not a nicety. `migrate.js` records a migration *after* it commits, so a
+This is a hard requirement, not a nicety. `migrate.js` records a migration _after_ it commits, so a
 crash in that window leaves it applied but unrecorded and it will run again. Re-runnability is what
 makes that harmless. In practice this means `IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, and
 `DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_constraint ...) ... $$` guards around anything that would
@@ -29,7 +29,7 @@ It is also what let this runner be adopted with no baselining step: on the exist
 001–004 had already been applied by hand, the first run re-applied them as no-ops and recorded them.
 
 **3. Each file owns its own transaction.**
-Write `BEGIN;` / `COMMIT;` inside the file. The runner deliberately does *not* wrap files, because
+Write `BEGIN;` / `COMMIT;` inside the file. The runner deliberately does _not_ wrap files, because
 a `COMMIT` inside an outer transaction commits the outer one — and because `004` needs to stay
 outside a transaction so it can move to `CREATE INDEX CONCURRENTLY` later. This also keeps every
 file directly runnable by hand:
@@ -63,13 +63,13 @@ lock, an `INSERT`. The files were worth more than the hundred lines. Recorded as
 
 ## The files
 
-| File | What it does |
-|---|---|
-| `001_phase1.sql` | One review per user per place (`IMP-062`). De-duplicates first — the only destructive step in the set. Re-syncs `rating_sum`/`rating_count`. |
-| `002_profile_fields.sql` | `users.location`, `users.dob` — collected by the profile form since forever, never stored (`IMP-008`). |
-| `003_sprint23.sql` | `review_reports` and `newsletter_subscribers`, behind Sprint 2.3's replacements for mocked UI (`IMP-019`, `IMP-023`). |
-| `004_performance_indexes.sql` | Phase 4 indexes (`IMP-043`). No transaction, deliberately — see the file header. |
-| `005_retire_boot_ddl.sql` | Absorbs the `ALTER TABLE`s that `app.js` used to run on every boot (`IMP-069`). |
+| File                          | What it does                                                                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001_phase1.sql`              | One review per user per place (`IMP-062`). De-duplicates first — the only destructive step in the set. Re-syncs `rating_sum`/`rating_count`. |
+| `002_profile_fields.sql`      | `users.location`, `users.dob` — collected by the profile form since forever, never stored (`IMP-008`).                                       |
+| `003_sprint23.sql`            | `review_reports` and `newsletter_subscribers`, behind Sprint 2.3's replacements for mocked UI (`IMP-019`, `IMP-023`).                        |
+| `004_performance_indexes.sql` | Phase 4 indexes (`IMP-043`). No transaction, deliberately — see the file header.                                                             |
+| `005_retire_boot_ddl.sql`     | Absorbs the `ALTER TABLE`s that `app.js` used to run on every boot (`IMP-069`).                                                              |
 
 `schema.sql` is the fresh-database path: it creates everything from nothing, and it is what
 `docker-compose.yml` runs on first start. The migrations are the upgrade path for a database that

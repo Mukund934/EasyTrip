@@ -14,18 +14,17 @@ logger.debug({ cloudName: process.env.CLOUDINARY_CLOUD_NAME }, 'Cloudinary confi
 // Direct upload function for programmatic use
 const uploadImage = async (filePath, options = {}) => {
   try {
-    
     if (!fs.existsSync(filePath)) {
       throw new Error(`File does not exist at path: ${filePath}`);
     }
-    
+
     const fileStats = fs.statSync(filePath);
     logger.debug({ bytes: fileStats.size }, 'Uploading image to Cloudinary');
-    
+
     if (fileStats.size === 0) {
       throw new Error('File is empty');
     }
-    
+
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
         filePath,
@@ -48,7 +47,7 @@ const uploadImage = async (filePath, options = {}) => {
         }
       );
     });
-    
+
     return {
       url: result.secure_url,
       public_id: result.public_id,
@@ -128,7 +127,10 @@ const destroyImage = async (publicId) => {
     // 'not found' is a success for our purposes — the goal is "this asset is gone".
     const ok = result?.result === 'ok' || result?.result === 'not found';
     if (!ok) {
-      logger.warn({ publicId, result: result?.result }, 'Cloudinary destroy returned an unexpected result');
+      logger.warn(
+        { publicId, result: result?.result },
+        'Cloudinary destroy returned an unexpected result'
+      );
     }
     return ok;
   } catch (error) {

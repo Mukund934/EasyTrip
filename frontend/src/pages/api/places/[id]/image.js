@@ -23,25 +23,25 @@ export default async function handler(req, res) {
 
   try {
     const API_URL = resolveApiBaseUrl();
-    
+
     try {
       // Request image from backend
       const response = await fetch(`${API_URL}/places/${placeId}/image`, {
         method: 'GET',
         headers: {
-          'Accept': 'image/*'
-        },
+          Accept: 'image/*'
+        }
       });
-      
+
       if (response.redirected) {
         res.redirect(response.url);
         return; // Don't return the object
       }
-      
+
       if (response.ok) {
         const contentType = response.headers.get('content-type') || 'image/jpeg';
         const imageBuffer = await response.arrayBuffer();
-        
+
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'public, max-age=86400');
         res.send(Buffer.from(imageBuffer));
@@ -50,11 +50,10 @@ export default async function handler(req, res) {
     } catch (imageError) {
       console.error(`Error fetching image for place ${placeId}:`, imageError.message);
     }
-    
+
     // Serve local placeholder
     res.redirect('/images/placeholder.jpg');
     return; // Don't return the object
-    
   } catch (err) {
     console.error(`Error handling image request for place ${placeId}:`, err.message);
     res.redirect('/images/placeholder.jpg');

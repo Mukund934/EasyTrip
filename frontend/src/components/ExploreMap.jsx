@@ -6,6 +6,8 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 
+import { formatAverageRating, getRatingCount, hasRating as placeHasRating } from '../utils/rating';
+
 import {
   FiMapPin,
   FiStar,
@@ -73,21 +75,24 @@ const createRatingIcon = (rating, selected = false) => {
 
 // Custom popup content
 const createPopupContent = (place) => {
-  const hasRating = place.rating_count && place.rating_sum;
-  const rating = hasRating ? (place.rating_sum / place.rating_count).toFixed(1) : null;
-  
+  const rating = formatAverageRating(place);
+
   return `
     <div class="custom-popup">
       <div class="popup-header">
         <h3>${place.name}</h3>
-        ${rating ? `
+        ${
+          rating
+            ? `
           <div class="rating">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="#FFD700" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
             <span>${rating}</span>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
       <div class="popup-body">
         <p>${place.location}${place.district ? `, ${place.district}` : ''}${place.state ? `, ${place.state}` : ''}</p>
@@ -103,13 +108,15 @@ const createPopupContent = (place) => {
 // Utility function to calculate distance between two points (Haversine formula)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Radius of the Earth in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c; // Distance in kilometers
   return distance;
 };
@@ -125,7 +132,7 @@ const ExploreMap = ({
   zoom = 5,
   onZoomChange,
   onCenterChange,
-  className = '',
+  className = ''
 }) => {
   // Refs for DOM elements
   const mapContainerRef = useRef(null);
@@ -133,7 +140,7 @@ const ExploreMap = ({
   const markersLayerRef = useRef(null);
   const clusterLayerRef = useRef(null);
   const selectedMarkerRef = useRef(null);
-  
+
   // State for UI and functionality
   const [mapLoaded, setMapLoaded] = useState(false);
   const [error, setError] = useState(null);
@@ -158,26 +165,60 @@ const ExploreMap = ({
   // guard below rejected every row and the map rendered zero markers (IMP-007). Coordinates are
   // normalised once here rather than at each guard: unparseable values become null, so those same
   // guards still exclude them, and the distance maths downstream operates on real numbers.
-  const places = useMemo(() => rawPlaces.map((place) => {
-    const latitude = Number.parseFloat(place.latitude);
-    const longitude = Number.parseFloat(place.longitude);
-    return {
-      ...place,
-      latitude: Number.isFinite(latitude) ? latitude : null,
-      longitude: Number.isFinite(longitude) ? longitude : null
-    };
-  }), [rawPlaces]);
+  const places = useMemo(
+    () =>
+      rawPlaces.map((place) => {
+        const latitude = Number.parseFloat(place.latitude);
+        const longitude = Number.parseFloat(place.longitude);
+        return {
+          ...place,
+          latitude: Number.isFinite(latitude) ? latitude : null,
+          longitude: Number.isFinite(longitude) ? longitude : null
+        };
+      }),
+    [rawPlaces]
+  );
 
   // Map style options
   const TILE_LAYERS = [
-    { id: 'osm', name: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: <FiMapPin /> },
-    { id: 'terrain', name: 'Terrain', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', icon: <FiGlobe /> },
-    { id: 'humanitarian', name: 'Humanitarian', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', icon: <FiCompass className="text-green-500" /> },
-    { id: 'cycle', name: 'Cycle Map', url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', icon: <FiNavigation className="text-blue-500" /> },
-    { id: 'watercolor', name: 'Watercolor', url: 'https://stamen-tiles-{s}.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg', icon: <FiSun className="text-yellow-500" /> },
-    { id: 'dark', name: 'Dark Matter', url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', icon: <FiMoon className="text-indigo-500" /> }
+    {
+      id: 'osm',
+      name: 'OpenStreetMap',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      icon: <FiMapPin />
+    },
+    {
+      id: 'terrain',
+      name: 'Terrain',
+      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      icon: <FiGlobe />
+    },
+    {
+      id: 'humanitarian',
+      name: 'Humanitarian',
+      url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+      icon: <FiCompass className="text-green-500" />
+    },
+    {
+      id: 'cycle',
+      name: 'Cycle Map',
+      url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+      icon: <FiNavigation className="text-blue-500" />
+    },
+    {
+      id: 'watercolor',
+      name: 'Watercolor',
+      url: 'https://stamen-tiles-{s}.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg',
+      icon: <FiSun className="text-yellow-500" />
+    },
+    {
+      id: 'dark',
+      name: 'Dark Matter',
+      url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+      icon: <FiMoon className="text-indigo-500" />
+    }
   ];
-  
+
   // Get user location and filter nearby places
   useEffect(() => {
     if (navigator.geolocation) {
@@ -186,19 +227,21 @@ const ExploreMap = ({
           const userLat = position.coords.latitude;
           const userLng = position.coords.longitude;
           setUserLocation({ lat: userLat, lng: userLng });
-          
+
           // Filter places within 300km radius
-          const validPlaces = places.filter(place => 
-            typeof place.latitude === 'number' && typeof place.longitude === 'number'
+          const validPlaces = places.filter(
+            (place) => typeof place.latitude === 'number' && typeof place.longitude === 'number'
           );
-          
-          const placesWithDistance = validPlaces.map(place => ({
+
+          const placesWithDistance = validPlaces.map((place) => ({
             ...place,
             distance: calculateDistance(userLat, userLng, place.latitude, place.longitude)
           }));
-          
-          const placesWithin300km = placesWithDistance.filter(place => place.distance <= RADIUS_KM);
-          
+
+          const placesWithin300km = placesWithDistance.filter(
+            (place) => place.distance <= RADIUS_KM
+          );
+
           if (placesWithin300km.length > 0) {
             setNearbyPlaces(placesWithin300km.sort((a, b) => a.distance - b.distance));
           } else {
@@ -208,8 +251,8 @@ const ExploreMap = ({
         },
         () => {
           // If geolocation fails, use all places
-          const validPlaces = places.filter(place => 
-            typeof place.latitude === 'number' && typeof place.longitude === 'number'
+          const validPlaces = places.filter(
+            (place) => typeof place.latitude === 'number' && typeof place.longitude === 'number'
           );
           setNearbyPlaces(validPlaces);
           setRadiusMode(false);
@@ -217,8 +260,8 @@ const ExploreMap = ({
       );
     } else {
       // Geolocation not supported, use all places
-      const validPlaces = places.filter(place => 
-        typeof place.latitude === 'number' && typeof place.longitude === 'number'
+      const validPlaces = places.filter(
+        (place) => typeof place.latitude === 'number' && typeof place.longitude === 'number'
       );
       setNearbyPlaces(validPlaces);
       setRadiusMode(false);
@@ -227,21 +270,24 @@ const ExploreMap = ({
 
   // Filter places based on search query and nearby places
   const filteredPlaces = useMemo(() => {
-    const placesToFilter = radiusMode ? nearbyPlaces : places.filter(place => 
-      typeof place.latitude === 'number' && typeof place.longitude === 'number'
-    );
-    
+    const placesToFilter = radiusMode
+      ? nearbyPlaces
+      : places.filter(
+          (place) => typeof place.latitude === 'number' && typeof place.longitude === 'number'
+        );
+
     if (!searchQuery) return placesToFilter;
-    
+
     const query = searchQuery.toLowerCase();
-    return placesToFilter.filter(place => 
-      place.name.toLowerCase().includes(query) ||
-      place.location?.toLowerCase().includes(query) ||
-      place.district?.toLowerCase().includes(query) ||
-      place.state?.toLowerCase().includes(query)
+    return placesToFilter.filter(
+      (place) =>
+        place.name.toLowerCase().includes(query) ||
+        place.location?.toLowerCase().includes(query) ||
+        place.district?.toLowerCase().includes(query) ||
+        place.state?.toLowerCase().includes(query)
     );
   }, [nearbyPlaces, places, searchQuery, radiusMode]);
-  
+
   // `filteredPlaces` and `selectedPlace` as the Leaflet event handlers see them.
   //
   // Those handlers are registered once when the map is built and close over whatever the values
@@ -276,30 +322,37 @@ const ExploreMap = ({
         zoomControl: false, // We'll add custom zoom controls
         attributionControl: false // We'll add custom attribution
       });
-      
+
       // Add tile layer
       L.tileLayer(tileLayer, {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
-      
+
       // Add custom zoom control
-      L.control.zoom({
-        position: 'bottomright'
-      }).addTo(map);
-      
+      L.control
+        .zoom({
+          position: 'bottomright'
+        })
+        .addTo(map);
+
       // Add scale control
-      L.control.scale({
-        position: 'bottomleft',
-        metric: true,
-        imperial: false
-      }).addTo(map);
-      
+      L.control
+        .scale({
+          position: 'bottomleft',
+          metric: true,
+          imperial: false
+        })
+        .addTo(map);
+
       // Add custom attribution
-      L.control.attribution({
-        position: 'bottomright',
-        prefix: 'EasyTrip'
-      }).addTo(map);
-      
+      L.control
+        .attribution({
+          position: 'bottomright',
+          prefix: 'EasyTrip'
+        })
+        .addTo(map);
+
       // Initialize marker layers
       const markersLayer = L.layerGroup().addTo(map);
       const clusterLayer = L.markerClusterGroup({
@@ -307,13 +360,13 @@ const ExploreMap = ({
         spiderfyOnMaxZoom: true,
         disableClusteringAtZoom: 16,
         maxClusterRadius: 50,
-        iconCreateFunction: function(cluster) {
+        iconCreateFunction: function (cluster) {
           const count = cluster.getChildCount();
           let size = 'small';
-          
+
           if (count > 50) size = 'large';
           else if (count > 20) size = 'medium';
-          
+
           return L.divIcon({
             html: `<div class="cluster-marker ${size}"><span>${count}</span></div>`,
             className: 'leaflet-marker-cluster',
@@ -321,12 +374,12 @@ const ExploreMap = ({
           });
         }
       });
-      
+
       // Save references
       mapRef.current = map;
       markersLayerRef.current = markersLayer;
       clusterLayerRef.current = clusterLayer;
-      
+
       // `whenReady`, not `on('load')`.
       //
       // Leaflet fires `load` synchronously inside the constructor when the map is created with a
@@ -345,8 +398,9 @@ const ExploreMap = ({
 
         // Get visible bounds - only use valid coordinates
         const bounds = map.getBounds();
-        const visiblePlacesList = liveDataRef.current.filteredPlaces.filter(place => {
-          if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') return false;
+        const visiblePlacesList = liveDataRef.current.filteredPlaces.filter((place) => {
+          if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number')
+            return false;
           return bounds.contains([place.latitude, place.longitude]);
         });
 
@@ -360,17 +414,17 @@ const ExploreMap = ({
           map.setZoom(6);
           return;
         }
-        
+
         if (onZoomChange) {
           onZoomChange(currentZoom);
         }
-        
-        setMapMetrics(prev => ({
+
+        setMapMetrics((prev) => ({
           ...prev,
           zoom: currentZoom
         }));
       });
-      
+
       return () => {
         if (mapRef.current) {
           mapRef.current.remove();
@@ -448,28 +502,36 @@ const ExploreMap = ({
     // See the note above this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPlaces, selectedPlace, mapLoaded, clusterMode]);
-  
+
   // Update tile layer when it changes
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
-    
+
     // Remove existing tile layers
-    mapRef.current.eachLayer(layer => {
+    mapRef.current.eachLayer((layer) => {
       if (layer instanceof L.TileLayer) {
         mapRef.current.removeLayer(layer);
       }
     });
-    
+
     // Add new tile layer
     L.tileLayer(tileLayer, {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(mapRef.current);
   }, [tileLayer, mapLoaded]);
-  
+
   // Fly to selected place when it changes
   useEffect(() => {
-    if (!mapRef.current || !mapLoaded || !selectedPlace || !selectedPlace.latitude || !selectedPlace.longitude) return;
-    
+    if (
+      !mapRef.current ||
+      !mapLoaded ||
+      !selectedPlace ||
+      !selectedPlace.latitude ||
+      !selectedPlace.longitude
+    )
+      return;
+
     try {
       // Fly to the selected place
       mapRef.current.flyTo(
@@ -480,7 +542,7 @@ const ExploreMap = ({
           duration: 1.5
         }
       );
-      
+
       // Update the selected marker
       updateSelectedMarker(selectedPlace);
     } catch (err) {
@@ -488,7 +550,7 @@ const ExploreMap = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateSelectedMarker is declared below.
   }, [selectedPlace, mapLoaded]);
-  
+
   // Markers currently on the map, keyed by place id, so an update can be a diff (IMP-048).
   const markerIndexRef = useRef(new Map());
   const markerModeRef = useRef(null);
@@ -506,126 +568,130 @@ const ExploreMap = ({
    * A cluster-mode switch still rebuilds wholesale: markers move between two different Leaflet
    * layers, so there is nothing to preserve.
    */
-  const updateMarkers = useCallback((places, selected) => {
-    if (!mapRef.current || !markersLayerRef.current || !clusterLayerRef.current) return;
+  const updateMarkers = useCallback(
+    (places, selected) => {
+      if (!mapRef.current || !markersLayerRef.current || !clusterLayerRef.current) return;
 
-    try {
-      const modeChanged = markerModeRef.current !== clusterMode;
-      markerModeRef.current = clusterMode;
+      try {
+        const modeChanged = markerModeRef.current !== clusterMode;
+        markerModeRef.current = clusterMode;
 
-      if (modeChanged) {
-        markersLayerRef.current.clearLayers();
-        clusterLayerRef.current.clearLayers();
-        markerIndexRef.current.clear();
+        if (modeChanged) {
+          markersLayerRef.current.clearLayers();
+          clusterLayerRef.current.clearLayers();
+          markerIndexRef.current.clear();
 
-        if (selectedMarkerRef.current) {
-          mapRef.current.removeLayer(selectedMarkerRef.current);
-          selectedMarkerRef.current = null;
+          if (selectedMarkerRef.current) {
+            mapRef.current.removeLayer(selectedMarkerRef.current);
+            selectedMarkerRef.current = null;
+          }
         }
-      }
 
-      // Remove and re-add cluster layer if using clustering
-      if (clusterMode) {
-        if (mapRef.current.hasLayer(markersLayerRef.current)) {
-          mapRef.current.removeLayer(markersLayerRef.current);
-        }
-        if (!mapRef.current.hasLayer(clusterLayerRef.current)) {
-          mapRef.current.addLayer(clusterLayerRef.current);
-        }
-      } else {
-        if (mapRef.current.hasLayer(clusterLayerRef.current)) {
-          mapRef.current.removeLayer(clusterLayerRef.current);
-        }
-        if (!mapRef.current.hasLayer(markersLayerRef.current)) {
-          mapRef.current.addLayer(markersLayerRef.current);
-        }
-      }
-      
-      const index = markerIndexRef.current;
-      const activeLayer = clusterMode ? clusterLayerRef.current : markersLayerRef.current;
-
-      const buildMarker = (place, isSelected) => {
-        const hasRating = place.rating_count && place.rating_sum;
-        const rating = hasRating ? (place.rating_sum / place.rating_count).toFixed(1) : null;
-
-        const icon = rating
-          ? createRatingIcon(rating, isSelected)
-          : createCustomIcon('marker', isSelected);
-
-        const marker = L.marker([place.latitude, place.longitude], {
-          icon,
-          zIndexOffset: isSelected ? 1000 : 0
-        });
-
-        marker.bindPopup(createPopupContent(place), {
-          className: 'custom-popup-container',
-          closeButton: true,
-          autoClose: false,
-          closeOnEscapeKey: true
-        });
-
-        marker.on('click', () => onSelectPlace(place));
-
-        // Show label on hover
-        marker.on('mouseover', () => {
-          marker.bindTooltip(place.name, {
-            permanent: false,
-            direction: 'top',
-            className: 'custom-tooltip'
-          }).openTooltip();
-        });
-
-        return marker;
-      };
-
-      const detach = (entry) => {
-        if (entry.isSelected) {
-          mapRef.current.removeLayer(entry.marker);
-          if (selectedMarkerRef.current === entry.marker) selectedMarkerRef.current = null;
+        // Remove and re-add cluster layer if using clustering
+        if (clusterMode) {
+          if (mapRef.current.hasLayer(markersLayerRef.current)) {
+            mapRef.current.removeLayer(markersLayerRef.current);
+          }
+          if (!mapRef.current.hasLayer(clusterLayerRef.current)) {
+            mapRef.current.addLayer(clusterLayerRef.current);
+          }
         } else {
-          entry.layer.removeLayer(entry.marker);
+          if (mapRef.current.hasLayer(clusterLayerRef.current)) {
+            mapRef.current.removeLayer(clusterLayerRef.current);
+          }
+          if (!mapRef.current.hasLayer(markersLayerRef.current)) {
+            mapRef.current.addLayer(markersLayerRef.current);
+          }
         }
-      };
 
-      const wanted = new Set();
+        const index = markerIndexRef.current;
+        const activeLayer = clusterMode ? clusterLayerRef.current : markersLayerRef.current;
 
-      places.forEach(place => {
-        if (!place.latitude || !place.longitude) return;
-        wanted.add(place.id);
+        const buildMarker = (place, isSelected) => {
+          const rating = formatAverageRating(place);
 
-        const isSelected = Boolean(selected && selected.id === place.id);
-        const existing = index.get(place.id);
+          const icon = rating
+            ? createRatingIcon(rating, isSelected)
+            : createCustomIcon('marker', isSelected);
 
-        // Already on the map in the right state — the common case while typing, and the whole
-        // point of the diff.
-        if (existing && existing.isSelected === isSelected) return;
+          const marker = L.marker([place.latitude, place.longitude], {
+            icon,
+            zIndexOffset: isSelected ? 1000 : 0
+          });
 
-        if (existing) detach(existing);
+          marker.bindPopup(createPopupContent(place), {
+            className: 'custom-popup-container',
+            closeButton: true,
+            autoClose: false,
+            closeOnEscapeKey: true
+          });
 
-        const marker = buildMarker(place, isSelected);
+          marker.on('click', () => onSelectPlace(place));
 
-        if (isSelected) {
-          if (selectedMarkerRef.current) mapRef.current.removeLayer(selectedMarkerRef.current);
-          marker.addTo(mapRef.current);
-          selectedMarkerRef.current = marker;
-          index.set(place.id, { marker, isSelected: true, layer: null });
-        } else {
-          activeLayer.addLayer(marker);
-          index.set(place.id, { marker, isSelected: false, layer: activeLayer });
-        }
-      });
+          // Show label on hover
+          marker.on('mouseover', () => {
+            marker
+              .bindTooltip(place.name, {
+                permanent: false,
+                direction: 'top',
+                className: 'custom-tooltip'
+              })
+              .openTooltip();
+          });
 
-      // Anything no longer in the result set.
-      index.forEach((entry, id) => {
-        if (wanted.has(id)) return;
-        detach(entry);
-        index.delete(id);
-      });
-    } catch (err) {
-      console.error('Error updating markers:', err);
-    }
-  }, [clusterMode, onSelectPlace]);
-  
+          return marker;
+        };
+
+        const detach = (entry) => {
+          if (entry.isSelected) {
+            mapRef.current.removeLayer(entry.marker);
+            if (selectedMarkerRef.current === entry.marker) selectedMarkerRef.current = null;
+          } else {
+            entry.layer.removeLayer(entry.marker);
+          }
+        };
+
+        const wanted = new Set();
+
+        places.forEach((place) => {
+          if (!place.latitude || !place.longitude) return;
+          wanted.add(place.id);
+
+          const isSelected = Boolean(selected && selected.id === place.id);
+          const existing = index.get(place.id);
+
+          // Already on the map in the right state — the common case while typing, and the whole
+          // point of the diff.
+          if (existing && existing.isSelected === isSelected) return;
+
+          if (existing) detach(existing);
+
+          const marker = buildMarker(place, isSelected);
+
+          if (isSelected) {
+            if (selectedMarkerRef.current) mapRef.current.removeLayer(selectedMarkerRef.current);
+            marker.addTo(mapRef.current);
+            selectedMarkerRef.current = marker;
+            index.set(place.id, { marker, isSelected: true, layer: null });
+          } else {
+            activeLayer.addLayer(marker);
+            index.set(place.id, { marker, isSelected: false, layer: activeLayer });
+          }
+        });
+
+        // Anything no longer in the result set.
+        index.forEach((entry, id) => {
+          if (wanted.has(id)) return;
+          detach(entry);
+          index.delete(id);
+        });
+      } catch (err) {
+        console.error('Error updating markers:', err);
+      }
+    },
+    [clusterMode, onSelectPlace]
+  );
+
   /**
    * Open the popup for the selected place.
    *
@@ -644,11 +710,11 @@ const ExploreMap = ({
       console.error('Error updating selected marker:', err);
     }
   }, []);
-  
+
   // Function to toggle fullscreen mode
   const toggleFullscreen = useCallback(() => {
     if (!mapContainerRef.current) return;
-    
+
     try {
       if (!isFullscreen) {
         if (mapContainerRef.current.requestFullscreen) {
@@ -671,10 +737,10 @@ const ExploreMap = ({
           document.msExitFullscreen();
         }
       }
-      
+
       // Update state
       setIsFullscreen(!isFullscreen);
-      
+
       // Resize map after toggling fullscreen
       setTimeout(() => {
         if (mapRef.current) {
@@ -685,7 +751,7 @@ const ExploreMap = ({
       console.error('Error toggling fullscreen:', err);
     }
   }, [isFullscreen]);
-  
+
   // Handle fullscreen change events
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -695,20 +761,20 @@ const ExploreMap = ({
         document.webkitFullscreenElement ||
         document.msFullscreenElement
       );
-      
+
       setIsFullscreen(isInFullscreen);
-      
+
       // Resize map when fullscreen state changes
       if (mapRef.current) {
         mapRef.current.invalidateSize();
       }
     };
-    
+
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('mozfullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     document.addEventListener('msfullscreenchange', handleFullscreenChange);
-    
+
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
@@ -716,7 +782,7 @@ const ExploreMap = ({
       document.removeEventListener('msfullscreenchange', handleFullscreenChange);
     };
   }, []);
-  
+
   // Handle map errors and loading
   if (error) {
     return (
@@ -733,15 +799,12 @@ const ExploreMap = ({
       </div>
     );
   }
-  
+
   // Render the map and its controls
   return (
     <div className={`map-wrapper ${className} ${isFullscreen ? 'fullscreen' : ''}`}>
       {/* Map container */}
-      <div
-        ref={mapContainerRef}
-        className="map-container"
-      >
+      <div ref={mapContainerRef} className="map-container">
         {!mapLoaded && (
           <div className="map-loading">
             <div className="loading-spinner"></div>
@@ -749,7 +812,7 @@ const ExploreMap = ({
           </div>
         )}
       </div>
-      
+
       {/* Sidebar with place list */}
       <AnimatePresence>
         {showSidebar && mapLoaded && (
@@ -765,7 +828,7 @@ const ExploreMap = ({
                 <FiMapPin className="sidebar-icon" />
                 Places in View
               </h3>
-              <button 
+              <button
                 className="close-button"
                 onClick={() => setShowSidebar(false)}
                 aria-label="Close sidebar"
@@ -773,7 +836,7 @@ const ExploreMap = ({
                 <FiX />
               </button>
             </div>
-            
+
             <div className="sidebar-search">
               <input
                 type="text"
@@ -794,7 +857,7 @@ const ExploreMap = ({
                 </button>
               )}
             </div>
-            
+
             <div className="sidebar-stats">
               <div className="stat">
                 <span className="stat-label">Visible:</span>
@@ -809,7 +872,7 @@ const ExploreMap = ({
                 <span className="stat-value">{mapMetrics.zoom}x</span>
               </div>
             </div>
-            
+
             <div className="sidebar-places">
               {filteredPlaces.length === 0 ? (
                 <div className="no-places">
@@ -817,10 +880,10 @@ const ExploreMap = ({
                   <p>No places match your search</p>
                 </div>
               ) : (
-                filteredPlaces.map(place => {
+                filteredPlaces.map((place) => {
                   const isCurrentlySelected = selectedPlace?.id === place.id;
-                  const isVisible = visiblePlaces.some(p => p.id === place.id);
-                  
+                  const isVisible = visiblePlaces.some((p) => p.id === place.id);
+
                   return (
                     <motion.button
                       key={place.id}
@@ -842,12 +905,15 @@ const ExploreMap = ({
                       </div>
                       <div className="place-info">
                         <h4>{place.name}</h4>
-                        <p>{place.location}{place.district ? `, ${place.district}` : ''}</p>
-                        {place.rating_count > 0 && (
+                        <p>
+                          {place.location}
+                          {place.district ? `, ${place.district}` : ''}
+                        </p>
+                        {placeHasRating(place) && (
                           <div className="place-rating">
                             <FiStar className="star-icon" />
-                            <span>{(place.rating_sum / place.rating_count).toFixed(1)}</span>
-                            <span className="review-count">({place.rating_count})</span>
+                            <span>{formatAverageRating(place)}</span>
+                            <span className="review-count">({getRatingCount(place)})</span>
                           </div>
                         )}
                       </div>
@@ -863,7 +929,7 @@ const ExploreMap = ({
                 })
               )}
             </div>
-            
+
             <div className="sidebar-footer">
               <p>
                 <FiInfo className="info-icon-small" />
@@ -876,7 +942,7 @@ const ExploreMap = ({
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Map controls */}
       {mapLoaded && (
         <>
@@ -902,8 +968,8 @@ const ExploreMap = ({
                 </button>
               )}
             </div>
-            
-            <button 
+
+            <button
               className="control-button sidebar-toggle"
               onClick={() => setShowSidebar(!showSidebar)}
               aria-label="Toggle sidebar"
@@ -912,7 +978,7 @@ const ExploreMap = ({
               <span>{showSidebar ? 'Hide List' : 'Show List'}</span>
             </button>
           </div>
-          
+
           {/* Top right controls - Layer switcher */}
           <div className="map-control top-right">
             <div className="map-style-switcher">
@@ -924,7 +990,7 @@ const ExploreMap = ({
                 <FiLayers />
                 <span>Styles</span>
               </button>
-              
+
               <AnimatePresence>
                 {showLayers && (
                   <motion.div
@@ -933,7 +999,7 @@ const ExploreMap = ({
                     exit={{ opacity: 0, y: -10 }}
                     className="map-style-dropdown"
                   >
-                    {TILE_LAYERS.map(layer => (
+                    {TILE_LAYERS.map((layer) => (
                       <button
                         key={layer.id}
                         className={`style-option ${tileLayer === layer.url ? 'active' : ''}`}
@@ -955,7 +1021,7 @@ const ExploreMap = ({
                         )}
                       </button>
                     ))}
-                    
+
                     <div className="style-dropdown-footer">
                       <button
                         className={`cluster-toggle ${clusterMode ? 'active' : ''}`}
@@ -971,7 +1037,7 @@ const ExploreMap = ({
                 )}
               </AnimatePresence>
             </div>
-            
+
             <button
               className="control-button fullscreen-button"
               onClick={toggleFullscreen}
@@ -980,13 +1046,15 @@ const ExploreMap = ({
               {isFullscreen ? <FiMinimize2 /> : <FiMaximize2 />}
             </button>
           </div>
-          
+
           {/* Bottom center controls - Map stats */}
           <div className="map-control bottom-center">
             <div className="map-stats">
               <div className="stat">
                 <FiMapPin className="stat-icon" />
-                <span>{visiblePlaces.length}/{places.length}</span>
+                <span>
+                  {visiblePlaces.length}/{places.length}
+                </span>
               </div>
               <div className="stat">
                 <FiTarget className="stat-icon" />
@@ -994,7 +1062,7 @@ const ExploreMap = ({
               </div>
             </div>
           </div>
-          
+
           {/* Custom zoom controls */}
           <div className="map-control custom-zoom">
             <button
@@ -1020,7 +1088,7 @@ const ExploreMap = ({
               <FiMinus />
             </button>
           </div>
-          
+
           {/* Locate me button */}
           <button
             className="map-control geolocate-control"
@@ -1039,7 +1107,7 @@ const ExploreMap = ({
           </button>
         </>
       )}
-      
+
       {/* Map styling */}
       <style jsx>{`
         .map-wrapper {
@@ -1048,9 +1116,11 @@ const ExploreMap = ({
           height: 100%;
           overflow: hidden;
           border-radius: 0.75rem;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
-        
+
         .map-wrapper.fullscreen {
           position: fixed;
           top: 0;
@@ -1062,13 +1132,13 @@ const ExploreMap = ({
           z-index: 9999;
           border-radius: 0;
         }
-        
+
         .map-container {
           width: 100%;
           height: 100%;
           background-color: #f3f4f6;
         }
-        
+
         .map-loading {
           position: absolute;
           top: 0;
@@ -1083,21 +1153,23 @@ const ExploreMap = ({
           z-index: 10;
           backdrop-filter: blur(4px);
         }
-        
+
         .loading-spinner {
           width: 40px;
           height: 40px;
           border: 3px solid #e5e7eb;
-          border-top-color: #4F46E5;
+          border-top-color: #4f46e5;
           border-radius: 50%;
           animation: spin 1s linear infinite;
           margin-bottom: 1rem;
         }
-        
+
         @keyframes spin {
-          to { transform: rotate(360deg); }
+          to {
+            transform: rotate(360deg);
+          }
         }
-        
+
         .map-error-container {
           width: 100%;
           height: 100%;
@@ -1107,36 +1179,38 @@ const ExploreMap = ({
           background-color: #f3f4f6;
           border-radius: 0.75rem;
         }
-        
+
         .map-error {
           background-color: white;
           padding: 2rem;
           border-radius: 0.5rem;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
           text-align: center;
           max-width: 400px;
         }
-        
+
         .error-icon {
           font-size: 2.5rem;
-          color: #EF4444;
+          color: #ef4444;
           margin-bottom: 1rem;
         }
-        
+
         .map-error h3 {
           font-size: 1.25rem;
           font-weight: 600;
           margin-bottom: 0.5rem;
-          color: #1F2937;
+          color: #1f2937;
         }
-        
+
         .map-error p {
-          color: #6B7280;
+          color: #6b7280;
           margin-bottom: 1.5rem;
         }
-        
+
         .map-error button {
-          background-color: #4F46E5;
+          background-color: #4f46e5;
           color: white;
           border: none;
           padding: 0.5rem 1.5rem;
@@ -1147,15 +1221,15 @@ const ExploreMap = ({
           cursor: pointer;
           transition: background-color 0.2s;
         }
-        
+
         .map-error button:hover {
-          background-color: #4338CA;
+          background-color: #4338ca;
         }
-        
+
         .refresh-icon {
           margin-right: 0.5rem;
         }
-        
+
         .map-sidebar {
           position: absolute;
           top: 0;
@@ -1169,7 +1243,7 @@ const ExploreMap = ({
           flex-direction: column;
           overflow: hidden;
         }
-        
+
         .sidebar-header {
           padding: 1rem;
           display: flex;
@@ -1177,25 +1251,25 @@ const ExploreMap = ({
           justify-content: space-between;
           border-bottom: 1px solid #e5e7eb;
         }
-        
+
         .sidebar-header h3 {
           font-size: 1.125rem;
           font-weight: 600;
-          color: #1F2937;
+          color: #1f2937;
           display: flex;
           align-items: center;
         }
-        
+
         .sidebar-icon {
           margin-right: 0.5rem;
-          color: #4F46E5;
+          color: #4f46e5;
         }
-        
+
         .close-button {
           background: none;
           border: none;
           cursor: pointer;
-          color: #6B7280;
+          color: #6b7280;
           width: 32px;
           height: 32px;
           display: flex;
@@ -1204,17 +1278,17 @@ const ExploreMap = ({
           border-radius: 50%;
           transition: background-color 0.2s;
         }
-        
+
         .close-button:hover {
           background-color: #f3f4f6;
-          color: #1F2937;
+          color: #1f2937;
         }
-        
+
         .sidebar-search {
           padding: 1rem;
           position: relative;
         }
-        
+
         .sidebar-search-input {
           width: 100%;
           padding: 0.5rem 2.5rem 0.5rem 2.5rem;
@@ -1222,25 +1296,27 @@ const ExploreMap = ({
           border-radius: 9999px;
           background-color: #f9fafb;
           font-size: 0.875rem;
-          transition: border-color 0.2s, box-shadow 0.2s;
+          transition:
+            border-color 0.2s,
+            box-shadow 0.2s;
         }
-        
+
         .sidebar-search-input:focus {
           outline: none;
-          border-color: #4F46E5;
+          border-color: #4f46e5;
           box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
           background-color: white;
         }
-        
+
         .search-icon {
           position: absolute;
           left: 1.5rem;
           top: 50%;
           transform: translateY(-50%);
-          color: #9CA3AF;
+          color: #9ca3af;
           pointer-events: none;
         }
-        
+
         .clear-search {
           position: absolute;
           right: 1.5rem;
@@ -1249,7 +1325,7 @@ const ExploreMap = ({
           background: none;
           border: none;
           cursor: pointer;
-          color: #9CA3AF;
+          color: #9ca3af;
           padding: 0;
           display: flex;
           align-items: center;
@@ -1257,11 +1333,11 @@ const ExploreMap = ({
           width: 18px;
           height: 18px;
         }
-        
+
         .clear-search:hover {
-          color: #4B5563;
+          color: #4b5563;
         }
-        
+
         .sidebar-stats {
           display: flex;
           justify-content: space-between;
@@ -1269,29 +1345,29 @@ const ExploreMap = ({
           border-bottom: 1px solid #e5e7eb;
           background-color: #f9fafb;
         }
-        
+
         .stat {
           display: flex;
           align-items: center;
           font-size: 0.75rem;
-          color: #6B7280;
+          color: #6b7280;
         }
-        
+
         .stat-label {
           margin-right: 0.25rem;
         }
-        
+
         .stat-value {
           font-weight: 600;
-          color: #4B5563;
+          color: #4b5563;
         }
-        
+
         .sidebar-places {
           flex-grow: 1;
           overflow-y: auto;
           padding: 0.5rem;
         }
-        
+
         .no-places {
           display: flex;
           flex-direction: column;
@@ -1299,15 +1375,15 @@ const ExploreMap = ({
           justify-content: center;
           padding: 2rem;
           text-align: center;
-          color: #6B7280;
+          color: #6b7280;
         }
-        
+
         .info-icon {
           font-size: 1.5rem;
-          color: #9CA3AF;
+          color: #9ca3af;
           margin-bottom: 0.5rem;
         }
-        
+
         .place-item {
           display: flex;
           align-items: center;
@@ -1318,150 +1394,152 @@ const ExploreMap = ({
           transition: background-color 0.2s;
           border: 1px solid transparent;
         }
-        
+
         .place-item:hover {
           background-color: #f3f4f6;
         }
-        
+
         .place-item.selected {
-          background-color: #EEF2FF;
-          border-color: #C7D2FE;
+          background-color: #eef2ff;
+          border-color: #c7d2fe;
         }
-        
+
         .place-item.not-visible {
           opacity: 0.6;
         }
-        
+
         .place-icon {
           width: 36px;
           height: 36px;
           display: flex;
           align-items: center;
           justify-content: center;
-          background-color: #F3F4F6;
+          background-color: #f3f4f6;
           border-radius: 50%;
           margin-right: 0.75rem;
         }
-        
+
         .place-item.selected .place-icon {
-          background-color: #4F46E5;
+          background-color: #4f46e5;
           color: white;
         }
-        
-        .visible-icon, .pin-icon {
-          color: #4B5563;
+
+        .visible-icon,
+        .pin-icon {
+          color: #4b5563;
         }
-        
+
         .place-item.selected .visible-icon,
         .place-item.selected .pin-icon {
           color: white;
         }
-        
+
         .place-info {
           flex-grow: 1;
         }
-        
+
         .place-info h4 {
           font-size: 0.875rem;
           font-weight: 600;
-          color: #1F2937;
+          color: #1f2937;
           margin-bottom: 0.25rem;
         }
-        
+
         .place-info p {
           font-size: 0.75rem;
-          color: #6B7280;
+          color: #6b7280;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           max-width: 180px;
         }
-        
+
         .place-rating {
           display: flex;
           align-items: center;
           font-size: 0.75rem;
-          color: #1F2937;
+          color: #1f2937;
           margin-top: 0.25rem;
         }
-        
+
         .star-icon {
-          color: #FBBF24;
+          color: #fbbf24;
           margin-right: 0.25rem;
         }
-        
+
         .review-count {
-          color: #6B7280;
+          color: #6b7280;
           margin-left: 0.25rem;
         }
-        
+
         .place-actions {
           display: flex;
           align-items: center;
         }
-        
-        .arrow-icon, .check-icon {
-          color: #6B7280;
+
+        .arrow-icon,
+        .check-icon {
+          color: #6b7280;
         }
-        
+
         .place-item.selected .arrow-icon,
         .place-item.selected .check-icon {
-          color: #4F46E5;
+          color: #4f46e5;
         }
-        
+
         .sidebar-footer {
           padding: 0.75rem 1rem;
           border-top: 1px solid #e5e7eb;
           font-size: 0.75rem;
-          color: #6B7280;
+          color: #6b7280;
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
           background-color: #f9fafb;
         }
-        
+
         .sidebar-footer p {
           display: flex;
           align-items: center;
         }
-        
+
         .info-icon-small {
           margin-right: 0.25rem;
           font-size: 0.875rem;
         }
-        
+
         .attribution {
           display: flex;
           justify-content: space-between;
-          color: #9CA3AF;
+          color: #9ca3af;
           font-size: 0.7rem;
         }
-        
+
         .map-control {
           position: absolute;
           z-index: 500;
         }
-        
+
         .map-control.top-left {
           top: 1rem;
           left: 1rem;
           display: flex;
           align-items: center;
         }
-        
+
         .map-control.top-right {
           top: 1rem;
           right: 1rem;
           display: flex;
           gap: 0.5rem;
         }
-        
+
         .map-control.bottom-center {
           bottom: 1rem;
           left: 50%;
           transform: translateX(-50%);
         }
-        
+
         .map-control.custom-zoom {
           top: 50%;
           right: 1rem;
@@ -1470,7 +1548,7 @@ const ExploreMap = ({
           flex-direction: column;
           gap: 0.25rem;
         }
-        
+
         .map-control.geolocate-control {
           bottom: 5rem;
           right: 1rem;
@@ -1484,19 +1562,19 @@ const ExploreMap = ({
           justify-content: center;
           cursor: pointer;
           border: none;
-          color: #4B5563;
+          color: #4b5563;
           transition: background-color 0.2s;
         }
-        
+
         .map-control.geolocate-control:hover {
           background-color: #f9fafb;
         }
-        
+
         .search-container {
           position: relative;
           margin-right: 0.5rem;
         }
-        
+
         .search-input {
           width: 240px;
           padding: 0.5rem 2.5rem 0.5rem 2.5rem;
@@ -1504,16 +1582,22 @@ const ExploreMap = ({
           border-radius: 9999px;
           background-color: white;
           font-size: 0.875rem;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-          transition: width 0.2s, box-shadow 0.2s;
+          box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.1),
+            0 1px 2px rgba(0, 0, 0, 0.06);
+          transition:
+            width 0.2s,
+            box-shadow 0.2s;
         }
-        
+
         .search-input:focus {
           outline: none;
           width: 280px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
-        
+
         .control-button {
           background-color: white;
           border: none;
@@ -1524,55 +1608,59 @@ const ExploreMap = ({
           padding: 0.5rem 0.75rem;
           font-size: 0.875rem;
           font-weight: 500;
-          color: #4B5563;
+          color: #4b5563;
           cursor: pointer;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.1),
+            0 1px 2px rgba(0, 0, 0, 0.06);
           transition: background-color 0.2s;
         }
-        
+
         .control-button:hover {
           background-color: #f9fafb;
         }
-        
+
         .control-button svg {
           margin-right: 0.5rem;
         }
-        
+
         .control-button.sidebar-toggle svg {
           font-size: 1rem;
         }
-        
+
         .control-button.layers-button {
           padding: 0.5rem;
           margin-right: 0.5rem;
         }
-        
+
         .control-button.fullscreen-button {
           padding: 0.5rem;
           width: 40px;
           height: 40px;
         }
-        
+
         .control-button.fullscreen-button svg {
           margin-right: 0;
         }
-        
+
         .map-style-switcher {
           position: relative;
         }
-        
+
         .map-style-dropdown {
           position: absolute;
           top: calc(100% + 0.5rem);
           right: 0;
           background-color: white;
           border-radius: 0.5rem;
-          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          box-shadow:
+            0 10px 15px -3px rgba(0, 0, 0, 0.1),
+            0 4px 6px -2px rgba(0, 0, 0, 0.05);
           width: 200px;
           z-index: 30;
           overflow: hidden;
         }
-        
+
         .style-option {
           display: flex;
           align-items: center;
@@ -1583,36 +1671,36 @@ const ExploreMap = ({
           width: 100%;
           text-align: left;
           font-size: 0.875rem;
-          color: #4B5563;
+          color: #4b5563;
           transition: background-color 0.2s;
         }
-        
+
         .style-option:hover {
           background-color: #f3f4f6;
         }
-        
+
         .style-option.active {
-          background-color: #EEF2FF;
-          color: #4F46E5;
+          background-color: #eef2ff;
+          color: #4f46e5;
           font-weight: 500;
         }
-        
+
         .style-option svg {
           margin-right: 0.75rem;
           font-size: 1.125rem;
         }
-        
+
         .check-icon {
           margin-left: auto;
-          color: #4F46E5;
+          color: #4f46e5;
         }
-        
+
         .style-dropdown-footer {
           padding: 0.75rem 1rem;
           border-top: 1px solid #e5e7eb;
           background-color: #f9fafb;
         }
-        
+
         .cluster-toggle {
           display: flex;
           align-items: center;
@@ -1622,10 +1710,10 @@ const ExploreMap = ({
           border: none;
           padding: 0;
           font-size: 0.875rem;
-          color: #4B5563;
+          color: #4b5563;
           cursor: pointer;
         }
-        
+
         .toggle-switch {
           width: 36px;
           height: 20px;
@@ -1634,11 +1722,11 @@ const ExploreMap = ({
           position: relative;
           transition: background-color 0.2s;
         }
-        
+
         .toggle-switch.on {
-          background-color: #4F46E5;
+          background-color: #4f46e5;
         }
-        
+
         .toggle-handle {
           width: 16px;
           height: 16px;
@@ -1650,11 +1738,11 @@ const ExploreMap = ({
           transition: transform 0.2s;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
         }
-        
+
         .toggle-switch.on .toggle-handle {
           transform: translateX(16px);
         }
-        
+
         .map-stats {
           display: flex;
           align-items: center;
@@ -1664,21 +1752,21 @@ const ExploreMap = ({
           border-radius: 9999px;
           font-size: 0.75rem;
           backdrop-filter: blur(4px);
-          color: #4B5563;
+          color: #4b5563;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
-        
+
         .stat {
           display: flex;
           align-items: center;
           font-weight: 500;
         }
-        
+
         .stat-icon {
           margin-right: 0.25rem;
           font-size: 0.875rem;
         }
-        
+
         .zoom-button {
           width: 40px;
           height: 40px;
@@ -1688,96 +1776,98 @@ const ExploreMap = ({
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #4B5563;
+          color: #4b5563;
           font-size: 1.125rem;
           cursor: pointer;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.1),
+            0 1px 2px rgba(0, 0, 0, 0.06);
           transition: background-color 0.2s;
         }
-        
+
         .zoom-button:hover {
           background-color: #f9fafb;
         }
-        
+
         @media (max-width: 768px) {
           .map-wrapper {
             border-radius: 0.5rem;
           }
-          
+
           .map-control.top-left {
             flex-direction: column;
             align-items: flex-start;
             gap: 0.5rem;
           }
-          
+
           .search-container {
             margin-right: 0;
             margin-bottom: 0.5rem;
           }
-          
+
           .search-input {
             width: 180px;
           }
-          
+
           .search-input:focus {
             width: 220px;
           }
-          
+
           .control-button span {
             display: none;
           }
-          
+
           .control-button svg {
             margin-right: 0;
           }
-          
+
           .map-sidebar {
             width: 100%;
           }
-          
+
           .map-stats {
             display: none;
           }
-          
+
           .custom-zoom {
             right: 0.5rem;
           }
-          
+
           .map-control.geolocate-control {
             bottom: 4rem;
             right: 0.5rem;
           }
         }
-        
+
         @media (max-width: 480px) {
           .map-control.top-left,
           .map-control.top-right {
             top: 0.5rem;
           }
-          
+
           .map-control.top-left {
             left: 0.5rem;
           }
-          
+
           .map-control.top-right {
             right: 0.5rem;
           }
-          
+
           .search-input {
             width: 150px;
             padding: 0.375rem 2rem 0.375rem 2rem;
           }
-          
+
           .search-input:focus {
             width: 180px;
           }
-          
+
           .custom-zoom {
             display: none;
           }
         }
       `}</style>
-      
+
       {/* Leaflet specific styling */}
       <style jsx global>{`
         /* Custom marker styling */
@@ -1785,11 +1875,11 @@ const ExploreMap = ({
           background: none;
           border: none;
         }
-        
+
         .marker-pin {
           width: 30px;
           height: 42px;
-          background-color: #4F46E5;
+          background-color: #4f46e5;
           border-radius: 50% 50% 50% 0;
           transform: rotate(-45deg);
           display: flex;
@@ -1799,13 +1889,13 @@ const ExploreMap = ({
           border: 2px solid white;
           position: relative;
         }
-        
+
         .marker-pin.selected {
-          background-color: #EF4444;
+          background-color: #ef4444;
           transform: rotate(-45deg) scale(1.2);
           z-index: 1000 !important;
         }
-        
+
         .marker-icon {
           transform: rotate(45deg);
           color: white;
@@ -1813,7 +1903,7 @@ const ExploreMap = ({
           align-items: center;
           justify-content: center;
         }
-        
+
         .rating {
           transform: rotate(45deg);
           color: white;
@@ -1822,11 +1912,11 @@ const ExploreMap = ({
           display: flex;
           align-items: center;
         }
-        
+
         .rating svg {
           margin-right: 2px;
         }
-        
+
         .marker-pulse {
           position: absolute;
           width: 48px;
@@ -1839,7 +1929,7 @@ const ExploreMap = ({
           z-index: -1;
           animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
           0% {
             transform: translate(-50%, -50%) scale(0.5);
@@ -1853,10 +1943,10 @@ const ExploreMap = ({
             opacity: 0;
           }
         }
-        
+
         /* Cluster marker styling */
         .cluster-marker {
-          background-color: #4F46E5;
+          background-color: #4f46e5;
           color: white;
           border-radius: 50%;
           display: flex;
@@ -1866,61 +1956,63 @@ const ExploreMap = ({
           box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
           border: 3px solid white;
         }
-        
+
         .cluster-marker.small {
           width: 40px;
           height: 40px;
           font-size: 14px;
         }
-        
+
         .cluster-marker.medium {
           width: 50px;
           height: 50px;
           font-size: 16px;
         }
-        
+
         .cluster-marker.large {
           width: 60px;
           height: 60px;
           font-size: 18px;
         }
-        
+
         /* Custom popup styling */
         .leaflet-popup-content-wrapper {
           padding: 0;
           overflow: hidden;
           border-radius: 8px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
-        
+
         .leaflet-popup-content {
           margin: 0;
           width: 280px !important;
         }
-        
+
         .leaflet-popup-tip {
           background-color: white;
         }
-        
+
         .custom-popup {
           width: 100%;
         }
-        
+
         .popup-header {
-          background-color: #4F46E5;
+          background-color: #4f46e5;
           color: white;
           padding: 12px 16px;
           display: flex;
           align-items: center;
           justify-content: space-between;
         }
-        
+
         .popup-header h3 {
           font-size: 16px;
           font-weight: 600;
           margin: 0;
         }
-        
+
         .popup-header .rating {
           background-color: rgba(255, 255, 255, 0.2);
           padding: 2px 8px;
@@ -1930,24 +2022,24 @@ const ExploreMap = ({
           align-items: center;
           transform: none;
         }
-        
+
         .popup-body {
           padding: 12px 16px;
           background-color: white;
         }
-        
+
         .popup-body p {
           margin: 0 0 8px;
           font-size: 14px;
-          color: #4B5563;
+          color: #4b5563;
         }
-        
+
         .popup-body .description {
-          color: #6B7280;
+          color: #6b7280;
           font-size: 13px;
           line-height: 1.4;
         }
-        
+
         .popup-footer {
           padding: 12px 16px;
           background-color: #f9fafb;
@@ -1955,9 +2047,9 @@ const ExploreMap = ({
           display: flex;
           justify-content: flex-end;
         }
-        
+
         .view-button {
-          background-color: #4F46E5;
+          background-color: #4f46e5;
           color: white;
           border: none;
           padding: 8px 16px;
@@ -1969,13 +2061,13 @@ const ExploreMap = ({
           display: inline-block;
           transition: background-color 0.2s;
         }
-        
+
         .view-button:hover {
-          background-color: #4338CA;
+          background-color: #4338ca;
           text-decoration: none;
           color: white;
         }
-        
+
         /* Custom tooltip */
         .custom-tooltip {
           background-color: rgba(0, 0, 0, 0.8);
@@ -1987,12 +2079,12 @@ const ExploreMap = ({
           font-weight: 500;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
-        
+
         /* Leaflet marker cluster styles */
         .leaflet-marker-cluster {
           background: none !important;
         }
-        
+
         .leaflet-marker-cluster div {
           background-color: transparent !important;
         }

@@ -13,18 +13,17 @@ import {
   FiImage
 } from 'react-icons/fi';
 import { fetchPlaces } from '../services/placesApi';
+import { getPlaceImageUrl } from '../utils/placeImage';
+import { formatAverageRating } from '../utils/rating';
 
 // CarouselImage component with better loading states
 const CarouselImage = ({ place }) => {
   const [imageState, setImageState] = useState('loading');
 
-  const getImageUrl = () => {
-    if (place?.primary_image_url) return place.primary_image_url;
-    if (place?.image_url) return place.image_url;
-    // Local placeholder rather than the proxy: the API already resolved the fallback, so a
-    // missing image means there is none to fetch (IMP-037).
-    return '/images/placeholder.jpg';
-  };
+  // The API resolves the gallery fallback into `fallback_image_url` (IMP-037); this used to check
+  // `image_url`, which is a column on place_images and never present on a place row — so a place
+  // whose only image was in the gallery showed the placeholder. One helper now (IMP-073).
+  const getImageUrl = () => getPlaceImageUrl(place);
 
   return (
     <div className="relative h-full overflow-hidden bg-gradient-to-br from-blue-100 to-purple-100">
@@ -34,7 +33,7 @@ const CarouselImage = ({ place }) => {
           <div className="absolute inset-0 bg-gradient-to-t from-gray-400/20 to-transparent"></div>
         </div>
       )}
-      
+
       {/* Error state */}
       {imageState === 'error' && (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
@@ -45,7 +44,7 @@ const CarouselImage = ({ place }) => {
           </div>
         </div>
       )}
-      
+
       {/* Main image */}
       <img
         src={getImageUrl()}
@@ -57,7 +56,7 @@ const CarouselImage = ({ place }) => {
         onLoad={() => setImageState('loaded')}
         onError={() => setImageState('error')}
       />
-      
+
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
     </div>
@@ -69,7 +68,7 @@ const FeatureCard = ({ icon, title, description }) => (
   <motion.div
     variants={{
       hidden: { opacity: 0, y: 20 },
-      visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
     }}
     className="bg-white p-4 sm:p-6 rounded-xl shadow-lg backdrop-blur-sm border border-gray-100/50 hover:shadow-xl transition-shadow duration-300"
     whileHover={{ y: -5 }}
@@ -87,7 +86,7 @@ const CategoryCard = ({ category, gradient }) => (
   <motion.div
     variants={{
       hidden: { opacity: 0, y: 20 },
-      visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
     }}
   >
     <Link href={`/browse?theme=${category.toLowerCase()}`} passHref>
@@ -97,7 +96,9 @@ const CategoryCard = ({ category, gradient }) => (
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent group-hover:from-black/40 transition-all duration-300"></div>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-white font-bold text-sm sm:text-lg md:text-xl drop-shadow-lg">{category}</span>
+          <span className="text-white font-bold text-sm sm:text-lg md:text-xl drop-shadow-lg">
+            {category}
+          </span>
         </div>
       </motion.div>
     </Link>
@@ -151,11 +152,11 @@ const Home = ({ places = [], loadError = null }) => {
       autoplayRef.current = setInterval(() => {
         setDirection(1);
         setIsTransitioning(true);
-        setCurrentPlaceIndex(prev => (prev + 1) % places.length);
+        setCurrentPlaceIndex((prev) => (prev + 1) % places.length);
         setTimeout(() => setIsTransitioning(false), 500);
       }, 5000); // 5 seconds for both mobile and desktop
     }
-    
+
     return () => {
       if (autoplayRef.current) clearInterval(autoplayRef.current);
     };
@@ -166,7 +167,7 @@ const Home = ({ places = [], loadError = null }) => {
     if (isTransitioning) return;
     setDirection(1);
     setIsTransitioning(true);
-    setCurrentPlaceIndex(prev => (prev + 1) % places.length);
+    setCurrentPlaceIndex((prev) => (prev + 1) % places.length);
     setTimeout(() => setIsTransitioning(false), 500);
   };
 
@@ -174,7 +175,7 @@ const Home = ({ places = [], loadError = null }) => {
     if (isTransitioning) return;
     setDirection(-1);
     setIsTransitioning(true);
-    setCurrentPlaceIndex(prev => (prev - 1 + places.length) % places.length);
+    setCurrentPlaceIndex((prev) => (prev - 1 + places.length) % places.length);
     setTimeout(() => setIsTransitioning(false), 500);
   };
 
@@ -200,33 +201,29 @@ const Home = ({ places = [], loadError = null }) => {
   // Toggle like
   const toggleLike = (e, id) => {
     e.stopPropagation();
-    setLikedPlaces(prev => 
-      prev.includes(id) 
-        ? prev.filter(placeId => placeId !== id) 
-        : [...prev, id]
+    setLikedPlaces((prev) =>
+      prev.includes(id) ? prev.filter((placeId) => placeId !== id) : [...prev, id]
     );
   };
 
-  // Calculate rating
-  const calculateRating = (place) => {
-    if (!place || !place.rating_count || place.rating_count === 0) return 'New';
-    return (place.rating_sum / place.rating_count).toFixed(1);
-  };
+  // 'New' is this page's answer for an unrated place; the helper takes it as a parameter so the
+  // three pages that each invented their own empty value cannot drift apart again (IMP-073).
+  const calculateRating = (place) => formatAverageRating(place, 'New');
 
   // Animation variants
   const carouselVariants = {
     enter: (direction) => ({
       x: direction > 0 ? '100%' : '-100%',
-      opacity: 0,
+      opacity: 0
     }),
     center: {
       x: 0,
-      opacity: 1,
+      opacity: 1
     },
     exit: (direction) => ({
       x: direction < 0 ? '100%' : '-100%',
-      opacity: 0,
-    }),
+      opacity: 0
+    })
   };
 
   // Category gradients
@@ -238,14 +235,17 @@ const Home = ({ places = [], loadError = null }) => {
     'bg-gradient-to-br from-blue-500 to-indigo-500',
     'bg-gradient-to-br from-yellow-500 to-orange-500',
     'bg-gradient-to-br from-gray-600 to-gray-800',
-    'bg-gradient-to-br from-cyan-500 to-blue-500',
+    'bg-gradient-to-br from-cyan-500 to-blue-500'
   ];
 
   return (
     <>
       <Head>
         <title>EasyTrip - Discover Your Journey</title>
-        <meta name="description" content="Explore curated destinations with EasyTrip, your premium travel companion." />
+        <meta
+          name="description"
+          content="Explore curated destinations with EasyTrip, your premium travel companion."
+        />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -257,16 +257,16 @@ const Home = ({ places = [], loadError = null }) => {
             <motion.div
               key={currentPlaceIndex}
               className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-              style={{ 
-                backgroundImage: `url(${places[currentPlaceIndex]?.primary_image_url || places[currentPlaceIndex]?.image_url || '/images/hero-bg.jpg'})` 
+              style={{
+                backgroundImage: `url(${getPlaceImageUrl(places[currentPlaceIndex], '/images/hero-bg.jpg')})`
               }}
               initial={{ opacity: 0, scale: 1.1 }}
               animate={{ opacity: 0.3, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 1, ease: "easeInOut" }}
+              transition={{ duration: 1, ease: 'easeInOut' }}
             />
           </AnimatePresence>
-          
+
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/80"></div>
 
@@ -285,11 +285,11 @@ const Home = ({ places = [], loadError = null }) => {
                     Discover Your Next
                     <span className="block text-primary-300">Adventure</span>
                   </h1>
-                  
+
                   <p className="text-sm text-gray-200 mb-5 max-w-xs mx-auto leading-relaxed">
                     Explore breathtaking destinations with curated recommendations.
                   </p>
-                  
+
                   <div className="flex flex-col gap-2 max-w-64 mx-auto">
                     <Link href="/browse" passHref>
                       <motion.button
@@ -320,7 +320,7 @@ const Home = ({ places = [], loadError = null }) => {
                   transition={{ duration: 0.8, delay: 0.2 }}
                   className="relative pb-12"
                 >
-                  <div 
+                  <div
                     className="relative h-80 mx-2"
                     ref={carouselRef}
                     onTouchStart={() => setAutoplay(false)}
@@ -330,7 +330,7 @@ const Home = ({ places = [], loadError = null }) => {
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
                           <p className="mb-3 text-sm">{error}</p>
-                          <button 
+                          <button
                             onClick={() => window.location.reload()}
                             className="px-3 py-2 bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors text-sm"
                           >
@@ -342,13 +342,13 @@ const Home = ({ places = [], loadError = null }) => {
                       <>
                         {/* Progress Bar */}
                         <div className="absolute top-0 left-0 right-0 z-20 h-1 bg-white/20 rounded-t-xl overflow-hidden">
-                          <motion.div 
+                          <motion.div
                             className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                            initial={{ width: "0%" }}
-                            animate={{ width: autoplay && !isTransitioning ? "100%" : "0%" }}
-                            transition={{ 
-                              duration: 5, 
-                              ease: "linear",
+                            initial={{ width: '0%' }}
+                            animate={{ width: autoplay && !isTransitioning ? '100%' : '0%' }}
+                            transition={{
+                              duration: 5,
+                              ease: 'linear',
                               repeat: 0
                             }}
                             key={`progress-${currentPlaceIndex}`}
@@ -378,8 +378,11 @@ const Home = ({ places = [], loadError = null }) => {
                               <div className="bg-white/95 backdrop-blur-md border border-white/30 shadow-2xl h-full rounded-xl overflow-hidden">
                                 {/* Image Section - 65% height */}
                                 <div className="h-3/5 relative">
-                                  <CarouselImage place={places[currentPlaceIndex]} isActive={true} />
-                                  
+                                  <CarouselImage
+                                    place={places[currentPlaceIndex]}
+                                    isActive={true}
+                                  />
+
                                   {/* Rating Badge */}
                                   <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm rounded-full px-2 py-1 flex items-center shadow-lg">
                                     <FiStar className="text-yellow-500 mr-1 h-3 w-3" />
@@ -387,57 +390,69 @@ const Home = ({ places = [], loadError = null }) => {
                                       {calculateRating(places[currentPlaceIndex])}
                                     </span>
                                   </div>
-                                  
+
                                   {/* Like Button */}
                                   <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={(e) => toggleLike(e, places[currentPlaceIndex]?.id)}
                                     className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-11 h-11 flex items-center justify-center shadow-lg transition-colors ${
-                                      likedPlaces.includes(places[currentPlaceIndex]?.id) 
-                                        ? 'bg-red-500 text-white' 
+                                      likedPlaces.includes(places[currentPlaceIndex]?.id)
+                                        ? 'bg-red-500 text-white'
                                         : 'bg-white/95 text-gray-700'
                                     }`}
                                   >
-                                    <FiHeart className={`h-3 w-3 ${
-                                      likedPlaces.includes(places[currentPlaceIndex]?.id) ? 'fill-current' : ''
-                                    }`} />
+                                    <FiHeart
+                                      className={`h-3 w-3 ${
+                                        likedPlaces.includes(places[currentPlaceIndex]?.id)
+                                          ? 'fill-current'
+                                          : ''
+                                      }`}
+                                    />
                                   </motion.button>
-                                  
+
                                   {/* Location Tag */}
                                   <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded-md text-white flex items-center px-2 py-1">
                                     <FiMapPin className="mr-1 h-3 w-3" />
-                                    <span className="text-xs">{places[currentPlaceIndex]?.location || 'Worldwide'}</span>
+                                    <span className="text-xs">
+                                      {places[currentPlaceIndex]?.location || 'Worldwide'}
+                                    </span>
                                   </div>
                                 </div>
-                                
+
                                 {/* Content Section - 35% height */}
                                 <div className="h-2/5 p-3 flex flex-col justify-between bg-white">
                                   <div>
                                     <h2 className="text-base font-bold text-gray-900 mb-1 line-clamp-1">
                                       {places[currentPlaceIndex]?.name}
                                     </h2>
-                                    
+
                                     <p className="text-xs text-gray-600 mb-2 line-clamp-2 leading-relaxed">
-                                      {places[currentPlaceIndex]?.description || 'Discover this amazing destination.'}
+                                      {places[currentPlaceIndex]?.description ||
+                                        'Discover this amazing destination.'}
                                     </p>
-                                    
+
                                     {/* Tags */}
                                     <div className="flex flex-wrap gap-1 mb-2">
-                                      {places[currentPlaceIndex]?.tags?.slice(0, 2).map((tag, idx) => (
-                                        <span 
-                                          key={idx} 
-                                          className="bg-primary-100 text-primary-700 rounded-full px-2 py-0.5 text-xs font-medium"
-                                        >
-                                          {tag}
-                                        </span>
-                                      ))}
+                                      {places[currentPlaceIndex]?.tags
+                                        ?.slice(0, 2)
+                                        .map((tag, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="bg-primary-100 text-primary-700 rounded-full px-2 py-0.5 text-xs font-medium"
+                                          >
+                                            {tag}
+                                          </span>
+                                        ))}
                                     </div>
                                   </div>
-                                  
+
                                   {/* Action Buttons */}
                                   <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                                    <Link href={`/places/${places[currentPlaceIndex]?.id}`} passHref>
+                                    <Link
+                                      href={`/places/${places[currentPlaceIndex]?.id}`}
+                                      passHref
+                                    >
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
@@ -447,8 +462,11 @@ const Home = ({ places = [], loadError = null }) => {
                                         <FiChevronRight className="ml-1 h-3 w-3" />
                                       </motion.button>
                                     </Link>
-                                    
-                                    <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
+
+                                    <Link
+                                      href={`/browse?location=${places[currentPlaceIndex]?.location}`}
+                                      passHref
+                                    >
                                       <button className="text-primary-600 hover:text-primary-800 text-xs underline underline-offset-2">
                                         More places
                                       </button>
@@ -459,7 +477,7 @@ const Home = ({ places = [], loadError = null }) => {
                             </motion.div>
                           </AnimatePresence>
                         </div>
-                        
+
                         {/* Indicator Dots */}
                         <div className="absolute -bottom-6 left-0 right-0 flex justify-center space-x-2">
                           {places.map((_, index) => (
@@ -469,8 +487,8 @@ const Home = ({ places = [], loadError = null }) => {
                               whileHover={{ scale: 1.2 }}
                               whileTap={{ scale: 0.9 }}
                               className={`rounded-full w-2 h-2 transition-all duration-300 ${
-                                index === currentPlaceIndex 
-                                  ? 'bg-white scale-125 shadow-lg' 
+                                index === currentPlaceIndex
+                                  ? 'bg-white scale-125 shadow-lg'
                                   : 'bg-white/50'
                               }`}
                               disabled={isTransitioning}
@@ -501,11 +519,12 @@ const Home = ({ places = [], loadError = null }) => {
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
                       Discover Your Next <span className="text-primary-300">Adventure</span>
                     </h1>
-                    
+
                     <p className="text-lg lg:text-xl text-gray-200 mb-8 max-w-lg leading-relaxed">
-                      Explore breathtaking destinations with curated recommendations and seamless planning.
+                      Explore breathtaking destinations with curated recommendations and seamless
+                      planning.
                     </p>
-                    
+
                     <div className="flex gap-4">
                       <Link href="/browse" passHref>
                         <motion.button
@@ -517,7 +536,7 @@ const Home = ({ places = [], loadError = null }) => {
                           Explore Now
                         </motion.button>
                       </Link>
-                      
+
                       <Link href="/about" passHref>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
@@ -546,7 +565,7 @@ const Home = ({ places = [], loadError = null }) => {
                       <div className="flex h-full items-center justify-center bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                         <div className="text-center text-white p-4">
                           <p className="mb-4 text-sm">{error}</p>
-                          <button 
+                          <button
                             onClick={() => window.location.reload()}
                             className="px-4 py-2 bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors text-sm"
                           >
@@ -558,13 +577,13 @@ const Home = ({ places = [], loadError = null }) => {
                       <>
                         {/* Progress Bar */}
                         <div className="absolute top-0 left-0 right-0 z-20 h-1 bg-white/20 rounded-t-xl overflow-hidden">
-                          <motion.div 
+                          <motion.div
                             className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                            initial={{ width: "0%" }}
-                            animate={{ width: autoplay && !isTransitioning ? "100%" : "0%" }}
-                            transition={{ 
-                              duration: 5, 
-                              ease: "linear",
+                            initial={{ width: '0%' }}
+                            animate={{ width: autoplay && !isTransitioning ? '100%' : '0%' }}
+                            transition={{
+                              duration: 5,
+                              ease: 'linear',
                               repeat: 0
                             }}
                             key={`progress-${currentPlaceIndex}`}
@@ -590,8 +609,11 @@ const Home = ({ places = [], loadError = null }) => {
                               <div className="bg-white/95 backdrop-blur-md border border-white/30 shadow-2xl h-full rounded-xl overflow-hidden">
                                 {/* Image Section */}
                                 <div className="h-3/5 relative">
-                                  <CarouselImage place={places[currentPlaceIndex]} isActive={true} />
-                                  
+                                  <CarouselImage
+                                    place={places[currentPlaceIndex]}
+                                    isActive={true}
+                                  />
+
                                   {/* Rating Badge */}
                                   <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-full px-3 py-1 flex items-center shadow-lg">
                                     <FiStar className="text-yellow-500 mr-1 h-4 w-4" />
@@ -599,57 +621,69 @@ const Home = ({ places = [], loadError = null }) => {
                                       {calculateRating(places[currentPlaceIndex])}
                                     </span>
                                   </div>
-                                  
+
                                   {/* Like Button */}
                                   <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={(e) => toggleLike(e, places[currentPlaceIndex]?.id)}
                                     className={`absolute top-4 left-4 rounded-full backdrop-blur-sm w-10 h-10 flex items-center justify-center shadow-lg transition-colors ${
-                                      likedPlaces.includes(places[currentPlaceIndex]?.id) 
-                                        ? 'bg-red-500 text-white' 
+                                      likedPlaces.includes(places[currentPlaceIndex]?.id)
+                                        ? 'bg-red-500 text-white'
                                         : 'bg-white/95 text-gray-700'
                                     }`}
                                   >
-                                    <FiHeart className={`h-4 w-4 ${
-                                      likedPlaces.includes(places[currentPlaceIndex]?.id) ? 'fill-current' : ''
-                                    }`} />
+                                    <FiHeart
+                                      className={`h-4 w-4 ${
+                                        likedPlaces.includes(places[currentPlaceIndex]?.id)
+                                          ? 'fill-current'
+                                          : ''
+                                      }`}
+                                    />
                                   </motion.button>
-                                  
+
                                   {/* Location Tag */}
                                   <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm rounded-lg text-white flex items-center px-3 py-1.5">
                                     <FiMapPin className="mr-1.5 h-4 w-4" />
-                                    <span className="text-sm">{places[currentPlaceIndex]?.location || 'Worldwide'}</span>
+                                    <span className="text-sm">
+                                      {places[currentPlaceIndex]?.location || 'Worldwide'}
+                                    </span>
                                   </div>
                                 </div>
-                                
+
                                 {/* Content Section */}
                                 <div className="h-2/5 p-6 flex flex-col justify-between bg-white">
                                   <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2 line-clamp-1">
                                       {places[currentPlaceIndex]?.name}
                                     </h2>
-                                    
+
                                     <p className="text-gray-600 mb-4 line-clamp-2 leading-relaxed">
-                                      {places[currentPlaceIndex]?.description || 'Discover this amazing destination with EasyTrip.'}
+                                      {places[currentPlaceIndex]?.description ||
+                                        'Discover this amazing destination with EasyTrip.'}
                                     </p>
-                                    
+
                                     {/* Tags */}
                                     <div className="flex flex-wrap gap-2 mb-4">
-                                      {places[currentPlaceIndex]?.tags?.slice(0, 3).map((tag, idx) => (
-                                        <span 
-                                          key={idx} 
-                                          className="bg-primary-100 text-primary-700 rounded-full px-3 py-1 text-sm font-medium"
-                                        >
-                                          {tag}
-                                        </span>
-                                      ))}
+                                      {places[currentPlaceIndex]?.tags
+                                        ?.slice(0, 3)
+                                        .map((tag, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="bg-primary-100 text-primary-700 rounded-full px-3 py-1 text-sm font-medium"
+                                          >
+                                            {tag}
+                                          </span>
+                                        ))}
                                     </div>
                                   </div>
-                                  
+
                                   {/* Action Buttons */}
                                   <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                                    <Link href={`/places/${places[currentPlaceIndex]?.id}`} passHref>
+                                    <Link
+                                      href={`/places/${places[currentPlaceIndex]?.id}`}
+                                      passHref
+                                    >
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
@@ -659,8 +693,11 @@ const Home = ({ places = [], loadError = null }) => {
                                         <FiChevronRight className="ml-1 h-4 w-4" />
                                       </motion.button>
                                     </Link>
-                                    
-                                    <Link href={`/browse?location=${places[currentPlaceIndex]?.location}`} passHref>
+
+                                    <Link
+                                      href={`/browse?location=${places[currentPlaceIndex]?.location}`}
+                                      passHref
+                                    >
                                       <button className="text-primary-600 hover:text-primary-800 text-sm underline underline-offset-2">
                                         More destinations
                                       </button>
@@ -695,7 +732,7 @@ const Home = ({ places = [], loadError = null }) => {
                             <FiArrowRight className="h-5 w-5" />
                           </motion.button>
                         </div>
-                        
+
                         {/* Indicator Dots */}
                         <div className="absolute -bottom-10 left-0 right-0 flex justify-center space-x-3">
                           {places.map((_, index) => (
@@ -705,8 +742,8 @@ const Home = ({ places = [], loadError = null }) => {
                               whileHover={{ scale: 1.2 }}
                               whileTap={{ scale: 0.9 }}
                               className={`rounded-full w-3 h-3 transition-all duration-300 ${
-                                index === currentPlaceIndex 
-                                  ? 'bg-white scale-125 shadow-lg' 
+                                index === currentPlaceIndex
+                                  ? 'bg-white scale-125 shadow-lg'
                                   : 'bg-white/50 hover:bg-white/70'
                               }`}
                               disabled={isTransitioning}
@@ -732,53 +769,56 @@ const Home = ({ places = [], loadError = null }) => {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          variants={{ 
-            hidden: { opacity: 0 }, 
-            visible: { opacity: 1, transition: { staggerChildren: 0.2 } } 
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { opacity: 1, transition: { staggerChildren: 0.2 } }
           }}
           className="py-12 sm:py-16 lg:py-20 bg-white"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div 
-              variants={{ 
-                hidden: { opacity: 0, y: 20 }, 
-                visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
-              }} 
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+              }}
               className="text-center mb-8 sm:mb-12"
             >
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Why Choose EasyTrip</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
+                Why Choose EasyTrip
+              </h2>
               <p className="text-sm sm:text-base lg:text-lg text-gray-600 max-w-3xl mx-auto">
                 Curated destinations and personalized recommendations for seamless travel planning.
               </p>
             </motion.div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
               {[
                 {
                   icon: <FiCompass className="h-5 w-5 sm:h-6 sm:w-6" />,
                   title: 'Curated Destinations',
-                  description: 'Handpicked places with detailed information and authentic reviews.',
+                  description: 'Handpicked places with detailed information and authentic reviews.'
                 },
                 {
                   icon: <FiStar className="h-5 w-5 sm:h-6 sm:w-6" />,
                   title: 'Real Reviews',
-                  description: 'Genuine feedback from travelers to help you make informed decisions.',
+                  description:
+                    'Genuine feedback from travelers to help you make informed decisions.'
                 },
                 {
                   icon: <FiHeart className="h-5 w-5 sm:h-6 sm:w-6" />,
                   title: 'Personalized Experience',
-                  description: 'Smart recommendations based on your preferences and interests.',
-                },
+                  description: 'Smart recommendations based on your preferences and interests.'
+                }
               ].map((feature, index) => (
                 <FeatureCard key={index} {...feature} />
               ))}
             </div>
-            
-            <motion.div 
-              variants={{ 
-                hidden: { opacity: 0, y: 20 }, 
-                visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
-              }} 
+
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+              }}
               className="mt-8 sm:mt-12 text-center"
             >
               <Link href="/browse" passHref>
@@ -800,38 +840,46 @@ const Home = ({ places = [], loadError = null }) => {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          variants={{ 
-            hidden: { opacity: 0 }, 
-            visible: { opacity: 1, transition: { staggerChildren: 0.1 } } 
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
           }}
           className="py-12 sm:py-16 lg:py-20 bg-gray-50"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div 
-              variants={{ 
-                hidden: { opacity: 0, y: 20 }, 
-                visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
-              }} 
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+              }}
               className="text-center mb-8 sm:mb-12"
             >
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Explore by Category</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
+                Explore by Category
+              </h2>
               <p className="text-sm sm:text-base lg:text-lg text-gray-600 max-w-3xl mx-auto">
                 Find destinations that match your travel style and interests.
               </p>
             </motion.div>
-            
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
               {[
                 // CategoryCard links to /browse?theme=<lowercased label>, so every entry here must
                 // lowercase to a real theme id in browse.jsx's themeOptions. 'City' did not, so that
                 // tile always landed on an empty result set (IMP-021).
-                'Adventure', 'Historical', 'Romantic', 'Nature',
-                'Religious', 'Beach', 'Mountain', 'Family'
+                'Adventure',
+                'Historical',
+                'Romantic',
+                'Nature',
+                'Religious',
+                'Beach',
+                'Mountain',
+                'Family'
               ].map((category, index) => (
-                <CategoryCard 
-                  key={category} 
-                  category={category} 
-                  gradient={categoryGradients[index]} 
+                <CategoryCard
+                  key={category}
+                  category={category}
+                  gradient={categoryGradients[index]}
                 />
               ))}
             </div>

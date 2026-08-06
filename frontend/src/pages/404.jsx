@@ -23,12 +23,8 @@ export default function NotFound() {
             <FiCompass className="w-8 h-8" />
           </div>
 
-          <p className="text-sm font-semibold text-primary-600 tracking-wide uppercase mb-2">
-            404
-          </p>
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">
-            We couldn&apos;t find that page
-          </h1>
+          <p className="text-sm font-semibold text-primary-600 tracking-wide uppercase mb-2">404</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">We couldn&apos;t find that page</h1>
           <p className="text-gray-600 mb-8">
             The link may be out of date, or the address may have a typo. Everything on EasyTrip is
             reachable from the two places below.

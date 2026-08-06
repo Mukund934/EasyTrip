@@ -1,9 +1,21 @@
 const pool = require('../config/db');
 const createPlace = async (placeData) => {
   const {
-    name, description, location, district, state, locality, pin_code,
-    latitude, longitude, primary_image_url, themes, tags, custom_keys,
-    created_by, updated_by
+    name,
+    description,
+    location,
+    district,
+    state,
+    locality,
+    pin_code,
+    latitude,
+    longitude,
+    primary_image_url,
+    themes,
+    tags,
+    custom_keys,
+    created_by,
+    updated_by
   } = placeData;
 
   const result = await pool.query(
@@ -14,9 +26,21 @@ const createPlace = async (placeData) => {
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
     RETURNING *`,
     [
-      name, description, location, district, state, locality, pin_code,
-      latitude, longitude, primary_image_url, themes || '{}', tags || '{}', 
-      custom_keys || '{}', created_by, updated_by
+      name,
+      description,
+      location,
+      district,
+      state,
+      locality,
+      pin_code,
+      latitude,
+      longitude,
+      primary_image_url,
+      themes || '{}',
+      tags || '{}',
+      custom_keys || '{}',
+      created_by,
+      updated_by
     ]
   );
   return result.rows[0];
@@ -159,8 +183,9 @@ const buildFilters = (criteria = {}) => {
 
   if (minRating > 0) {
     params.push(minRating);
-    where += ` AND places.rating_count > 0`
-          + ` AND (places.rating_sum::NUMERIC / places.rating_count) >= $${params.length}`;
+    where +=
+      ` AND places.rating_count > 0` +
+      ` AND (places.rating_sum::NUMERIC / places.rating_count) >= $${params.length}`;
   }
 
   const seasonPattern = SEASON_MONTHS[date];
@@ -168,8 +193,9 @@ const buildFilters = (criteria = {}) => {
     params.push(seasonPattern);
     // A place with no recorded best time is kept rather than hidden: the filter narrows the
     // list, it does not exclude everything that has not been annotated yet.
-    where += ` AND (places.custom_keys->>'Best Time to Visit' IS NULL`
-          + ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length})`;
+    where +=
+      ` AND (places.custom_keys->>'Best Time to Visit' IS NULL` +
+      ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length})`;
   }
 
   return { where, params };
@@ -206,7 +232,12 @@ const clampOffset = (value) => {
  * it; load-more and the map skip the extra grouping.
  */
 const listPlaces = async ({
-  filters = {}, sort = 'newest', limit, offset, projection = 'list', withStats = false
+  filters = {},
+  sort = 'newest',
+  limit,
+  offset,
+  projection = 'list',
+  withStats = false
 } = {}) => {
   const { where, params } = buildFilters(filters);
   const orderBy = SORT_ORDERS[sort] || SORT_ORDERS.newest;
@@ -216,8 +247,7 @@ const listPlaces = async ({
   const safeLimit = isMap ? null : clampLimit(limit);
   const safeOffset = isMap ? 0 : clampOffset(offset);
 
-  let pageSql =
-    `SELECT ${columns}, ${RATING_EXPR}, first_image.image_url AS fallback_image_url
+  let pageSql = `SELECT ${columns}, ${RATING_EXPR}, first_image.image_url AS fallback_image_url
      FROM places${FIRST_IMAGE_JOIN}${where}
      ORDER BY ${orderBy}`;
 
@@ -284,8 +314,20 @@ const listPlaces = async ({
 
 const updatePlace = async (id, placeData) => {
   const {
-    name, description, location, district, state, locality, pin_code,
-    latitude, longitude, primary_image_url, themes, tags, custom_keys, updated_by
+    name,
+    description,
+    location,
+    district,
+    state,
+    locality,
+    pin_code,
+    latitude,
+    longitude,
+    primary_image_url,
+    themes,
+    tags,
+    custom_keys,
+    updated_by
   } = placeData;
 
   const result = await pool.query(
@@ -309,9 +351,21 @@ const updatePlace = async (id, placeData) => {
     WHERE id = $15
     RETURNING *`,
     [
-      name, description, location, district, state, locality, pin_code,
-      latitude, longitude, primary_image_url, themes, tags, custom_keys,
-      updated_by, id
+      name,
+      description,
+      location,
+      district,
+      state,
+      locality,
+      pin_code,
+      latitude,
+      longitude,
+      primary_image_url,
+      themes,
+      tags,
+      custom_keys,
+      updated_by,
+      id
     ]
   );
   return result.rows[0];
@@ -323,18 +377,24 @@ const deletePlace = async (id) => {
 };
 
 const getUniqueLocations = async () => {
-  const result = await pool.query('SELECT DISTINCT location FROM places WHERE location IS NOT NULL ORDER BY location');
-  return result.rows.map(row => row.location).filter(Boolean);
+  const result = await pool.query(
+    'SELECT DISTINCT location FROM places WHERE location IS NOT NULL ORDER BY location'
+  );
+  return result.rows.map((row) => row.location).filter(Boolean);
 };
 
 const getUniqueDistricts = async () => {
-  const result = await pool.query('SELECT DISTINCT district FROM places WHERE district IS NOT NULL ORDER BY district');
-  return result.rows.map(row => row.district).filter(Boolean);
+  const result = await pool.query(
+    'SELECT DISTINCT district FROM places WHERE district IS NOT NULL ORDER BY district'
+  );
+  return result.rows.map((row) => row.district).filter(Boolean);
 };
 
 const getUniqueStates = async () => {
-  const result = await pool.query('SELECT DISTINCT state FROM places WHERE state IS NOT NULL ORDER BY state');
-  return result.rows.map(row => row.state).filter(Boolean);
+  const result = await pool.query(
+    'SELECT DISTINCT state FROM places WHERE state IS NOT NULL ORDER BY state'
+  );
+  return result.rows.map((row) => row.state).filter(Boolean);
 };
 
 const getUniqueTags = async () => {
@@ -344,7 +404,7 @@ const getUniqueTags = async () => {
     WHERE tags IS NOT NULL
     ORDER BY tag
   `);
-  return result.rows.map(row => row.tag).filter(Boolean);
+  return result.rows.map((row) => row.tag).filter(Boolean);
 };
 
 module.exports = {

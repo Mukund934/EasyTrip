@@ -66,11 +66,20 @@ export default function About() {
           {/* Stating the boundaries plainly is more useful than implying the product does
               everything. It also keeps this page true as the roadmap moves. */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-12">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">What EasyTrip doesn&apos;t do</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              What EasyTrip doesn&apos;t do
+            </h2>
             <ul className="space-y-2 text-gray-600">
-              <li>• No bookings, payments, or live pricing — it is a discovery tool, not a travel agent.</li>
-              <li>• Coverage is India-focused and curated, so it is deliberately not exhaustive.</li>
-              <li>• Ratings reflect EasyTrip&apos;s own users, not aggregated third-party scores.</li>
+              <li>
+                • No bookings, payments, or live pricing — it is a discovery tool, not a travel
+                agent.
+              </li>
+              <li>
+                • Coverage is India-focused and curated, so it is deliberately not exhaustive.
+              </li>
+              <li>
+                • Ratings reflect EasyTrip&apos;s own users, not aggregated third-party scores.
+              </li>
             </ul>
           </div>
 

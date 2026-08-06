@@ -111,7 +111,6 @@ a {
   transform: scale(1.05);
 }
 
-
 /* Additional Animation Classes */
 @keyframes spin-slow {
   to {
@@ -164,7 +163,9 @@ a {
 
 .card-hover:hover {
   transform: translateY(-10px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 /* Custom animations */
@@ -195,7 +196,6 @@ a {
   background-image: radial-gradient(circle, #ffffff 1px, transparent 1px);
   background-size: 20px 20px;
 }
-
 
 .bg-pattern-dots {
   background-image: radial-gradient(circle, #ffffff 1px, transparent 1px);

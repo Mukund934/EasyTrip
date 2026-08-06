@@ -21,20 +21,20 @@
  */
 
 export const THEMES = [
-  { id: 'hot',        label: 'Hot Weather',       description: 'Perfect for summer visits' },
-  { id: 'cold',       label: 'Cold Weather',      description: 'Ideal for winter experiences' },
-  { id: 'rainy',      label: 'Rainy Season',      description: 'Beautiful during monsoons' },
-  { id: 'romantic',   label: 'Romantic',          description: 'Perfect for couples' },
-  { id: 'religious',  label: 'Religious',         description: 'Spiritual destinations' },
-  { id: 'historical', label: 'Historical',        description: 'Rich in history' },
-  { id: 'science',    label: 'Science',           description: 'Educational and scientific' },
-  { id: 'tech',       label: 'Technology',        description: 'Modern tech hubs' },
-  { id: 'adventure',  label: 'Adventure',         description: 'Thrilling activities' },
-  { id: 'nature',     label: 'Nature',            description: 'Natural beauty' },
-  { id: 'beach',      label: 'Beach',             description: 'Coastal and seaside' },
-  { id: 'mountain',   label: 'Mountain',          description: 'Hills and high altitude' },
-  { id: 'family',     label: 'Family Friendly',   description: 'Great for families' },
-  { id: 'weekend',    label: 'Weekend Getaway',   description: 'Perfect for short trips' }
+  { id: 'hot', label: 'Hot Weather', description: 'Perfect for summer visits' },
+  { id: 'cold', label: 'Cold Weather', description: 'Ideal for winter experiences' },
+  { id: 'rainy', label: 'Rainy Season', description: 'Beautiful during monsoons' },
+  { id: 'romantic', label: 'Romantic', description: 'Perfect for couples' },
+  { id: 'religious', label: 'Religious', description: 'Spiritual destinations' },
+  { id: 'historical', label: 'Historical', description: 'Rich in history' },
+  { id: 'science', label: 'Science', description: 'Educational and scientific' },
+  { id: 'tech', label: 'Technology', description: 'Modern tech hubs' },
+  { id: 'adventure', label: 'Adventure', description: 'Thrilling activities' },
+  { id: 'nature', label: 'Nature', description: 'Natural beauty' },
+  { id: 'beach', label: 'Beach', description: 'Coastal and seaside' },
+  { id: 'mountain', label: 'Mountain', description: 'Hills and high altitude' },
+  { id: 'family', label: 'Family Friendly', description: 'Great for families' },
+  { id: 'weekend', label: 'Weekend Getaway', description: 'Perfect for short trips' }
 ];
 
 /** Every valid theme id, for validation and membership tests. */
@@ -53,8 +53,8 @@ export const themeLabel = (id) => THEMES.find((theme) => theme.id === id)?.label
  * (`searchRules` in `placeRoutes.js` allows summer/monsoon/winter; `any` means "no filter").
  */
 export const SEASONS = [
-  { id: 'any',     label: 'Anytime' },
-  { id: 'summer',  label: 'Summer (Apr-Jun)' },
+  { id: 'any', label: 'Anytime' },
+  { id: 'summer', label: 'Summer (Apr-Jun)' },
   { id: 'monsoon', label: 'Monsoon (Jul-Sep)' },
-  { id: 'winter',  label: 'Winter (Oct-Mar)' }
+  { id: 'winter', label: 'Winter (Oct-Mar)' }
 ];

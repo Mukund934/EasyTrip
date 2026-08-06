@@ -2,7 +2,6 @@ const pool = require('../config/db');
 const admin = require('firebase-admin');
 const logger = require('../utils/logger');
 
-
 /**
  * Keep the Firebase custom `admin` claim in step with users.is_admin.
  *
@@ -45,11 +44,11 @@ const getAllAdmins = async (req, res) => {
 const addAdmin = async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
     }
-    
+
     // Check if user exists in Firebase
     let userRecord;
     try {
@@ -57,13 +56,12 @@ const addAdmin = async (req, res) => {
     } catch (error) {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
-    
+
     // Check if user exists in our database
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE firebase_uid = $1',
-      [userRecord.uid]
-    );
-    
+    const userResult = await pool.query('SELECT * FROM users WHERE firebase_uid = $1', [
+      userRecord.uid
+    ]);
+
     if (userResult.rows.length > 0) {
       // User exists, update admin status
       await pool.query(
@@ -100,7 +98,7 @@ const addAdmin = async (req, res) => {
 const removeAdmin = async (req, res) => {
   try {
     const { email } = req.params;
-    
+
     // Check if user exists in Firebase
     let userRecord;
     try {
@@ -108,13 +106,13 @@ const removeAdmin = async (req, res) => {
     } catch (error) {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
-    
+
     // Update user in database
     const result = await pool.query(
       'UPDATE users SET is_admin = false, updated_at = NOW() WHERE firebase_uid = $1 RETURNING id',
       [userRecord.uid]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found in database' });
     }
@@ -141,5 +139,5 @@ const removeAdmin = async (req, res) => {
 module.exports = {
   getAllAdmins,
   addAdmin,
-  removeAdmin,
+  removeAdmin
 };

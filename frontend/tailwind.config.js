@@ -1,9 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}'
   ],
   theme: {
     extend: {
@@ -16,8 +16,25 @@ module.exports = {
       // only because the fonts happened to be installed or already fetched; the variable points
       // at the self-hosted, build-time file. System stacks stay as the fallback.
       fontFamily: {
-        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        serif: ['var(--font-playfair)', 'ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'serif'],
+        sans: [
+          'var(--font-inter)',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif'
+        ],
+        serif: [
+          'var(--font-playfair)',
+          'ui-serif',
+          'Georgia',
+          'Cambria',
+          'Times New Roman',
+          'serif'
+        ]
       },
       colors: {
         primary: {
@@ -38,7 +55,7 @@ module.exports = {
           600: '#0277b4',
           700: '#0369a1',
           800: '#075985',
-          900: '#0c4a6e',
+          900: '#0c4a6e'
         },
         secondary: {
           50: '#f8fafc',
@@ -50,10 +67,10 @@ module.exports = {
           600: '#475569',
           700: '#334155',
           800: '#1e293b',
-          900: '#0f172a',
-        },
-      },
-    },
+          900: '#0f172a'
+        }
+      }
+    }
   },
-  plugins: [],
+  plugins: []
 };

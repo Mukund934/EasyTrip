@@ -62,7 +62,7 @@ function MyApp({ Component, pageProps }) {
             Skip to main content
           </a>
           <Navbar />
-        {/* Wraps the page only, not the chrome: a crash inside a page leaves the navbar and
+          {/* Wraps the page only, not the chrome: a crash inside a page leaves the navbar and
             footer intact, so the user can still navigate away instead of losing the whole app.
             Keyed on the route so recovering from an error on one page does not carry the error
             state onto the next one (IMP-074). */}

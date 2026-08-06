@@ -45,7 +45,7 @@ const addAdmin = async (token, email) => {
 const removeAdmin = async (token, email) => {
   const response = await apiClient.delete(`/admin/admins/${encodeURIComponent(email)}`, {
     authToken: token,
-    requireAuth: true,
+    requireAuth: true
   });
   return response.data;
 };
@@ -53,5 +53,5 @@ const removeAdmin = async (token, email) => {
 export const adminService = {
   addAdmin,
   removeAdmin,
-  getAllAdmins,
+  getAllAdmins
 };

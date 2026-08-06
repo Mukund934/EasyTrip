@@ -36,26 +36,26 @@ const Footer = () => {
   // whole row is gone rather than linking nowhere (IMP-025). Restore it when accounts exist.
 
   const quickLinks = [
-    { name: "Home", href: "/" },
-    { name: "Destinations", href: "/browse" },
-    { name: "About Us", href: "/about" },
+    { name: 'Home', href: '/' },
+    { name: 'Destinations', href: '/browse' },
+    { name: 'About Us', href: '/about' }
   ];
 
   // These were `href="#"`. Browse reads a `location` query param, so they now run a real search
   // instead of doing nothing.
   const popularDestinations = [
-    { name: "Agra", href: "/browse?location=Agra" },
-    { name: "Jaipur", href: "/browse?location=Jaipur" },
-    { name: "Goa", href: "/browse?location=Goa" },
-    { name: "Mumbai", href: "/browse?location=Mumbai" },
-    { name: "Delhi", href: "/browse?location=Delhi" },
+    { name: 'Agra', href: '/browse?location=Agra' },
+    { name: 'Jaipur', href: '/browse?location=Jaipur' },
+    { name: 'Goa', href: '/browse?location=Goa' },
+    { name: 'Mumbai', href: '/browse?location=Mumbai' },
+    { name: 'Delhi', href: '/browse?location=Delhi' }
   ];
 
   return (
     <footer className="relative bg-gray-900 text-white overflow-hidden">
       {/* Decorative Elements */}
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500 via-yellow-400 to-primary-600"></div>
-      
+
       <div className="absolute top-20 right-20 w-72 h-72 bg-primary-600 rounded-full opacity-10 blur-3xl"></div>
       <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-blue-600 rounded-full opacity-10 blur-3xl"></div>
 
@@ -72,17 +72,23 @@ const Footer = () => {
               <h2 className="text-2xl font-bold text-white">EasyTrip</h2>
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              Discover destinations across India with EasyTrip — curated places to visit, with real traveller ratings and detailed information.
+              Discover destinations across India with EasyTrip — curated places to visit, with real
+              traveller ratings and detailed information.
             </p>
           </div>
 
           {/* Quick Links */}
           <div className="lg:col-span-1">
-            <h3 className="text-lg font-semibold mb-6 border-b border-gray-700 pb-2">Quick Links</h3>
+            <h3 className="text-lg font-semibold mb-6 border-b border-gray-700 pb-2">
+              Quick Links
+            </h3>
             <ul className="space-y-3">
               {quickLinks.map((link, index) => (
                 <motion.li key={index} whileHover={{ x: 5 }}>
-                  <Link href={link.href} className="text-gray-300 hover:text-primary-400 transition-colors flex items-center">
+                  <Link
+                    href={link.href}
+                    className="text-gray-300 hover:text-primary-400 transition-colors flex items-center"
+                  >
                     <span className="text-xs mr-2">›</span>
                     {link.name}
                   </Link>
@@ -93,11 +99,16 @@ const Footer = () => {
 
           {/* Popular Destinations */}
           <div className="lg:col-span-1">
-            <h3 className="text-lg font-semibold mb-6 border-b border-gray-700 pb-2">Popular Destinations</h3>
+            <h3 className="text-lg font-semibold mb-6 border-b border-gray-700 pb-2">
+              Popular Destinations
+            </h3>
             <ul className="space-y-3">
               {popularDestinations.map((destination, index) => (
                 <motion.li key={index} whileHover={{ x: 5 }}>
-                  <Link href={destination.href} className="text-gray-300 hover:text-primary-400 transition-colors flex items-center">
+                  <Link
+                    href={destination.href}
+                    className="text-gray-300 hover:text-primary-400 transition-colors flex items-center"
+                  >
                     <span className="text-xs mr-2">›</span>
                     {destination.name}
                   </Link>
@@ -112,7 +123,7 @@ const Footer = () => {
             <p className="text-gray-300 mb-4 text-sm">
               Subscribe to our newsletter for the latest updates and travel inspiration.
             </p>
-            
+
             {subscribed ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -139,14 +150,16 @@ const Footer = () => {
                     disabled={submitting}
                     aria-label="Subscribe to newsletter"
                     className="px-3 py-2 bg-primary-600 text-white rounded-r-lg disabled:opacity-60"
-                    whileHover={{ backgroundColor: "#0284C7" }}
+                    whileHover={{ backgroundColor: '#0284C7' }}
                     whileTap={{ scale: 0.95 }}
                   >
                     <FiArrowRight />
                   </motion.button>
                 </div>
                 {error && (
-                  <p role="alert" className="text-red-400 text-sm">{error}</p>
+                  <p role="alert" className="text-red-400 text-sm">
+                    {error}
+                  </p>
                 )}
               </form>
             )}

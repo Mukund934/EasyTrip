@@ -58,7 +58,7 @@ const REDACT_PATHS = [
   'private_key',
   'FIREBASE_PRIVATE_KEY',
   'CLOUDINARY_API_SECRET',
-  'DATABASE_URL',
+  'DATABASE_URL'
 ];
 
 const level =
@@ -73,17 +73,17 @@ const logger = pino({
     paths: REDACT_PATHS,
     censor: '[redacted]',
     // Missing paths are not an error — most of these are absent from most log calls.
-    remove: false,
+    remove: false
   },
 
   // `msg` and `time` are pino defaults. Renaming the level to a word rather than a number is worth
   // the negligible cost: `"level":30` is unreadable to anyone grepping raw output.
   formatters: {
-    level: (label) => ({ level: label }),
+    level: (label) => ({ level: label })
   },
 
   base: {
-    service: 'easytrip-api',
+    service: 'easytrip-api'
   },
 
   // ISO timestamps rather than epoch millis. Slightly slower, and worth it — every consumer of
@@ -101,10 +101,10 @@ const logger = pino({
           options: {
             colorize: true,
             translateTime: 'HH:MM:ss',
-            ignore: 'pid,hostname,service',
-          },
-        },
-      }),
+            ignore: 'pid,hostname,service'
+          }
+        }
+      })
 });
 
 module.exports = logger;

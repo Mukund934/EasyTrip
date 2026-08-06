@@ -16,7 +16,7 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
       try {
         setLoading(true);
         setFailed(false);
-        
+
         // Ask for five and keep four. This used to download every place matching the theme —
         // full rows, no limit — and slice to four in the browser, so a popular theme cost a
         // whole-catalogue payload to render one strip of cards. The extra row covers the one
@@ -27,9 +27,7 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
           limit: 5
         });
 
-        const results = data.filter(
-          (place) => place.id.toString() !== currentPlaceId.toString()
-        );
+        const results = data.filter((place) => place.id.toString() !== currentPlaceId.toString());
 
         setRelatedPlaces(results.slice(0, 4));
       } catch (error) {
@@ -40,14 +38,14 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
         setLoading(false);
       }
     };
-    
+
     if (currentPlaceId && (themes?.length > 0 || location)) {
       fetchRelatedPlaces();
     } else {
       setLoading(false);
     }
   }, [currentPlaceId, themes, location, reloadKey]);
-  
+
   if (loading) {
     return (
       <div className="flex justify-center py-10">
@@ -55,7 +53,7 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
       </div>
     );
   }
-  
+
   if (failed) {
     return (
       <div className="bg-gray-50 rounded-lg p-8 text-center">
@@ -78,8 +76,8 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
     return (
       <div className="bg-gray-50 rounded-lg p-8 text-center">
         <p className="text-gray-600 mb-4">No related places found.</p>
-        <Link 
-          href="/browse" 
+        <Link
+          href="/browse"
           className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
         >
           Browse All Places
@@ -87,7 +85,7 @@ const RelatedPlaces = ({ currentPlaceId, themes, location }) => {
       </div>
     );
   }
-  
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       {relatedPlaces.map((place) => (
