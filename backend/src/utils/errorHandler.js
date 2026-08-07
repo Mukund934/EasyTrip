@@ -1,4 +1,5 @@
 const { validationResult } = require('express-validator');
+const logger = require('./logger');
 
 /**
  * Normalizes an express-validator error into { field, message }.
@@ -30,7 +31,7 @@ const handleValidationErrors = (req, res, next) => {
  * Global error handling middleware
  */
 const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err);
+  logger.error({ err }, 'Unhandled error reached the error handler');
 
   // Handle Multer errors
   if (err.name === 'MulterError') {

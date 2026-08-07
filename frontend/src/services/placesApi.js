@@ -20,15 +20,13 @@
  * in the browser bundle, and supports the server-only `API_URL` indirection below.
  */
 
-// `API_URL` is server-only and wins when set, so the Next server can reach the API over an
-// internal address while the browser uses the public one. Without it both fall back to the
-// same public URL, which is correct for local development.
-const baseUrl = () => {
-  if (typeof window === 'undefined') {
-    return process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-};
+import { resolveApiBaseUrl } from './apiConfig';
+
+// The base-URL rule now lives in `apiConfig.js` and nowhere else (IMP-072). This module keeps
+// using `fetch` rather than the shared axios instance on purpose: these are the *public* reads,
+// called from `getServerSideProps`/`getStaticProps`, and `fetch` needs no auth interceptor and
+// pulls nothing extra into the server bundle.
+const baseUrl = resolveApiBaseUrl;
 
 /** Page size for the browse grid. Server caps this at 100 (placeModel MAX_LIMIT). */
 export const PLACES_PAGE_SIZE = 12;
@@ -99,8 +97,7 @@ const buildQuery = (params = {}) => {
 export const fetchPlaces = async (params = {}, options = {}) =>
   request(`/places${buildQuery(params)}`, options);
 
-export const fetchPlaceById = async (id, options = {}) =>
-  request(`/places/${id}`, options);
+export const fetchPlaceById = async (id, options = {}) => request(`/places/${id}`, options);
 
 export const fetchPlaceImages = async (id, options = {}) =>
   request(`/places/${id}/images`, options);

@@ -65,16 +65,14 @@ jobs:
         run: npm run lint
         working-directory: frontend
 
-      # NO `npm run format:check` STEP — deliberately, and it is tracked as TD-016.
+      # Restored in Sprint 5.6, once the repo-wide format actually landed (TD-016).
       #
-      # Sprint 5.1 added Prettier and the format/format:check scripts but never ran them across the
-      # repo, so `prettier --check .` currently reports style issues in 63 files. Adding the step
-      # would make CI red on arrival, which is worse than not having it: a pipeline that is red for
-      # a known reason trains everyone to ignore red pipelines.
-      #
-      # The fix is `npm run format` as its OWN commit, touching nothing else. A 63-file
-      # whitespace diff mixed into a functional change is unreviewable, and this sprint's change is
-      # the functional one. Once that lands, add the step back here.
+      # It was deliberately absent from Sprint 5.2 to Sprint 5.5: Sprint 5.1 added Prettier and the
+      # format scripts without ever running them, so `prettier --check .` reported 63 files and this
+      # step would have been red on arrival — which is worse than a missing step, because a pipeline
+      # that is red for a known reason trains everyone to ignore red pipelines.
+      - name: Check formatting
+        run: npm run format:check
 
       # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
       # present to compile. These are deliberately fake: the job proves the app compiles, it does

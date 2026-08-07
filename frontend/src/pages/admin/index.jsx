@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import { FiPlus, FiList, FiUsers } from 'react-icons/fi';
+import { requireAdminPage } from '../../services/adminGate';
 
 export default function AdminDashboard() {
   const { currentUser, loading, isAdmin } = useAuth();
@@ -71,9 +72,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-gray-50 pt-20 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-              Admin Dashboard
-            </h1>
+            <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Admin Dashboard</h1>
             <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
               Manage destinations and users
             </p>
@@ -100,18 +99,16 @@ export default function AdminDashboard() {
 
           <div className="mt-12 bg-white shadow overflow-hidden sm:rounded-lg">
             <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
-                Admin Information
-              </h3>
-              <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                Your admin account details
-              </p>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Admin Information</h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500">Your admin account details</p>
             </div>
             <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
               <dl className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2">
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Full name</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{currentUser?.name || 'Not available'}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {currentUser?.name || 'Not available'}
+                  </dd>
                 </div>
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Email address</dt>
@@ -127,9 +124,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Last login</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
-                    {new Date().toLocaleString()}
-                  </dd>
+                  <dd className="mt-1 text-sm text-gray-900">{new Date().toLocaleString()}</dd>
                 </div>
               </dl>
             </div>
@@ -144,31 +139,4 @@ export default function AdminDashboard() {
 // a document request, so it only reaches this function when the auth layer mirrors it into the
 // `et_id_token` cookie. Without a verifiable admin token the page HTML is never served; the
 // useEffect guard above stays as defence in depth for client-side navigations.
-export async function getServerSideProps({ req }) {
-  const token = req.cookies?.et_id_token;
-
-  if (!token) {
-    return { redirect: { destination: '/login', permanent: false } };
-  }
-
-  try {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const response = await fetch(`${API_URL}/auth/check-admin`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (!response.ok) {
-      return { redirect: { destination: '/login', permanent: false } };
-    }
-
-    const { isAdmin } = await response.json();
-    if (!isAdmin) {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  } catch (error) {
-    console.error('Admin gate check failed:', error.message);
-    return { redirect: { destination: '/login', permanent: false } };
-  }
-
-  return { props: {} };
-}
+export const getServerSideProps = requireAdminPage;

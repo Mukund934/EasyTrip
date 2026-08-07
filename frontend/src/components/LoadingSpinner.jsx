@@ -7,7 +7,7 @@ const LoadingSpinner = ({ size = 'medium', color = 'primary' }) => {
     medium: 'w-10 h-10 border-3',
     large: 'w-16 h-16 border-4'
   };
-  
+
   // Color classes
   const colorClasses = {
     primary: 'border-primary-500 border-t-transparent',

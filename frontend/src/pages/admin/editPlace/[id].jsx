@@ -5,8 +5,16 @@ import { toast } from 'react-toastify';
 import { FiSave, FiPlus, FiMinus, FiArrowLeft, FiX } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
 import ImageUpload from '../../../components/ImageUpload';
-import { getPlaceById, updatePlace, getPlaceImages, addPlaceImage, deletePlaceImage } from '../../../services/placeService';
+import {
+  getPlaceById,
+  updatePlace,
+  getPlaceImages,
+  addPlaceImage,
+  deletePlaceImage
+} from '../../../services/placeService';
 import { THEMES, isValidThemeId } from '../../../constants/themes';
+import { requireAdminPage } from '../../../services/adminGate';
+import { getPlaceImageUrl } from '../../../utils/placeImage';
 
 // Utility function to format dates
 const formatDate = (dateString) => {
@@ -18,7 +26,7 @@ const formatDate = (dateString) => {
       day: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
-      hour12: true,
+      hour12: true
     });
   } catch {
     return 'Invalid Date';
@@ -46,7 +54,7 @@ export default function EditPlace() {
     created_by: '',
     created_by_name: '',
     updated_by: '',
-    updated_by_name: '',
+    updated_by_name: ''
   });
 
   const [currentImageUrl, setCurrentImageUrl] = useState(null);
@@ -88,7 +96,6 @@ export default function EditPlace() {
 
         const data = await getPlaceById(id);
 
-
         setFormData({
           name: data.name || '',
           description: data.description || '',
@@ -103,12 +110,16 @@ export default function EditPlace() {
           tags: data.tags || [],
           custom_keys: data.custom_keys || {},
           created_by: data.created_by || currentUser?.uid || '',
-          created_by_name: data.created_by_name || currentUser?.displayName || currentUser?.email || 'Unknown User',
+          created_by_name:
+            data.created_by_name ||
+            currentUser?.displayName ||
+            currentUser?.email ||
+            'Unknown User',
           updated_by: currentUser?.uid || '',
-          updated_by_name: currentUser?.displayName || currentUser?.email || 'Unknown User',
+          updated_by_name: currentUser?.displayName || currentUser?.email || 'Unknown User'
         });
 
-        setCurrentImageUrl(data.image_url);
+        setCurrentImageUrl(getPlaceImageUrl(data, null));
         setCreatedAt(data.created_at || '');
         setUpdatedAt(data.updated_at || '');
         setPreviousUpdate(data.previous_update || '');
@@ -116,7 +127,7 @@ export default function EditPlace() {
       } catch (error) {
         console.error(`Error fetching place ID ${id}:`, {
           message: error.message,
-          status: error.status,
+          status: error.status
         });
         setError(error.message || 'Place not found or could not be loaded');
         setLoadingPlace(false);
@@ -148,7 +159,7 @@ export default function EditPlace() {
   const handleRemoveTag = (tagToRemove) => {
     setFormData({
       ...formData,
-      tags: formData.tags.filter((tag) => tag !== tagToRemove),
+      tags: formData.tags.filter((tag) => tag !== tagToRemove)
     });
   };
 
@@ -223,7 +234,7 @@ export default function EditPlace() {
       ...current,
       themes: current.themes.includes(themeId)
         ? current.themes.filter((theme) => theme !== themeId)
-        : [...current.themes, themeId],
+        : [...current.themes, themeId]
     }));
   };
 
@@ -235,7 +246,7 @@ export default function EditPlace() {
   const handleRemoveTheme = (themeToRemove) => {
     setFormData({
       ...formData,
-      themes: formData.themes.filter((theme) => theme !== themeToRemove),
+      themes: formData.themes.filter((theme) => theme !== themeToRemove)
     });
   };
 
@@ -245,8 +256,8 @@ export default function EditPlace() {
         ...formData,
         custom_keys: {
           ...formData.custom_keys,
-          [newKeyName.trim()]: newKeyValue.trim(),
-        },
+          [newKeyName.trim()]: newKeyValue.trim()
+        }
       });
       setNewKeyName('');
       setNewKeyValue('');
@@ -291,12 +302,15 @@ export default function EditPlace() {
       const updatedFormData = {
         ...formData,
         created_by: formData.created_by || currentUser.uid,
-        created_by_name: formData.created_by_name || currentUser.displayName || currentUser.email || 'Unknown User',
+        created_by_name:
+          formData.created_by_name ||
+          currentUser.displayName ||
+          currentUser.email ||
+          'Unknown User',
         updated_by: currentUser.uid,
         updated_by_name: currentUser.displayName || currentUser.email || 'Unknown User',
-        updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
-
 
       await updatePlace(id, updatedFormData, token);
 
@@ -306,7 +320,7 @@ export default function EditPlace() {
       console.error('Error updating place:', {
         message: error.message,
         status: error.status,
-        responseData: error.response?.data,
+        responseData: error.response?.data
       });
       toast.error(error.message || 'Failed to update place');
     } finally {
@@ -357,9 +371,7 @@ export default function EditPlace() {
               <FiArrowLeft className="mr-2" />
               Back
             </button>
-            <h1 className="mt-4 text-3xl font-bold text-gray-900">
-              Edit Place: {formData.name}
-            </h1>
+            <h1 className="mt-4 text-3xl font-bold text-gray-900">Edit Place: {formData.name}</h1>
             <div className="mt-2 text-sm text-gray-600">
               <p>Created: {formatDate(createdAt)}</p>
               <p>Created By: {formData.created_by_name}</p>
@@ -372,16 +384,11 @@ export default function EditPlace() {
           <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
             {/* Basic Information */}
             <div className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                Basic Information
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Basic Information</h2>
 
               <div className="grid grid-cols-1 gap-6">
                 <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                     Place Name *
                   </label>
                   <input
@@ -431,10 +438,7 @@ export default function EditPlace() {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="state"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
+                  <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
                     State
                   </label>
                   <input
@@ -538,9 +542,7 @@ export default function EditPlace() {
 
             {/* Image Upload */}
             <div className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                Place Image
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Place Image</h2>
               <ImageUpload
                 onImageSelect={handleImageChange}
                 currentImage={currentImageUrl}
@@ -562,7 +564,9 @@ export default function EditPlace() {
               </p>
 
               {galleryError && (
-                <p role="alert" className="mb-3 text-sm text-red-600">{galleryError}</p>
+                <p role="alert" className="mb-3 text-sm text-red-600">
+                  {galleryError}
+                </p>
               )}
 
               {galleryLoading ? (
@@ -572,7 +576,10 @@ export default function EditPlace() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
                   {gallery.map((image) => (
-                    <div key={image.id} className="relative group border border-gray-200 rounded-lg overflow-hidden">
+                    <div
+                      key={image.id}
+                      className="relative group border border-gray-200 rounded-lg overflow-hidden"
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image.image_url}
@@ -624,8 +631,8 @@ export default function EditPlace() {
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-gray-800 mb-1">Themes</h2>
               <p className="text-sm text-gray-500 mb-4">
-                Select from the shared vocabulary. These are the exact themes visitors can filter by,
-                so free text would make a place unfindable.
+                Select from the shared vocabulary. These are the exact themes visitors can filter
+                by, so free text would make a place unfindable.
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -645,7 +652,9 @@ export default function EditPlace() {
                       }`}
                     >
                       <span className="block text-sm font-medium">{theme.label}</span>
-                      <span className="block text-xs text-gray-500 truncate">{theme.description}</span>
+                      <span className="block text-xs text-gray-500 truncate">
+                        {theme.description}
+                      </span>
                     </button>
                   );
                 })}
@@ -654,8 +663,10 @@ export default function EditPlace() {
               {unknownThemes.length > 0 && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <p className="text-sm text-amber-800 mb-2">
-                    This place carries {unknownThemes.length === 1 ? 'a theme' : 'themes'} that {unknownThemes.length === 1 ? 'is' : 'are'} no
-                    longer offered, so {unknownThemes.length === 1 ? 'it is' : 'they are'} not filterable. Remove or replace:
+                    This place carries {unknownThemes.length === 1 ? 'a theme' : 'themes'} that{' '}
+                    {unknownThemes.length === 1 ? 'is' : 'are'} no longer offered, so{' '}
+                    {unknownThemes.length === 1 ? 'it is' : 'they are'} not filterable. Remove or
+                    replace:
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {unknownThemes.map((theme) => (
@@ -728,16 +739,11 @@ export default function EditPlace() {
 
             {/* Custom Keys */}
             <div className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                Additional Details
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Additional Details</h2>
 
               <div className="space-y-3 mb-4">
                 {Object.entries(formData.custom_keys).map(([key, value], index) => (
-                  <div
-                    key={index}
-                    className="flex items-center bg-gray-50 p-3 rounded-md"
-                  >
+                  <div key={index} className="flex items-center bg-gray-50 p-3 rounded-md">
                     <div className="flex-1">
                       <div className="font-medium">{key}</div>
                       <div className="text-gray-600">{value}</div>
@@ -834,7 +840,7 @@ export default function EditPlace() {
               previousUpdate,
               user: currentUser?.uid || '',
               userName: currentUser?.displayName || currentUser?.email || 'Unknown User',
-              timestamp: new Date().toISOString(),
+              timestamp: new Date().toISOString()
             },
             null,
             2
@@ -849,31 +855,4 @@ export default function EditPlace() {
 // a document request, so it only reaches this function when the auth layer mirrors it into the
 // `et_id_token` cookie. Without a verifiable admin token the page HTML is never served; the
 // useEffect guard above stays as defence in depth for client-side navigations.
-export async function getServerSideProps({ req }) {
-  const token = req.cookies?.et_id_token;
-
-  if (!token) {
-    return { redirect: { destination: '/login', permanent: false } };
-  }
-
-  try {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const response = await fetch(`${API_URL}/auth/check-admin`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (!response.ok) {
-      return { redirect: { destination: '/login', permanent: false } };
-    }
-
-    const { isAdmin } = await response.json();
-    if (!isAdmin) {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  } catch (error) {
-    console.error('Admin gate check failed:', error.message);
-    return { redirect: { destination: '/login', permanent: false } };
-  }
-
-  return { props: {} };
-}
+export const getServerSideProps = requireAdminPage;

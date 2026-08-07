@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-
+const logger = require('../utils/logger');
 
 // Where a signup came from. Kept here rather than as a database CHECK so adding a surface is a
 // one-line change with no migration; the API is the layer that knows which surfaces exist.
@@ -7,8 +7,7 @@ const pool = require('../config/db');
 // wrong should not cost the user their subscription.
 const KNOWN_SOURCES = new Set(['footer', 'place_page', 'landing', 'api']);
 
-const normaliseSource = (source) =>
-  KNOWN_SOURCES.has(source) ? source : 'unknown';
+const normaliseSource = (source) => (KNOWN_SOURCES.has(source) ? source : 'unknown');
 
 /**
  * Subscribe an email address to the newsletter.
@@ -42,17 +41,15 @@ const subscribe = async (req, res) => {
     // a way to test which addresses are on the list.
     res.status(200).json({ message: "Thanks for subscribing! We'll be in touch." });
   } catch (error) {
-    console.error('[ERROR] Error subscribing to newsletter:', error);
+    logger.error({ err: error }, 'Error subscribing to newsletter');
 
     // 42P01: undefined_table — the endpoint cannot work until 003 is applied. Name the fix in the
     // server log rather than leaving a bare 500 to be diagnosed from scratch.
     if (error.code === '42P01') {
-      console.error(
-        '   newsletter_subscribers does not exist. Run: ' +
-        'psql "$DATABASE_URL" -f backend/src/config/migrations/003_sprint23.sql'
-      );
+      logger.error('newsletter_subscribers does not exist. Run: npm run migrate');
       return res.status(500).json({
-        message: 'Subscriptions are temporarily unavailable — the server is missing a required table'
+        message:
+          'Subscriptions are temporarily unavailable — the server is missing a required table'
       });
     }
 

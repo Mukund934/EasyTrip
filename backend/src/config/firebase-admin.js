@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const logger = require('../utils/logger');
 
 // The single Firebase Admin initialization site for the server process.
 // `admin.auth()` throws unless `initializeApp()` has run in the same process,
@@ -7,11 +8,11 @@ const admin = require('firebase-admin');
 const REQUIRED_ENV_VARS = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
 
 const failFast = (message, detail) => {
-  console.error(`Firebase Admin SDK: ${message}`);
+  logger.fatal(`Firebase Admin SDK: ${message}`);
   if (detail) {
-    console.error(`Firebase Admin SDK: ${detail}`);
+    logger.fatal(`Firebase Admin SDK: ${detail}`);
   }
-  console.error('Firebase Admin SDK: refusing to start — every authenticated route would reject.');
+  logger.fatal('Firebase Admin SDK: refusing to start — every authenticated route would reject.');
   process.exit(1);
 };
 
@@ -33,10 +34,11 @@ const initializeFirebaseAdmin = () => {
         // Service-account keys carried in env vars arrive with literal "\n" sequences.
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
       }),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+      storageBucket:
+        process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     });
 
-    console.log('Firebase Admin SDK initialized');
+    logger.info('Firebase Admin SDK initialized');
     return app;
   } catch (error) {
     failFast('initialization failed', error.message);

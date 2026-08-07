@@ -1,6 +1,6 @@
+# EasyTrip 🌍
 
-# EasyTrip 🌍 
-> Discover Your Next Adventure – A modern travel destination platform built with Next.js, Node.js, and PostgreSQL  (A Full Stack Project)
+> Discover Your Next Adventure – A modern travel destination platform built with Next.js, Node.js, and PostgreSQL (A Full Stack Project)
 
 [![Next.js](https://img.shields.io/badge/Next.js-13.4-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-18.2-blue?logo=react)](https://reactjs.org/)
@@ -13,42 +13,49 @@
 
 ---
 
-## 📸 Project Previews  
+## 📸 Project Previews
 
-> Sneak peek into the EasyTrip experience  
+> Sneak peek into the EasyTrip experience
 
-### 🏠 Landing Page (Home Section)  
-![Landing Page (Home section)](./preview1.png)  
+### 🏠 Landing Page (Home Section)
 
----
-
-### 🌍 Discover Amazing Places (Browse Section)  
-![Discover Amazing places (Browse section)](./preview2.png)  
+![Landing Page (Home section)](./preview1.png)
 
 ---
 
-### ✨ Why Choose EasyTrip  
-![Why Choose EasyTrip](./preview3.png)  
+### 🌍 Discover Amazing Places (Browse Section)
+
+![Discover Amazing places (Browse section)](./preview2.png)
 
 ---
 
-### 🔎 Search in Browse Section  
-![Search in Browse section](./preview4.png)  
+### ✨ Why Choose EasyTrip
+
+![Why Choose EasyTrip](./preview3.png)
 
 ---
 
-### 🗺️ Checking Out a Tourism Spot (Hero Section)  
-![Tourism Spot](./preview5.png)  
+### 🔎 Search in Browse Section
+
+![Search in Browse section](./preview4.png)
 
 ---
 
-### 📖 Explore About the Place  
-![About Place](./preview6.png)  
+### 🗺️ Checking Out a Tourism Spot (Hero Section)
+
+![Tourism Spot](./preview5.png)
 
 ---
 
-### ☀️ Weather Widget & Map Location  
-![Weather & Map](./preview7.png)  
+### 📖 Explore About the Place
+
+![About Place](./preview6.png)
+
+---
+
+### ☀️ Weather Widget & Map Location
+
+![Weather & Map](./preview7.png)
 
 > ⚠️ The map is a Google Maps embed driven by the place's stored coordinates and works as shown.
 > The weather panel is a **UI placeholder** — no weather API is connected yet.
@@ -56,70 +63,73 @@
 
 ---
 
-## 📋 Table of Contents  
+## 📋 Table of Contents
 
-- [Overview](#-overview)  
-- [Features](#-features)  
-- [Not Yet Implemented](#-not-yet-implemented)  
-- [Technology Stack](#️-technology-stack)  
-- [Project Architecture](#-project-architecture)  
-- [Installation & Setup](#-installation--setup)  
-- [API Documentation](#-api-documentation)  
-- [Deployment](#-deployment)  
-- [Contributing](#-contributing)  
-- [License](#-license)  
-- [Contact](#-contact)  
-- [Roadmap](#-roadmap)  
+- [Overview](#-overview)
+- [Features](#-features)
+- [Not Yet Implemented](#-not-yet-implemented)
+- [Technology Stack](#️-technology-stack)
+- [Project Architecture](#-project-architecture)
+- [Installation & Setup](#-installation--setup)
+- [API Documentation](#-api-documentation)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Contact](#-contact)
+- [Roadmap](#-roadmap)
 
 ---
 
-## 🌟 Overview  
+## 🌟 Overview
 
-**EasyTrip** is a travel destination discovery platform designed to help users explore destinations, read and write reviews, and browse places on an interactive map. Curated destination content is managed through an admin panel with full create/edit/delete and image upload.  
+**EasyTrip** is a travel destination discovery platform designed to help users explore destinations, read and write reviews, and browse places on an interactive map. Curated destination content is managed through an admin panel with full create/edit/delete and image upload.
 
 > **Honest status:** the feature lists below describe what is actually implemented in this repository today. Anything advertised but not yet built lives in [Not Yet Implemented](#-not-yet-implemented) rather than being listed as a feature.
 
 ---
 
-## 🚀 Features  
+## 🚀 Features
 
-### ✨ User Features  
-- 🏞️ **Destination Discovery** – Browse curated destinations with image-rich cards  
-- 🔍 **Search & Filters** – Full-text search over name/description, plus location, district, state, and tag filters (server-side)  
-- ⭐ **Ratings & Reviews** – Read reviews and post a 1–5 star rating with a comment; one review per user per place (enforced by a `UNIQUE` constraint + upsert), with place averages maintained by a PostgreSQL trigger  
-- 📱 **Responsive Design** – Optimized for all devices  
-- 🖼️ **Magazine-Style Detail Pages** – Full-bleed hero, carousels, related places, and a Google Maps embed for the location  
-- 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name  
+### ✨ User Features
 
-### 🛡️ Admin Features  
-- 🖊️ **Content Management** – Create, edit, and delete destinations  
-- 📦 **Image Management** – Cloudinary-backed upload with a drag-and-drop admin UI and an SVG placeholder fallback  
-- 👥 **Admin Management API** – List, grant, and revoke admin rights (`/api/admin/admins`) — API only, no UI yet  
+- 🏞️ **Destination Discovery** – Browse curated destinations with image-rich cards
+- 🔍 **Search & Filters** – Full-text search over name/description, plus location, district, state, and tag filters (server-side)
+- ⭐ **Ratings & Reviews** – Read reviews and post a 1–5 star rating with a comment; one review per user per place (enforced by a `UNIQUE` constraint + upsert), with place averages maintained by a PostgreSQL trigger
+- 📱 **Responsive Design** – Optimized for all devices
+- 🖼️ **Magazine-Style Detail Pages** – Full-bleed hero, carousels, related places, and a Google Maps embed for the location
+- 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name
+
+### 🛡️ Admin Features
+
+- 🖊️ **Content Management** – Create, edit, and delete destinations
+- 📦 **Image Management** – Cloudinary-backed upload with a drag-and-drop admin UI and an SVG placeholder fallback
+- 👥 **Admin Management API** – List, grant, and revoke admin rights (`/api/admin/admins`) — API only, no UI yet
 
 ---
 
-## 🧭 Not Yet Implemented  
+## 🧭 Not Yet Implemented
 
 Built-but-incomplete or not started. Listed here so the feature list above stays honest.
 
-| Feature | Status today |
-|---|---|
+| Feature                      | Status today                                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 🗺️ Explore map (browse page) | The Leaflet UI is fully built — clustering, six tile layers, a geolocation radius filter, in-map search — but it renders **no markers**: PostgreSQL returns `DECIMAL` coordinates as strings and the marker filter requires `typeof === 'number'` |
-| ❤️ Favorites / wishlist | Heart buttons exist in the UI but persist to component state only — there is no `favorites` table or endpoint |
-| 📖 Multi-image galleries | The `place_images` table, its read endpoint, and the gallery UI exist, but nothing writes to the table yet |
-| ☀️ Weather information | The weather widget on the detail page (preview 7) renders **placeholder values** — no weather API is wired up |
-| 📝 Review moderation | No moderation endpoints or queue; "report review" is a client-side stub |
-| 📊 Analytics dashboard | The admin dashboard is a set of static navigation tiles — no metrics are computed |
-| 👥 Admin user-management UI | The backend API works, but the dashboard's "User Management" and "Settings" tiles link to pages that do not exist yet |
-| 🧪 Tests & CI | No test suite and no CI pipeline in this repository yet |
-| ✉️ Email verification | Password reset works, but a new account's address is never confirmed |
-| ⚡ Google One Tap | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported |
+| ❤️ Favorites / wishlist      | Heart buttons exist in the UI but persist to component state only — there is no `favorites` table or endpoint                                                                                                                                     |
+| 📖 Multi-image galleries     | The `place_images` table, its read endpoint, and the gallery UI exist, but nothing writes to the table yet                                                                                                                                        |
+| ☀️ Weather information       | The weather widget on the detail page (preview 7) renders **placeholder values** — no weather API is wired up                                                                                                                                     |
+| 📝 Review moderation         | No moderation endpoints or queue; "report review" is a client-side stub                                                                                                                                                                           |
+| 📊 Analytics dashboard       | The admin dashboard is a set of static navigation tiles — no metrics are computed                                                                                                                                                                 |
+| 👥 Admin user-management UI  | The backend API works, but the dashboard's "User Management" and "Settings" tiles link to pages that do not exist yet                                                                                                                             |
+| 🧪 Tests & CI                | No test suite and no CI pipeline in this repository yet                                                                                                                                                                                           |
+| ✉️ Email verification        | Password reset works, but a new account's address is never confirmed                                                                                                                                                                              |
+| ⚡ Google One Tap            | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported                                                                            |
 
 ---
 
-## 🛠️ Technology Stack  
+## 🛠️ Technology Stack
 
-### 🎨 Frontend  
+### 🎨 Frontend
+
 - **Next.js 13.4** - React framework, **Pages Router** (`frontend/src/pages`); public pages are client-rendered, admin pages are gated in `getServerSideProps`
 - **React 18.2** - Modern React with hooks and context
 - **Tailwind CSS** - Utility-first CSS framework
@@ -128,7 +138,8 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 - **React Icons** - Comprehensive icon library
 - **Axios** - HTTP client for the API service layer
 
-### ⚙️ Backend  
+### ⚙️ Backend
+
 - **Node.js** - JavaScript runtime (CommonJS)
 - **Express.js 4** - Web application framework
 - **PostgreSQL** - Relational database, accessed with `pg` (`SERIAL`, `TEXT[]`, `JSONB`, `plpgsql` triggers)
@@ -138,20 +149,21 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 - **express-validator** - Request validation on review, place, profile, and admin writes
 - **CORS** - Explicit origin allowlist from `CORS_ALLOWED_ORIGINS` (no wildcard)
 
-### 🔐 Auth & Storage  
+### 🔐 Auth & Storage
+
 - **Firebase Auth** - Email/password + Google sign-in on the client
 - **Firebase Admin SDK** - Server-side verification of Firebase ID tokens (`Authorization: Bearer <idToken>`)
 - **Cloudinary** - Image storage and optimization
 
-### 🛠️ Dev Tools  
+### 🛠️ Dev Tools
+
 - **PostCSS + Autoprefixer** - CSS processing
 - **Nodemon** - Backend dev server reload
 - **Git** - Version control
 
-
 ---
 
-## 🏗️ Project Architecture  
+## 🏗️ Project Architecture
 
 ```bash
 EasyTrip/
@@ -181,18 +193,17 @@ EasyTrip/
 
 ---
 
-## 🏛️ Architecture Patterns  
+## 🏛️ Architecture Patterns
 
-> Patterns the codebase actually uses:  
+> Patterns the codebase actually uses:
 
-- 🗂️ **Routes → Controllers → Models** – Separation of concerns in the backend; all SQL is parameterized (`$1`, `$2`, …)  
-- ⚛️ **Component-Based UI** – Reusable and modular React/Next.js components  
-- 🌐 **Context API** – Centralized global state for authentication & user data, consumed via a `useAuth()` hook  
-- 🧮 **Denormalized rating aggregates** – `rating_sum` / `rating_count` on `places` are kept in sync by a `plpgsql` trigger on every review write, so list pages never aggregate at read time  
-- 🔗 **API-First Design** – RESTful endpoints consumed by an axios service layer  
+- 🗂️ **Routes → Controllers → Models** – Separation of concerns in the backend; all SQL is parameterized (`$1`, `$2`, …)
+- ⚛️ **Component-Based UI** – Reusable and modular React/Next.js components
+- 🌐 **Context API** – Centralized global state for authentication & user data, consumed via a `useAuth()` hook
+- 🧮 **Denormalized rating aggregates** – `rating_sum` / `rating_count` on `places` are kept in sync by a `plpgsql` trigger on every review write, so list pages never aggregate at read time
+- 🔗 **API-First Design** – RESTful endpoints consumed by an axios service layer
 
 ---
-
 
 ## 🔧 Installation & Setup
 
@@ -210,6 +221,7 @@ EasyTrip/
 - Cloudinary account
 
 ---
+
 ### Environment Variables
 
 Copy the environment template for each tier and fill in real values. `backend/.env` and
@@ -223,6 +235,7 @@ cp frontend/.env.example frontend/.env.local
 Each template documents every variable and where to obtain it. Summary:
 
 #### Backend (`backend/.env`)
+
 ```bash
 # Database — connection string used by app.js, the models, and script/make-admin.js
 DATABASE_URL=postgresql://user:password@host:5432/easytrip
@@ -269,6 +282,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 ---
 
 #### Frontend (`frontend/.env.local`)
+
 ```bash
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
@@ -282,6 +296,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
 ```
+
 ---
 
 ### Database Setup
@@ -327,12 +342,14 @@ conventions, and `ADR-025` for why there is a hand-written runner rather than no
 ### Backend Setup
 
 1. **Install Dependencies:**
+
 ```bash
 cd backend
 npm install
 ```
 
 2. **Start Development Server:**
+
 ```bash
 npm run dev
 ```
@@ -344,12 +361,14 @@ The backend will run on `http://localhost:5000`
 ### Frontend Setup
 
 1. **Install Dependencies:**
+
 ```bash
 cd frontend
 npm install
 ```
 
 2. **Start Development Server:**
+
 ```bash
 npm run dev
 ```
@@ -403,16 +422,19 @@ NEXT_PUBLIC_API_URL=https://your-domain.com/api
 ### Database Backup & Schema
 
 1. **Backup existing data:**
+
 ```bash
 pg_dump "$DATABASE_URL" > backup.sql
 ```
 
 2. **Apply the schema — only for a database that does not exist yet:**
+
 ```bash
 psql "$PRODUCTION_DATABASE_URL" -f backend/src/config/schema.sql
 ```
 
 3. **Migrate — for every deploy, including the first:**
+
 ```bash
 DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run migrate
 ```
@@ -432,6 +454,7 @@ DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run migrate
 ### Deployment Steps
 
 1. **Build the application:**
+
 ```bash
 # Frontend
 cd frontend
@@ -455,8 +478,8 @@ npm install --production
 
 ## 📚 API Documentation
 
-
 ### Base URL
+
 ```
 http://localhost:5000/api
 ```
@@ -470,45 +493,45 @@ The table below is the complete set of Express routes the backend actually regis
 
 ### Health
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/health` | — | Service + database status |
+| Method | Endpoint  | Auth | Description               |
+| ------ | --------- | ---- | ------------------------- |
+| GET    | `/health` | —    | Service + database status |
 
 ### Places
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/places` | — | List all places |
-| GET | `/places/search` | — | Search / filter (`searchTerm`, `location`, `district`, `state`, `tags`) |
-| GET | `/places/locations` | — | Distinct locations |
-| GET | `/places/districts` | — | Distinct districts |
-| GET | `/places/states` | — | Distinct states |
-| GET | `/places/tags` | — | Distinct tags |
-| GET | `/places/:id` | — | Get place by ID |
-| GET | `/places/:id/image` | — | Primary image (redirect/proxy, with placeholder fallback) |
-| GET | `/places/:id/images` | — | Gallery images for a place |
-| GET | `/places/:id/images/:imageId` | — | Same handler as `/places/:id/image` |
-| GET | `/places/:id/reviews` | — | Reviews for a place |
-| POST | `/places/:id/reviews` | Bearer | Create a review — body `{ rating: 1-5, comment: string }` |
+| Method | Endpoint                      | Auth   | Description                                                             |
+| ------ | ----------------------------- | ------ | ----------------------------------------------------------------------- |
+| GET    | `/places`                     | —      | List all places                                                         |
+| GET    | `/places/search`              | —      | Search / filter (`searchTerm`, `location`, `district`, `state`, `tags`) |
+| GET    | `/places/locations`           | —      | Distinct locations                                                      |
+| GET    | `/places/districts`           | —      | Distinct districts                                                      |
+| GET    | `/places/states`              | —      | Distinct states                                                         |
+| GET    | `/places/tags`                | —      | Distinct tags                                                           |
+| GET    | `/places/:id`                 | —      | Get place by ID                                                         |
+| GET    | `/places/:id/image`           | —      | Primary image (redirect/proxy, with placeholder fallback)               |
+| GET    | `/places/:id/images`          | —      | Gallery images for a place                                              |
+| GET    | `/places/:id/images/:imageId` | —      | Same handler as `/places/:id/image`                                     |
+| GET    | `/places/:id/reviews`         | —      | Reviews for a place                                                     |
+| POST   | `/places/:id/reviews`         | Bearer | Create a review — body `{ rating: 1-5, comment: string }`               |
 
 ### Profile
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/auth/profile` | Bearer | Get the signed-in user's profile row |
-| PUT | `/auth/profile` | Bearer | Update the signed-in user's profile |
-| GET | `/auth/check-admin` | Bearer | Whether the signed-in user is an admin |
+| Method | Endpoint            | Auth   | Description                            |
+| ------ | ------------------- | ------ | -------------------------------------- |
+| GET    | `/auth/profile`     | Bearer | Get the signed-in user's profile row   |
+| PUT    | `/auth/profile`     | Bearer | Update the signed-in user's profile    |
+| GET    | `/auth/check-admin` | Bearer | Whether the signed-in user is an admin |
 
 ### Admin
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/admin/places` | Admin | Create a place (`multipart/form-data`, field `image`) |
-| PUT | `/admin/places/:id` | Admin | Update a place (`multipart/form-data`, field `image`) |
-| DELETE | `/admin/places/:id` | Admin | Delete a place |
-| GET | `/admin/admins` | Admin | List admin accounts |
-| POST | `/admin/admins` | Admin | Grant admin rights |
-| DELETE | `/admin/admins/:email` | Admin | Revoke admin rights |
+| Method | Endpoint               | Auth  | Description                                           |
+| ------ | ---------------------- | ----- | ----------------------------------------------------- |
+| POST   | `/admin/places`        | Admin | Create a place (`multipart/form-data`, field `image`) |
+| PUT    | `/admin/places/:id`    | Admin | Update a place (`multipart/form-data`, field `image`) |
+| DELETE | `/admin/places/:id`    | Admin | Delete a place                                        |
+| GET    | `/admin/admins`        | Admin | List admin accounts                                   |
+| POST   | `/admin/admins`        | Admin | Grant admin rights                                    |
+| DELETE | `/admin/admins/:email` | Admin | Revoke admin rights                                   |
 
 ### Example API Usage
 
@@ -524,7 +547,7 @@ await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${idToken}`
+    Authorization: `Bearer ${idToken}`
   },
   body: JSON.stringify({ rating: 5, comment: 'Stunning at sunrise.' })
 });
@@ -532,11 +555,10 @@ await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
 
 > The reviewer's identity is taken from the verified token on the server — it is never read from
 > the request body.
+
 ---
 
 </details>
-
-
 
 ---
 
@@ -544,9 +566,9 @@ await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
 
 Deployment is manual — there is no CI/CD pipeline in this repository yet.
 
-* **Frontend**: Vercel
-* **Backend**: Render
-* **Database**: Managed PostgreSQL
+- **Frontend**: Vercel
+- **Backend**: Render
+- **Database**: Managed PostgreSQL
 
 No public demo URL is published here yet; the screenshots above are from a local run.
 
@@ -570,17 +592,13 @@ Until then, treat the code as all-rights-reserved.
 
 ---
 
-
-## 📞 Contact  
+## 📞 Contact
 
 EasyTrip is a **two-person team project**, not the work of a single author.
 
 **Project Maintainers**  
 👤 Dharmendra — [@dharmendra23101](https://github.com/dharmendra23101)  
-👤 Mukund Thakur — [@Mukund934](https://github.com/Mukund934)  
-
-
-
+👤 Mukund Thakur — [@Mukund934](https://github.com/Mukund934)
 
 ## 🗺️ Roadmap
 
@@ -588,6 +606,7 @@ Near-term work is listed in [Not Yet Implemented](#-not-yet-implemented). The it
 longer-term ideas, none of which have been started.
 
 ### Upcoming Features
+
 - [ ] Mobile app (React Native)
 - [ ] Trip planning and itinerary builder
 - [ ] Social features and user connections
@@ -601,6 +620,4 @@ longer-term ideas, none of which have been started.
 
 ---
 
-✨ *Happy Traveling with EasyTrip!* 🌍✈️
-
-
+✨ _Happy Traveling with EasyTrip!_ 🌍✈️

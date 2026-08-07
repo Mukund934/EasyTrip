@@ -10,7 +10,7 @@ import {
   sendPasswordResetEmail,
   getRedirectResult
 } from 'firebase/auth';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 import { auth } from '../config/firebase';
 
 const AuthContext = createContext({});
@@ -18,7 +18,6 @@ const AuthContext = createContext({});
 // Must match the fallback used by every other caller (placeService, the admin gates,
 // the pages/api image routes). A '/api' default would silently resolve to the Next
 // server, which has no auth routes, and admin detection would 404 into `false`.
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 // The backend refuses to answer if it is down; without a timeout `loading` can hang
 // forever and the whole app sits on its auth spinner.
@@ -41,13 +40,12 @@ const syncTokenCookie = (token) => {
   }
 };
 
-// Backend validation failures arrive as { message, errors: [{ field, message }] };
-// axios only ever surfaces "Request failed with status code 400" on its own.
-const apiErrorMessage = (error, fallback) =>
-  error?.response?.data?.errors?.[0]?.message ||
-  error?.response?.data?.message ||
-  error?.message ||
-  fallback;
+// `apiClient` already unwraps the backend's validation shape — { message, errors: [{ message }] } —
+// and surfaces the field message as `error.message` (IMP-072). This used to dig through
+// `error.response.data` itself, which an `ApiClientError` does not have; those branches became dead
+// the moment the calls moved onto the shared client, so they are gone rather than left looking
+// load-bearing. Firebase auth errors also carry `.message`, so one lookup covers both sources.
+const apiErrorMessage = (error, fallback) => error?.message || fallback;
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -88,10 +86,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = idToken || (await user.getIdToken());
 
-      const response = await axios.get(`${API_URL}/auth/check-admin`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
+      const response = await apiClient.get('/auth/check-admin', {
+        authToken: token,
+        requireAuth: true,
         timeout: ADMIN_CHECK_TIMEOUT_MS
       });
 
@@ -110,20 +107,20 @@ export const AuthProvider = ({ children }) => {
   const register = async (email, password, name) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
+
       // Update profile with name
       if (name) {
         await updateFirebaseProfile(userCredential.user, {
           displayName: name
         });
       }
-      
+
       return { success: true, user: userCredential.user };
     } catch (error) {
       console.error('Registration error:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -136,9 +133,9 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: userCredential.user };
     } catch (error) {
       console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -151,10 +148,10 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: result.user };
     } catch (error) {
-      console.error("Error signing in with Google", error);
-      return { 
-        success: false, 
-        error: error.message 
+      console.error('Error signing in with Google', error);
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -176,7 +173,10 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: 'That email address does not look valid.' };
       }
       if (error.code === 'auth/too-many-requests') {
-        return { success: false, error: 'Too many attempts. Please wait a few minutes and try again.' };
+        return {
+          success: false,
+          error: 'Too many attempts. Please wait a few minutes and try again.'
+        };
       }
       return { success: false, error: 'Could not send the reset email. Please try again.' };
     }
@@ -197,9 +197,9 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Logout error:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   };
@@ -210,24 +210,23 @@ export const AuthProvider = ({ children }) => {
       if (!currentUser) {
         throw new Error('No user logged in');
       }
-      
+
       // Update profile in Firebase if needed
       if (data.name) {
         await updateFirebaseProfile(auth.currentUser, {
           displayName: data.name
         });
       }
-      
+
       // Update custom user data in your backend
       const token = await getIdToken();
       if (!token) {
         throw new Error('Your session has expired. Please sign in again.');
       }
 
-      const response = await axios.put(`${API_URL}/auth/profile`, data, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await apiClient.put('/auth/profile', data, {
+        authToken: token,
+        requireAuth: true
       });
 
       if (response.status !== 200) {
@@ -251,7 +250,6 @@ export const AuthProvider = ({ children }) => {
       };
     }
   };
-
 
   // Listen for auth state changes - only after initial render.
   // The Firebase SDK's own persistence is the single source of session truth:
@@ -310,7 +308,7 @@ export const AuthProvider = ({ children }) => {
         }
       })
       .catch((error) => {
-        console.error("Error with redirect sign-in", error);
+        console.error('Error with redirect sign-in', error);
       });
 
     return () => unsubscribe();
@@ -334,11 +332,7 @@ export const AuthProvider = ({ children }) => {
     isClient // Expose this so components can know when it's safe to render client-only content
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export default AuthProvider;

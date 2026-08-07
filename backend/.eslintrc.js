@@ -29,12 +29,35 @@ module.exports = {
       }
     ],
 
-    // Deliberately off for now. The server logs ~340 times through `console.*`; turning this on
-    // before IMP-071 replaces them with a real logger would produce a wall of warnings nobody
-    // reads, which is how a lint config gets ignored. IMP-071 flips it on.
-    'no-console': 'off',
+    // ON as of IMP-071 (Sprint 5.3), which is what the previous "deliberately off for now" note
+    // was waiting for. Application code logs through `src/utils/logger.js`; a `console.*` call in
+    // `src/` or `app.js` now means someone bypassed the logger, and with it the redaction of
+    // Authorization headers and secrets. An error, not a warning — the whole value of routing logs
+    // through one module is lost the moment there are two ways to log.
+    //
+    // The two exemptions are in `overrides` below, each with its reason.
+    'no-console': 'error',
 
     'no-empty': ['error', { allowEmptyCatch: true }]
   },
+
+  overrides: [
+    {
+      // CLI tools. Their stdout IS the user interface — a person runs `npm run migrate` and reads
+      // the result. Structured JSON would make that output worse, and these do not run inside the
+      // server process, so nothing collects their logs anyway.
+      files: ['script/**/*.js'],
+      rules: { 'no-console': 'off' }
+    },
+    {
+      // Environment validation runs before the application exists, and its output is a
+      // multi-line remediation message a human reads in a terminal or a failed-deploy log. It also
+      // deliberately has no dependencies — including on the logger — so that a broken environment
+      // reports itself rather than failing inside whatever the logger needs.
+      files: ['src/config/env.js'],
+      rules: { 'no-console': 'off' }
+    }
+  ],
+
   ignorePatterns: ['node_modules/', 'tmp/']
 };

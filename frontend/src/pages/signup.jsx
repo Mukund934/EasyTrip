@@ -23,7 +23,7 @@ export default function Signup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Every failure is attached to the field that caused it, and all of them surface at once
     // rather than one per submit.
     const errors = {};
@@ -32,18 +32,19 @@ export default function Signup() {
     if (!password) errors.password = 'Choose a password.';
     else if (password.length < 6) errors.password = 'Use at least 6 characters.';
     if (!confirmPassword) errors.confirmPassword = 'Re-enter your password.';
-    else if (password && password !== confirmPassword) errors.confirmPassword = 'Passwords do not match.';
+    else if (password && password !== confirmPassword)
+      errors.confirmPassword = 'Passwords do not match.';
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
     }
     setFieldErrors({});
-    
+
     try {
       setLoading(true);
       const result = await register(email, password, name);
-      
+
       if (result.success) {
         toast.success('Account created successfully!');
         // Automatically redirect to home page after successful registration
@@ -62,7 +63,7 @@ export default function Signup() {
     try {
       setLoading(true);
       const result = await signInWithGoogle();
-      
+
       if (result.success) {
         // `signInWithGoogle` is the same call the login page makes: an existing Google user is
         // simply signed in, and nothing here can tell the two apart. Claiming "Account created"
@@ -152,7 +153,9 @@ export default function Signup() {
                   />
                 </div>
                 {fieldErrors.name && (
-                  <p id="name-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.name}</p>
+                  <p id="name-error" role="alert" className="mt-1 text-sm text-red-600">
+                    {fieldErrors.name}
+                  </p>
                 )}
               </div>
 
@@ -184,7 +187,9 @@ export default function Signup() {
                   />
                 </div>
                 {fieldErrors.email && (
-                  <p id="email-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+                  <p id="email-error" role="alert" className="mt-1 text-sm text-red-600">
+                    {fieldErrors.email}
+                  </p>
                 )}
               </div>
 
@@ -220,17 +225,26 @@ export default function Signup() {
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+                    {showPassword ? (
+                      <FiEyeOff className="h-5 w-5" />
+                    ) : (
+                      <FiEye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
                 {fieldErrors.password && (
-                  <p id="password-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+                  <p id="password-error" role="alert" className="mt-1 text-sm text-red-600">
+                    {fieldErrors.password}
+                  </p>
                 )}
               </div>
 
               {/* Confirm Password Input */}
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Confirm Password
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -244,7 +258,9 @@ export default function Signup() {
                     autoComplete="new-password"
                     required
                     aria-invalid={Boolean(fieldErrors.confirmPassword)}
-                    aria-describedby={fieldErrors.confirmPassword ? 'confirmPassword-error' : undefined}
+                    aria-describedby={
+                      fieldErrors.confirmPassword ? 'confirmPassword-error' : undefined
+                    }
                     className={`block w-full pl-10 pr-12 py-2 border rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none sm:text-sm ${
                       fieldErrors.confirmPassword
                         ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
@@ -264,7 +280,9 @@ export default function Signup() {
                   </button>
                 </div>
                 {fieldErrors.confirmPassword && (
-                  <p id="confirmPassword-error" role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.confirmPassword}</p>
+                  <p id="confirmPassword-error" role="alert" className="mt-1 text-sm text-red-600">
+                    {fieldErrors.confirmPassword}
+                  </p>
                 )}
               </div>
 
@@ -277,9 +295,25 @@ export default function Signup() {
                 >
                   {loading ? (
                     <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       Creating account...
                     </span>

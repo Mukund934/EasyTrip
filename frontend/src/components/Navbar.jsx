@@ -5,7 +5,18 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDismissable } from '../hooks/useDismissable';
-import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiLogIn, FiUserPlus, FiSettings, FiChevronDown, FiCompass } from 'react-icons/fi';
+import {
+  FiMenu,
+  FiX,
+  FiUser,
+  FiLogOut,
+  FiHome,
+  FiLogIn,
+  FiUserPlus,
+  FiSettings,
+  FiChevronDown,
+  FiCompass
+} from 'react-icons/fi';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -84,8 +95,9 @@ const Navbar = () => {
 
   return (
     <motion.nav
-      className={`fixed w-full top-0 z-50 transition-all duration-300 ${solid ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
-        }`}
+      className={`fixed w-full top-0 z-50 transition-all duration-300 ${
+        solid ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
+      }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5 }}
@@ -117,10 +129,13 @@ const Navbar = () => {
           <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-8">
             <Link
               href="/"
-              className={`px-3 py-2 text-sm font-medium ${router.pathname === '/'
+              className={`px-3 py-2 text-sm font-medium ${
+                router.pathname === '/'
                   ? 'text-primary-600 border-b-2 border-primary-600'
-                  : solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
-                } transition-colors`}
+                  : solid
+                    ? 'text-gray-700 hover:text-primary-600'
+                    : 'text-white hover:text-primary-200'
+              } transition-colors`}
             >
               <span className="flex items-center">
                 <FiHome className="mr-2" />
@@ -129,10 +144,13 @@ const Navbar = () => {
             </Link>
             <Link
               href="/browse"
-              className={`px-3 py-2 text-sm font-medium ${router.pathname === '/browse'
+              className={`px-3 py-2 text-sm font-medium ${
+                router.pathname === '/browse'
                   ? 'text-primary-600 border-b-2 border-primary-600'
-                  : solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
-                } transition-colors`}
+                  : solid
+                    ? 'text-gray-700 hover:text-primary-600'
+                    : 'text-white hover:text-primary-200'
+              } transition-colors`}
             >
               <span className="flex items-center">
                 <FiCompass className="mr-2" />
@@ -149,24 +167,21 @@ const Navbar = () => {
                   aria-haspopup="menu"
                   aria-expanded={isProfileOpen}
                   aria-label="Account menu"
-                  className={`flex items-center space-x-2 ${solid ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
-                    } backdrop-blur-sm px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors`}
+                  className={`flex items-center space-x-2 ${
+                    solid ? 'bg-gray-100 text-gray-800' : 'bg-white/20 text-white'
+                  } backdrop-blur-sm px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors`}
                 >
                   {authUser.photoURL ? (
-                    <img
-                      src={authUser.photoURL}
-                      alt="Profile"
-                      className="w-7 h-7 rounded-full"
-                    />
+                    <img src={authUser.photoURL} alt="Profile" className="w-7 h-7 rounded-full" />
                   ) : (
                     <div className="relative w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-bold">
                       {avatarInitial}
                     </div>
                   )}
-                  <span className="text-sm font-medium truncate max-w-[100px]">
-                    {displayName}
-                  </span>
-                  <FiChevronDown className={`h-4 w-4 ${isProfileOpen ? 'rotate-180' : 'rotate-0'} transition-transform duration-200`} />
+                  <span className="text-sm font-medium truncate max-w-[100px]">{displayName}</span>
+                  <FiChevronDown
+                    className={`h-4 w-4 ${isProfileOpen ? 'rotate-180' : 'rotate-0'} transition-transform duration-200`}
+                  />
                 </motion.button>
 
                 <AnimatePresence>
@@ -227,19 +242,21 @@ const Navbar = () => {
               <div className="flex items-center space-x-2">
                 <Link
                   href="/login"
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${solid
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    solid
                       ? 'text-primary-600 border border-primary-600 hover:bg-primary-50'
                       : 'text-white border border-white hover:bg-white/10'
-                    } transition-colors`}
+                  } transition-colors`}
                 >
                   Login
                 </Link>
                 <Link
                   href="/signup"
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${solid
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    solid
                       ? 'bg-primary-600 text-white hover:bg-primary-700'
                       : 'bg-white text-primary-800 hover:bg-primary-50'
-                    } shadow-sm transition-colors`}
+                  } shadow-sm transition-colors`}
                 >
                   Sign Up
                 </Link>
@@ -251,15 +268,12 @@ const Navbar = () => {
           <div className="flex items-center sm:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className={`inline-flex items-center justify-center p-2 rounded-md ${solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
-                } hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors`}
+              className={`inline-flex items-center justify-center p-2 rounded-md ${
+                solid ? 'text-gray-700 hover:text-primary-600' : 'text-white hover:text-primary-200'
+              } hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors`}
             >
               <span className="sr-only">{isOpen ? 'Close menu' : 'Open menu'}</span>
-              {isOpen ? (
-                <FiX className="block h-6 w-6" />
-              ) : (
-                <FiMenu className="block h-6 w-6" />
-              )}
+              {isOpen ? <FiX className="block h-6 w-6" /> : <FiMenu className="block h-6 w-6" />}
             </button>
           </div>
         </div>
@@ -279,10 +293,11 @@ const Navbar = () => {
               <div className="py-2">
                 <Link
                   href="/"
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${router.pathname === '/'
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    router.pathname === '/'
                       ? 'bg-primary-50 text-primary-700'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                    }`}
+                  }`}
                 >
                   <div className="flex items-center">
                     <FiHome className="mr-3 h-5 w-5" />
@@ -292,10 +307,11 @@ const Navbar = () => {
 
                 <Link
                   href="/browse"
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${router.pathname === '/browse'
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    router.pathname === '/browse'
                       ? 'bg-primary-50 text-primary-700'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                    }`}
+                  }`}
                 >
                   <div className="flex items-center">
                     <FiCompass className="mr-3 h-5 w-5" />

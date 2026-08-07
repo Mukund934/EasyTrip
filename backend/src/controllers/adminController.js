@@ -1,6 +1,6 @@
 const pool = require('../config/db');
 const admin = require('firebase-admin');
-
+const logger = require('../utils/logger');
 
 /**
  * Keep the Firebase custom `admin` claim in step with users.is_admin.
@@ -33,7 +33,7 @@ const getAllAdmins = async (req, res) => {
     );
     res.status(200).json(result.rows);
   } catch (error) {
-    console.error('Error getting admins:', error);
+    logger.error({ err: error }, 'Error getting admins');
     res.status(500).json({ message: 'Error getting admins' });
   }
 };
@@ -44,11 +44,11 @@ const getAllAdmins = async (req, res) => {
 const addAdmin = async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
     }
-    
+
     // Check if user exists in Firebase
     let userRecord;
     try {
@@ -56,13 +56,12 @@ const addAdmin = async (req, res) => {
     } catch (error) {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
-    
+
     // Check if user exists in our database
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE firebase_uid = $1',
-      [userRecord.uid]
-    );
-    
+    const userResult = await pool.query('SELECT * FROM users WHERE firebase_uid = $1', [
+      userRecord.uid
+    ]);
+
     if (userResult.rows.length > 0) {
       // User exists, update admin status
       await pool.query(
@@ -80,7 +79,7 @@ const addAdmin = async (req, res) => {
     try {
       await syncAdminClaim(userRecord, true);
     } catch (claimError) {
-      console.error('Error setting admin custom claim:', claimError.message);
+      logger.error({ err: claimError }, 'Error setting admin custom claim');
       return res.status(500).json({
         message: `${email} was granted admin in the database, but the Firebase admin claim could not be set. They will be denied admin access until this call succeeds — please retry.`
       });
@@ -88,7 +87,7 @@ const addAdmin = async (req, res) => {
 
     res.status(200).json({ message: `${email} is now an admin` });
   } catch (error) {
-    console.error('Error adding admin:', error);
+    logger.error({ err: error }, 'Error adding admin');
     res.status(500).json({ message: 'Error adding admin' });
   }
 };
@@ -99,7 +98,7 @@ const addAdmin = async (req, res) => {
 const removeAdmin = async (req, res) => {
   try {
     const { email } = req.params;
-    
+
     // Check if user exists in Firebase
     let userRecord;
     try {
@@ -107,13 +106,13 @@ const removeAdmin = async (req, res) => {
     } catch (error) {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
-    
+
     // Update user in database
     const result = await pool.query(
       'UPDATE users SET is_admin = false, updated_at = NOW() WHERE firebase_uid = $1 RETURNING id',
       [userRecord.uid]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found in database' });
     }
@@ -124,7 +123,7 @@ const removeAdmin = async (req, res) => {
     try {
       await syncAdminClaim(userRecord, false);
     } catch (claimError) {
-      console.error('Error clearing admin custom claim:', claimError.message);
+      logger.error({ err: claimError }, 'Error clearing admin custom claim');
       return res.status(500).json({
         message: `${email} was removed as an admin in the database, but the stale Firebase admin claim could not be cleared. Admin access is already denied; please retry to clear the claim.`
       });
@@ -132,7 +131,7 @@ const removeAdmin = async (req, res) => {
 
     res.status(200).json({ message: `${email} is no longer an admin` });
   } catch (error) {
-    console.error('Error removing admin:', error);
+    logger.error({ err: error }, 'Error removing admin');
     res.status(500).json({ message: 'Error removing admin' });
   }
 };
@@ -140,5 +139,5 @@ const removeAdmin = async (req, res) => {
 module.exports = {
   getAllAdmins,
   addAdmin,
-  removeAdmin,
+  removeAdmin
 };

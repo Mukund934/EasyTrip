@@ -95,14 +95,18 @@ const findDrift = (files, applied) =>
 const runStatus = async (client, files, applied) => {
   const drift = findDrift(files, applied);
 
-  console.log(`\n  ${files.length} migration file(s) in ${path.relative(process.cwd(), MIGRATIONS_DIR)}\n`);
+  console.log(
+    `\n  ${files.length} migration file(s) in ${path.relative(process.cwd(), MIGRATIONS_DIR)}\n`
+  );
 
   for (const file of files) {
     const record = applied.get(file.name);
     if (!record) {
       console.log(`  [ pending ]  ${file.name}`);
     } else if (drift.includes(file.name)) {
-      console.log(`  [ CHANGED ]  ${file.name}  — applied ${record.applied_at.toISOString()}, but the file has been edited since`);
+      console.log(
+        `  [ CHANGED ]  ${file.name}  — applied ${record.applied_at.toISOString()}, but the file has been edited since`
+      );
     } else {
       console.log(`  [ applied ]  ${file.name}  — ${record.applied_at.toISOString()}`);
     }
@@ -167,7 +171,9 @@ const main = async () => {
     const pending = files.filter((file) => !applied.has(file.name));
 
     if (pending.length === 0) {
-      console.log(`\n  Database is up to date — ${applied.size} migration(s) applied, 0 pending.\n`);
+      console.log(
+        `\n  Database is up to date — ${applied.size} migration(s) applied, 0 pending.\n`
+      );
       return;
     }
 

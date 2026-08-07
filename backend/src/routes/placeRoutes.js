@@ -81,9 +81,7 @@ const optionalUrl = (field) =>
 // omitted, since update patches only the fields it is given.
 const placeBodyRules = (required) => [
   required ? requiredText('name', 'Name', 200) : optionalText('name', 'Name', 200),
-  required
-    ? requiredText('location', 'Location', 200)
-    : optionalText('location', 'Location', 200),
+  required ? requiredText('location', 'Location', 200) : optionalText('location', 'Location', 200),
   optionalText('description', 'Description', 5000),
   optionalText('district', 'District', 120),
   optionalText('state', 'State', 120),
@@ -101,27 +99,59 @@ const placeBodyRules = (required) => [
     .withMessage('Longitude must be between -180 and 180'),
   optionalUrl('primary_image_url'),
   optionalUrl('image_url'),
-  body('themes').optional({ values: 'falsy' }).custom(isStringArray('themes', 20, 60)),
-  body('tags').optional({ values: 'falsy' }).custom(isStringArray('tags', 50, 60)),
+  body('themes')
+    .optional({ values: 'falsy' })
+    .custom(isStringArray('themes', 20, 60)),
+  body('tags')
+    .optional({ values: 'falsy' })
+    .custom(isStringArray('tags', 50, 60)),
   body('custom_keys').optional({ values: 'falsy' }).custom(isFlatObject)
 ];
 
 // Search accepts the same collection shapes as the write routes (JSON arrays as query text).
 // `date` is a season key, not a calendar date — see SEASON_MONTHS in placeModel.
 const searchRules = [
-  query('searchTerm').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 200 })
+  query('searchTerm')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 200 })
     .withMessage('searchTerm must be at most 200 characters'),
-  query('location').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+  query('location')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 120 })
     .withMessage('location must be at most 120 characters'),
-  query('district').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+  query('district')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 120 })
     .withMessage('district must be at most 120 characters'),
-  query('state').optional({ values: 'falsy' }).isString().bail().trim().isLength({ max: 120 })
+  query('state')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 120 })
     .withMessage('state must be at most 120 characters'),
-  query('tags').optional({ values: 'falsy' }).custom(isStringArray('tags', 50, 60)),
-  query('themes').optional({ values: 'falsy' }).custom(isStringArray('themes', 20, 60)),
-  query('minRating').optional({ values: 'falsy' }).isFloat({ min: 0, max: 5 })
+  query('tags')
+    .optional({ values: 'falsy' })
+    .custom(isStringArray('tags', 50, 60)),
+  query('themes')
+    .optional({ values: 'falsy' })
+    .custom(isStringArray('themes', 20, 60)),
+  query('minRating')
+    .optional({ values: 'falsy' })
+    .isFloat({ min: 0, max: 5 })
     .withMessage('minRating must be between 0 and 5'),
-  query('date').optional({ values: 'falsy' }).isIn(['summer', 'monsoon', 'winter'])
+  query('date')
+    .optional({ values: 'falsy' })
+    .isIn(['summer', 'monsoon', 'winter'])
     .withMessage('date must be one of: summer, monsoon, winter')
 ];
 
@@ -130,15 +160,25 @@ const searchRules = [
 // `sort` and `projection` are enumerations because both index into server-side SQL fragments —
 // rejecting anything unrecognised here keeps that lookup total.
 const listRules = [
-  query('limit').optional({ values: 'falsy' }).isInt({ min: 1, max: 100 })
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 100 })
     .withMessage('limit must be between 1 and 100'),
-  query('offset').optional({ values: 'falsy' }).isInt({ min: 0 })
+  query('offset')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 0 })
     .withMessage('offset must be zero or greater'),
-  query('sort').optional({ values: 'falsy' }).isIn(['newest', 'oldest', 'rating', 'popular', 'name'])
+  query('sort')
+    .optional({ values: 'falsy' })
+    .isIn(['newest', 'oldest', 'rating', 'popular', 'name'])
     .withMessage('sort must be one of: newest, oldest, rating, popular, name'),
-  query('projection').optional({ values: 'falsy' }).isIn(['list', 'map'])
+  query('projection')
+    .optional({ values: 'falsy' })
+    .isIn(['list', 'map'])
     .withMessage('projection must be one of: list, map'),
-  query('withStats').optional({ values: 'falsy' }).isIn(['true', '1', 'false', '0'])
+  query('withStats')
+    .optional({ values: 'falsy' })
+    .isIn(['true', '1', 'false', '0'])
     .withMessage('withStats must be a boolean')
 ];
 
@@ -197,7 +237,13 @@ const reportRules = [
 // there was nothing to validate; now that it accepts the full filter and pagination surface it
 // gets the same rules as `/places/search`, which is the point of routing them to one place.
 router.get('/places', searchRules, listRules, handleValidationErrors, placeController.listPlaces);
-router.get('/places/search', searchRules, listRules, handleValidationErrors, placeController.listPlaces);
+router.get(
+  '/places/search',
+  searchRules,
+  listRules,
+  handleValidationErrors,
+  placeController.listPlaces
+);
 router.get('/places/locations', placeController.getAllLocations);
 router.get('/places/districts', placeController.getDistricts);
 router.get('/places/states', placeController.getStates);

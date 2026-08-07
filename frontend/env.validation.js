@@ -47,35 +47,35 @@ const REQUIRED = [
         return 'does not end in /api — the service layer appends paths directly to it';
       }
       return null;
-    },
+    }
   },
   {
     name: 'NEXT_PUBLIC_FIREBASE_API_KEY',
-    describe: 'firebaseConfig.apiKey — a public project identifier, not a secret',
+    describe: 'firebaseConfig.apiKey — a public project identifier, not a secret'
   },
   {
     name: 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-    describe: 'firebaseConfig.authDomain — used by the sign-in redirect flow',
+    describe: 'firebaseConfig.authDomain — used by the sign-in redirect flow'
   },
   {
     name: 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-    describe: 'firebaseConfig.projectId',
+    describe: 'firebaseConfig.projectId'
   },
   {
     name: 'NEXT_PUBLIC_FIREBASE_APP_ID',
-    describe: 'firebaseConfig.appId',
-  },
+    describe: 'firebaseConfig.appId'
+  }
 ];
 
 const RECOMMENDED = [
   {
     name: 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-    describe: 'firebaseConfig.storageBucket — getStorage() is initialised at import time',
+    describe: 'firebaseConfig.storageBucket — getStorage() is initialised at import time'
   },
   {
     name: 'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-    describe: 'firebaseConfig.messagingSenderId',
-  },
+    describe: 'firebaseConfig.messagingSenderId'
+  }
 ];
 
 const isBlank = (value) => value === undefined || value === null || String(value).trim() === '';

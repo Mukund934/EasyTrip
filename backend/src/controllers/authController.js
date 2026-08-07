@@ -1,11 +1,12 @@
 const pool = require('../config/db');
 const admin = require('firebase-admin');
 const { resolveAdminStatus } = require('../utils/authMiddleware');
-
+const logger = require('../utils/logger');
 
 // One list for every profile read/write. It was repeated three times, and the profile form seeds
 // itself from whatever this returns — a column missing from one copy silently blanks that field.
-const USER_COLUMNS = 'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
+const USER_COLUMNS =
+  'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
 
 /**
  * Get current user profile
@@ -14,18 +15,15 @@ const getProfile = async (req, res) => {
   try {
     const { uid } = req.user;
 
-    console.log(`Profile requested for UID: ${uid}`);
-
     // Get user from database
-    const result = await pool.query(
-      `SELECT ${USER_COLUMNS} FROM users WHERE firebase_uid = $1`,
-      [uid]
-    );
-    
+    const result = await pool.query(`SELECT ${USER_COLUMNS} FROM users WHERE firebase_uid = $1`, [
+      uid
+    ]);
+
     if (result.rows.length === 0) {
       // User not in database yet, get from Firebase
       const userRecord = await admin.auth().getUser(uid);
-      
+
       // Create user in database
       const newUser = await pool.query(
         `INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, false, NOW(), NOW()) RETURNING ${USER_COLUMNS}`,
@@ -38,11 +36,11 @@ const getProfile = async (req, res) => {
         last_login: new Date().toISOString(),
         accessed_by: uid
       };
-      
-      console.log(`New user created in database: ${userRecord.email}`);
+
+      logger.info('New user row provisioned');
       return res.status(200).json(userData);
     }
-    
+
     // Add last login time and requesting user for audit purposes
     const userData = {
       ...result.rows[0],
@@ -52,7 +50,7 @@ const getProfile = async (req, res) => {
 
     res.status(200).json(userData);
   } catch (error) {
-    console.error('Error getting profile:', error);
+    logger.error({ err: error }, 'Error getting profile');
     res.status(500).json({ message: 'Error getting profile' });
   }
 };
@@ -65,8 +63,6 @@ const updateProfile = async (req, res) => {
     const { uid } = req.user;
     const { name, location, dob } = req.body;
 
-    console.log(`Profile update requested for UID: ${uid}`);
-
     // location and dob were accepted by the validator and then dropped here, so the profile form
     // reported success while saving nothing (IMP-008). A cleared field arrives as '', which DATE
     // rejects, so both are normalised to NULL rather than written through.
@@ -74,11 +70,11 @@ const updateProfile = async (req, res) => {
       `UPDATE users SET name = $1, location = $2, dob = $3, updated_at = NOW() WHERE firebase_uid = $4 RETURNING ${USER_COLUMNS}`,
       [name, location || null, dob || null, uid]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     // Add audit data
     const userData = {
       ...result.rows[0],
@@ -86,10 +82,10 @@ const updateProfile = async (req, res) => {
       updated_by: uid
     };
 
-    console.log(`Profile updated successfully for ${result.rows[0].email}`);
+    logger.info('Profile updated');
     res.status(200).json(userData);
   } catch (error) {
-    console.error('Error updating profile:', error);
+    logger.error({ err: error }, 'Error updating profile');
     res.status(500).json({ message: 'Error updating profile' });
   }
 };
@@ -101,8 +97,6 @@ const checkAdmin = async (req, res) => {
   try {
     const { uid } = req.user;
 
-    console.log(`Admin check requested for UID: ${uid}`);
-
     // This endpoint is the sole authority behind the four /admin/* server-side page
     // gates, so it must answer exactly as the isAdmin API gate would — same DB column,
     // same claim cross-check. resolveAdminStatus is that shared rule; the route is
@@ -112,18 +106,18 @@ const checkAdmin = async (req, res) => {
     const { isAdmin, user } = await resolveAdminStatus(req.decodedToken);
 
     if (!user) {
-      console.log(`User with UID ${uid} not found in database, returning non-admin status`);
+      logger.debug('Admin check: no user row; treating as non-admin');
       return res.status(200).json({ isAdmin: false });
     }
 
-    console.log(`Admin check for ${uid}: ${isAdmin ? 'Is admin' : 'Not admin'}`);
+    logger.debug({ isAdmin }, 'Admin check completed');
     res.status(200).json({
       isAdmin: isAdmin,
       checked_at: new Date().toISOString(),
       checked_by: uid
     });
   } catch (error) {
-    console.error('Error checking admin status:', error);
+    logger.error({ err: error }, 'Error checking admin status');
     res.status(500).json({ message: 'Error checking admin status' });
   }
 };

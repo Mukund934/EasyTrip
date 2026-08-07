@@ -160,7 +160,10 @@ export default function AdminUsers() {
           </div>
 
           {error && (
-            <div role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div
+              role="alert"
+              className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
+            >
               {error}
             </div>
           )}
@@ -208,14 +211,18 @@ export default function AdminUsers() {
               <div className="p-6 text-center text-gray-500">Loading admins…</div>
             ) : admins.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
-                No admins found. If that looks wrong, the list failed to load rather than being empty.
+                No admins found. If that looks wrong, the list failed to load rather than being
+                empty.
               </div>
             ) : (
               <ul className="divide-y divide-gray-200">
                 {admins.map((admin) => {
                   const isSelf = admin.email?.toLowerCase() === currentUser?.email?.toLowerCase();
                   return (
-                    <li key={admin.id || admin.email} className="px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+                    <li
+                      key={admin.id || admin.email}
+                      className="px-6 py-4 flex flex-wrap items-center justify-between gap-3"
+                    >
                       <div className="min-w-0">
                         <p className="font-medium text-gray-900 truncate">
                           {admin.name || 'Unnamed user'}

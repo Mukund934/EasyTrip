@@ -3,11 +3,7 @@ const router = express.Router();
 const { body, param } = require('express-validator');
 const { isAdmin } = require('../utils/authMiddleware');
 const { handleValidationErrors } = require('../utils/errorHandler');
-const {
-  getAllAdmins,
-  addAdmin,
-  removeAdmin,
-} = require('../controllers/adminController');
+const { getAllAdmins, addAdmin, removeAdmin } = require('../controllers/adminController');
 
 // Place CRUD is registered once, in placeRoutes.js. It used to be declared here as
 // well, with a different multer storage engine, and only the `/api` mount order in
@@ -31,10 +27,7 @@ router.post(
 router.delete(
   '/admins/:email',
   isAdmin,
-  param('email')
-    .trim()
-    .isEmail()
-    .withMessage('A valid email address is required'),
+  param('email').trim().isEmail().withMessage('A valid email address is required'),
   handleValidationErrors,
   removeAdmin
 );
