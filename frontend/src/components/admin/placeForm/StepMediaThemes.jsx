@@ -1,0 +1,113 @@
+import { FiAlertCircle, FiArrowLeft, FiCamera } from 'react-icons/fi';
+import { motion } from 'framer-motion';
+import { themeOptions } from './placeFormOptions';
+import ImageUpload from '../../ImageUpload';
+
+export const StepMediaThemes = ({ form }) => {
+  const { formData, errors, handleThemeToggle, handleImageChange, handleImageRemove, goToStep } =
+    form;
+
+  return (
+    <motion.div
+      key="step3"
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -50 }}
+      className="p-4 sm:p-6 lg:p-8"
+    >
+      <div className="flex items-center mb-6">
+        <div className="p-2 sm:p-3 bg-purple-100 rounded-lg mr-3 sm:mr-4">
+          <FiCamera className="text-purple-600 h-5 w-5 sm:h-6 sm:w-6" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Media & Themes</h2>
+      </div>
+
+      {/* Primary Image Section */}
+      <div className="mb-8">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Primary Image</h3>
+        <p className="text-xs sm:text-sm text-gray-600 mb-4">
+          Upload a main image for this place (max 5MB). You can add more images after creating the
+          place.
+        </p>
+
+        <ImageUpload
+          onImageSelect={(file) => {
+            if (file) {
+              handleImageChange(file);
+            } else {
+              handleImageRemove();
+            }
+          }}
+          maxSize={5 * 1024 * 1024} // 5MB
+          multiple={false}
+          preview={true}
+          className="w-full"
+        />
+
+        {errors.image && (
+          <motion.p
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-2 text-sm text-red-500 flex items-center"
+          >
+            <FiAlertCircle className="mr-1 flex-shrink-0" />
+            {errors.image}
+          </motion.p>
+        )}
+      </div>
+
+      {/* Themes Section */}
+      <div>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Theme Categories</h3>
+        <p className="text-xs sm:text-sm text-gray-600 mb-4">
+          Select all themes that apply to this destination
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {themeOptions.map((theme) => (
+            <motion.div key={theme.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <button
+                type="button"
+                onClick={() => handleThemeToggle(theme.id)}
+                className={`flex items-center p-3 sm:p-4 rounded-xl w-full transition-all border-2 text-left ${
+                  formData.themes.includes(theme.id)
+                    ? `bg-${theme.color}-50 text-${theme.color}-700 border-${theme.color}-300 shadow-md`
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex-shrink-0 text-sm sm:text-base">{theme.icon}</div>
+                <div className="text-left">
+                  <div className="font-medium text-sm sm:text-base">{theme.label}</div>
+                  <div className="text-xs opacity-75 hidden sm:block">{theme.description}</div>
+                </div>
+              </button>
+            </motion.div>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          Selected: {formData.themes.length} theme
+          {formData.themes.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+
+      <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
+        <button
+          type="button"
+          onClick={() => goToStep(2)}
+          className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-2 sm:order-1"
+        >
+          <FiArrowLeft className="mr-2" />
+          Previous
+        </button>
+        <button
+          type="button"
+          onClick={() => goToStep(4)}
+          className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
+        >
+          Next: Tags & Details
+          <FiArrowLeft className="ml-2 rotate-180" />
+        </button>
+      </div>
+    </motion.div>
+  );
+};
