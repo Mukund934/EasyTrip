@@ -59,3 +59,8 @@ docs/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Claude Code local session state (scheduled task locks, local settings). Not tracked today; listed
+# so it cannot be swept in by a `git add -A`. Anything in here that is genuinely meant to be shared
+# should be moved out rather than un-ignored.
+.claude/

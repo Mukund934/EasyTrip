@@ -4,9 +4,9 @@
 # point-in-time — which is the same class of problem as `next lint` never having executed
 # (IMP-097): a quality gate everyone assumes exists and nothing enforces.
 #
-# Four jobs, deliberately separate so a failure names its own cause:
-#   lint-and-build  — does the code pass lint, formatting and the module-size criterion, and does
-#                     the frontend compile
+# Five jobs, deliberately separate so a failure names its own cause:
+#   lint-and-build  — does the code pass lint (all three configs), formatting and the module-size
+#                     criterion, and does the frontend compile
 #   migrations      — does the schema actually build from nothing, and are the migrations
 #                     re-runnable, checked against a real Postgres
 #   api-tests       — the backend suite against a real Postgres service container (IMP-092)
@@ -62,6 +62,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
+
+      # The workspace files neither tier owns: e2e/, scripts/ and playwright.config.js. They had no
+      # ESLint at all until TD-021 — roughly 600 lines including the code that provisions a database
+      # and starts a server (see the root .eslintrc.js for why that matters).
+      - name: Lint workspace files (e2e, scripts)
+        run: npm run lint:root
 
       - name: Lint backend
         run: npm run lint

@@ -16,7 +16,8 @@
     "migrate": "cd backend && npm run migrate",
     "migrate:status": "cd backend && npm run migrate:status",
     "migrate:dry-run": "cd backend && npm run migrate:dry-run",
-    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint": "npm run lint:root && npm run lint:backend && npm run lint:frontend",
+    "lint:root": "eslint e2e scripts playwright.config.js --ext .js,.mjs",
     "lint:backend": "cd backend && npm run lint",
     "lint:frontend": "cd frontend && npm run lint",
     "check:size": "node scripts/check-module-size.mjs",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "concurrently": "^9.2.0",
+    "eslint": "8.57.1",
     "prettier": "^3.9.6"
   },
   "engines": {
