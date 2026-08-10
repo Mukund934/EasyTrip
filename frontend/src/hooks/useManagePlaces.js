@@ -37,10 +37,13 @@ export function useManagePlaces({ currentUser, isAdmin, loading, getIdToken }) {
         setLoadError(null);
 
         // This table searches, sorts and filters entirely in the browser, so unlike the public
-        // browse grid it genuinely wants the whole catalogue — but the endpoint now caps a
-        // single response at 100 rows (IMP-038). Walk the pages instead of asking for a limit
-        // the server will silently clamp, which would show an admin a truncated list that looks
-        // complete. PAGE_CAP is a runaway guard, not a product limit; hitting it is reported.
+        // browse grid it genuinely wants the whole catalogue — but the endpoint caps a single
+        // response at 100 rows (IMP-038). Walk the pages rather than asking for more: the server
+        // **rejects** an oversized limit with a 400 (`isInt({min:1,max:100})`), it does not clamp.
+        // An earlier version of this comment said "silently clamp", which was wrong — asking for
+        // 5,000 rows would have failed the request outright, not returned a truncated list.
+        // Pinned by a backend test. PAGE_CAP is a runaway guard, not a product limit; hitting it
+        // is reported.
         const PAGE_SIZE = 100;
         const PAGE_CAP = 50;
         const data = [];

@@ -74,6 +74,13 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      # Phase 5's exit criterion, enforced rather than re-measured by hand each sprint. It is an
+      # architecture guard, not a test: it catches a page or controller re-absorbing the
+      # responsibilities seven sprints of extraction removed. The single waiver is named in the
+      # script with the id that justifies it.
+      - name: Check module size (Phase 5 exit criterion)
+        run: npm run check:size
+
       # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
       # present to compile. These are deliberately fake: the job proves the app compiles, it does
       # not talk to Firebase, and a real credential in a workflow file would be a leak. They are
@@ -162,4 +169,61 @@ jobs:
       # Exits non-zero if any applied migration's checksum no longer matches its file.
       - name: Report migration status
         run: npm run migrate:status
+        working-directory: backend
+
+  api-tests:
+    name: API test suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Same pin and the same health gate as the migrations job: the runner is ready long before
+        # Postgres accepts connections, and without the healthcheck the first query ECONNREFUSEs.
+        image: postgres:16
+        env:
+          POSTGRES_USER: easytrip
+          POSTGRES_PASSWORD: easytrip
+          POSTGRES_DB: easytrip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://easytrip:easytrip@localhost:5432/easytrip
+      # Not "production": that would turn on TLS certificate verification (IMP-063) against a
+      # plaintext local container and fail for the wrong reason.
+      NODE_ENV: test
+      # The suite replaces firebase-admin with a mock, but `app.js` validates its environment at
+      # import time and exits when something required is absent — so the variables still have to
+      # be present. None of these values is real or reaches a real service.
+      FIREBASE_PROJECT_ID: ci-test-project
+      FIREBASE_CLIENT_EMAIL: ci@ci-test-project.iam.gserviceaccount.com
+      FIREBASE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nci\n-----END PRIVATE KEY-----\n"
+      CLOUDINARY_CLOUD_NAME: ci-cloud
+      CLOUDINARY_API_KEY: ci-key
+      CLOUDINARY_API_SECRET: ci-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      # The suite builds its own schema and applies every migration in `beforeAll`, so it needs no
+      # separate schema step — and a migration that breaks a fresh database fails here too, not
+      # only in the job that exists to check migrations.
+      - name: Run the API test suite
+        run: npm test
         working-directory: backend

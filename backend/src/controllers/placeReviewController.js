@@ -83,6 +83,15 @@ const createPlaceReview = async (req, res) => {
       });
     }
 
+    // 23503: foreign_key_violation. `place_reviews.place_id` references `places(id)`, so
+    // reviewing a place that does not exist raises this rather than inserting an orphan row.
+    // That is a client error — the id is wrong — and it was escaping as a bare 500, which reads
+    // as "the server is broken" to the caller and pages whoever watches the 5xx rate.
+    // Found by the API suite (IMP-092); nothing in a build or a lint run reaches this path.
+    if (error.code === '23503') {
+      return res.status(404).json({ message: 'Place not found' });
+    }
+
     res.status(500).json({ message: 'Error creating review' });
   }
 };
