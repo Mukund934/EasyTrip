@@ -45,15 +45,17 @@ files are independent and parallelism is free.
 
 ## What is covered
 
-| Suite                   | Locks in                                                                                                                         |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `browseFilters.test.js` | `IMP-011`/`IMP-070` — the shared-link round trip, `undefined`-not-empty-string criteria, the shallow-copy bug in `EMPTY_FILTERS` |
-| `ReviewForm.test.jsx`   | `BUG C1` — `onSubmit` gets `{rating, comment}`, not the DOM event; star clicks reach the handler; the `IMP-081` radio semantics  |
-| `dateFormat.test.js`    | `BUG-046` — the timezone pin, and three distinct empty-input contracts                                                           |
-| `rating.test.js`        | `BUG M-2` — unrated is `null`, never `0`                                                                                         |
-| `placeImage.test.js`    | `BUG M-1` — a gallery-only place resolves to its gallery image                                                                   |
-| `AuthContext.test.jsx`  | `BUG C1 defect 1` — the provider publishes every name its consumers destructure                                                  |
-| `PlaceCard.test.jsx`    | That the card _uses_ the shared helpers rather than hand-rolling them again                                                      |
+| Suite                      | Locks in                                                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `browseFilters.test.js`    | `IMP-011`/`IMP-070` — the shared-link round trip, `undefined`-not-empty-string criteria, the shallow-copy bug in `EMPTY_FILTERS` |
+| `ReviewForm.test.jsx`      | `BUG C1` — `onSubmit` gets `{rating, comment}`, not the DOM event; star clicks reach the handler; the `IMP-081` radio semantics  |
+| `dateFormat.test.js`       | `BUG-046` — the timezone pin, and three distinct empty-input contracts                                                           |
+| `rating.test.js`           | `BUG M-2` — unrated is `null`, never `0`                                                                                         |
+| `placeImage.test.js`       | `BUG M-1` — a gallery-only place resolves to its gallery image                                                                   |
+| `AuthContext.test.jsx`     | `BUG C1 defect 1` — the provider publishes every name its consumers destructure                                                  |
+| `PlaceCard.test.jsx`       | That the card _uses_ the shared helpers rather than hand-rolling them again                                                      |
+| `isrContracts.test.js`     | `TD-018` — what `getStaticProps`/`getStaticPaths` hand to Next: ISR intervals, the error retry, `notFound` **with** `revalidate` |
+| `useManagePlaces.test.jsx` | `TD-018`/`IMP-038` — the admin list walks every page, and reports it when the runaway cap stops it early                         |
 
 The component tests are deliberately weighted toward **contracts between modules**, because that is
 where this codebase's worst bugs lived: every helper was correct and the callers each reimplemented
@@ -63,9 +65,10 @@ them wrongly.
 
 - **End-to-end flow.** Nothing drives a real browser across pages, so a break _between_ correct
   units is still invisible. That is `IMP-094`.
-- **Page components.** `browse`, `places/[id]` and the admin pages are not rendered here; their
-  `getServerSideProps`/`getStaticProps` behaviour and the five invariants still parked in
-  `docs/VERIFICATION_LEDGER.md` §5 (`TD-018`) need page-level or E2E tests.
+- **Page components as rendered trees.** `browse`, `places/[id]` and the admin pages are not
+  rendered here. Their _data_ functions are (`isrContracts.test.js`) and so are their hooks
+  (`useManagePlaces.test.jsx`), but nothing asserts the markup those pages produce; that is the E2E
+  suite's job.
 - **Visual regression.** Nothing asserts layout or styling.
 - **The real Firebase SDK.** Mocked at the module boundary, exactly as far as the contract needs.
 
