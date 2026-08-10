@@ -13,6 +13,7 @@ import { FiStar, FiMapPin, FiClock, FiMessageCircle, FiArrowRight, FiLoader } fr
 import { getPlaceThumbnailUrl } from '../../utils/placeImage';
 import { formatAverageRating, hasRating } from '../../utils/rating';
 import { themeOptions } from './browseOptions';
+import { formatDateShort } from '../../utils/dateFormat';
 
 const EnhancedImage = ({ place, priority = false }) => {
   const [status, setStatus] = useState('loading');
@@ -161,13 +162,7 @@ const PlaceListItem = ({ place, index, handleTagToggle }) => (
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
         <div className="flex items-center text-xs text-gray-500">
           <FiClock className="mr-1 text-gray-400" />
-          <span>
-            {new Date(place.created_at).toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric'
-            })}
-          </span>
+          <span>{formatDateShort(place.created_at)}</span>
         </div>
 
         <div className="flex items-center space-x-4">

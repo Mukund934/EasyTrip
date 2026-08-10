@@ -1,4 +1,5 @@
 import { FiClock, FiStar, FiTarget, FiUser } from 'react-icons/fi';
+import { formatDateTime } from '../../utils/dateFormat';
 
 /**
  * The sidebar summary under the filters: result counts, who is signed in, and how fresh the
@@ -59,7 +60,7 @@ const BrowseStatsCard = ({ stats, total, currentUser, lastUpdated }) => (
       <div className="mt-4 text-xs text-center text-gray-400">
         <div className="flex items-center justify-center">
           <FiClock className="mr-1 h-3 w-3" />
-          <span>Data updated: {lastUpdated.toLocaleString()}</span>
+          <span>Data updated: {formatDateTime(lastUpdated)}</span>
         </div>
       </div>
     )}

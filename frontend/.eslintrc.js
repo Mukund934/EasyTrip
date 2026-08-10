@@ -51,10 +51,49 @@ module.exports = {
     // Off until the remaining raw `<img>` tags are migrated (deferred from IMP-049). Leaving it on
     // would emit 19 warnings on every run for work that is already tracked, and a lint run that is
     // always noisy is a lint run nobody reads.
-    '@next/next/no-img-element': 'off'
+    '@next/next/no-img-element': 'off',
+
+    /**
+     * One date policy, enforced rather than agreed (`IMP-122`).
+     *
+     * `toLocaleDateString` and friends silently inherit **two** things from the runtime — the
+     * locale and the time zone — and this project has shipped a bug from each. `BUG-044` was Node
+     * rendering "1 Jan 2026" while the browser rendered "Jan 1, 2026", failing hydration on every
+     * card. `BUG-046` was a UTC-midnight value showing the previous day to everyone behind UTC.
+     *
+     * `IMP-122` set out to consolidate "five copies". When the last two were finally traced there
+     * turned out to be **seven**, and four of them were still unpinned — including `PlaceListItem`,
+     * which renders on the same server-rendered page as the `PlaceCard` whose comment already
+     * explained the hazard. Consolidating by hand keeps finding one more.
+     *
+     * So the rule, not the intention. `utils/dateFormat.js` is the only module allowed to call
+     * these, and it names both the locale and the zone every time.
+     */
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: 'CallExpression[callee.property.name=/^toLocale(String|DateString|TimeString)$/]',
+        message:
+          'Use the helpers in utils/dateFormat.js — they pin the locale AND the time zone. ' +
+          'Calling toLocale*String directly inherits both from the runtime, which is BUG-044 ' +
+          '(hydration mismatch) and BUG-046 (date off by one) waiting to happen.'
+      }
+    ]
   },
 
   overrides: [
+    {
+      // The one module allowed to format a date, and the reason the rule above can be an error
+      // everywhere else.
+      //
+      // `dateFormat.test.js` is listed for the opposite reason: it must call the **unpinned**
+      // formatter to prove the pinned one gives a different answer. That assertion —
+      // "the local clock says otherwise, which is the whole point" — is what stops the timezone
+      // tests from passing against a fixture that was never a boundary case. Banning the raw call
+      // there would delete the guard on the guard.
+      files: ['src/utils/dateFormat.js', 'tests/dateFormat.test.js'],
+      rules: { 'no-restricted-syntax': 'off' }
+    },
     {
       // The component and unit suite (IMP-093). `env: { jest: true }` declares
       // describe/test/expect/jest rather than switching `no-undef` off — the same choice the

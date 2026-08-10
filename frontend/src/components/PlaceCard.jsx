@@ -16,6 +16,7 @@ import {
 
 import { getPlaceImageUrl } from '../utils/placeImage';
 import { formatAverageRating, getRatingCount, getAverageRating } from '../utils/rating';
+import { formatDateShort } from '../utils/dateFormat';
 
 const PlaceCard = ({ place, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -62,37 +63,32 @@ const PlaceCard = ({ place, priority = false }) => {
     setLoadStatus('loaded');
   };
 
-  // Format date for display with relative time option
+  // Relative time for recent items; the shared formatter for everything else (IMP-122).
   const formatDate = (dateString) => {
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffTime = Math.abs(now - date);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const date = new Date(dateString);
 
-      // Show relative time for recent items
-      if (diffDays < 7) {
-        if (diffDays === 0) return 'Today';
-        if (diffDays === 1) return 'Yesterday';
-        return `${diffDays} days ago`;
-      }
+    // Missing or unparseable input is the shared helper's answer, not this component's. `new
+    // Date(null)` is the epoch, so the previous version rendered a confident date — "Dec 31, 1969"
+    // in any zone behind UTC — for a row that simply had no timestamp.
+    if (!dateString || Number.isNaN(date.getTime())) return formatDateShort(dateString);
 
-      // Standard date format for older items.
-      //
-      // The locale is named, not left to the runtime. `undefined` means "whatever default this
-      // JavaScript engine has", and since IMP-040 this component renders in two of them: Node
-      // produced "1 Jan 2026" from the machine's system locale while the browser produced
-      // "Jan 1, 2026" from its own. React saw different text than it had server-rendered, failed
-      // hydration for each card, and re-rendered the subtree on the client — one of the things
-      // server-rendering the page was meant to avoid. Naming the locale makes both engines agree.
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (e) {
-      return 'Unknown date';
+    const diffDays = Math.ceil(Math.abs(Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    // This part is genuinely the card's own — no other caller wants it — so it stays here.
+    if (diffDays < 7) {
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      return `${diffDays} days ago`;
     }
+
+    // The locale was already named here, and the comment that used to sit at this spot recorded
+    // why: since IMP-040 the card renders in Node *and* in the browser, and letting the runtime
+    // choose meant "1 Jan 2026" server-side against "Jan 1, 2026" client-side, failing hydration
+    // for every card. **The time zone was left to the runtime, which is the identical fault on the
+    // other axis** — `BUG-046`. A UTC-midnight timestamp rendered as the previous day for every
+    // visitor behind UTC, and differently on the server than in their browser. The shared helper
+    // pins both, which is the whole point of there being one.
+    return formatDateShort(dateString);
   };
 
   // Colour coding compares numbers, not strings. The previous version compared the *formatted*
