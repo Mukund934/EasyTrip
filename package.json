@@ -19,6 +19,7 @@
     "lint": "npm run lint:backend && npm run lint:frontend",
     "lint:backend": "cd backend && npm run lint",
     "lint:frontend": "cd frontend && npm run lint",
+    "check:size": "node scripts/check-module-size.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

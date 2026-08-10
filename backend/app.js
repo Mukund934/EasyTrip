@@ -166,9 +166,25 @@ const reportLimiter = rateLimit(
   limiterOptions(60 * 60 * 1000, 20, 'Too many reports submitted, please try again later')
 );
 
+// The limiters, reachable by name. `app.locals` is Express's own place for application-level
+// references, so this is introspection rather than a test hook — but the reason it exists is the
+// API suite (IMP-092): the stores are in-memory and per-process, so without a way to reset them
+// between tests the fifth newsletter assertion 429s and every test after it depends on how many
+// requests the ones before it happened to make.
+const rateLimiters = {
+  global: globalLimiter,
+  reviewWrite: reviewWriteLimiter,
+  upload: uploadLimiter,
+  adminWrite: adminWriteLimiter,
+  newsletter: newsletterLimiter,
+  report: reportLimiter
+};
+
 const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const onWrites = (limiter) => (req, res, next) =>
   writeMethods.has(req.method) ? limiter(req, res, next) : next();
+
+app.locals.rateLimiters = rateLimiters;
 
 app.use(globalLimiter);
 app.post('/api/places/:id/reviews', reviewWriteLimiter);
@@ -308,14 +324,22 @@ pool
     }
   });
 
-app.listen(PORT, () => {
-  // One line, not six. The old banner printed every route's base URL on every boot — a development
-  // convenience that cost six lines in every production log, and that went stale the moment a
-  // router was added or removed.
-  logger.info(
-    { port: PORT, env: process.env.NODE_ENV || 'development' },
-    `Server listening on port ${PORT}`
-  );
-});
+// Listen only when this file is the process entry point (IMP-092).
+//
+// The API test suite imports this module to drive it with supertest, which needs the configured
+// app but must not bind a port: an open listener keeps the Node event loop alive, so Jest hangs
+// after the last assertion instead of exiting. `npm start`, `npm run dev` and `node app.js` are
+// unaffected — this file is still the entry point, it just no longer listens when required.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    // One line, not six. The old banner printed every route's base URL on every boot — a
+    // development convenience that cost six lines in every production log, and that went stale the
+    // moment a router was added or removed.
+    logger.info(
+      { port: PORT, env: process.env.NODE_ENV || 'development' },
+      `Server listening on port ${PORT}`
+    );
+  });
+}
 
 module.exports = app;

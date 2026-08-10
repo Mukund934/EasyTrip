@@ -13,7 +13,28 @@
 module.exports = {
   root: true,
   extends: 'next/core-web-vitals',
+
+  // Needed by `no-undef` below, and only by it: without an env the rule cannot tell `window` or
+  // `localStorage` from a typo. `next/core-web-vitals` sets a parser but no globals, because it
+  // never enables a rule that needs them.
+  env: {
+    browser: true,
+    node: true,
+    es2022: true
+  },
   rules: {
+    // ON as of IMP-070 (Sprint 5.8), after a real defect got through: the browse page called
+    // `setRecentSearches` — a setter that had been replaced by a hook two commits earlier and no
+    // longer existed. `next build` compiled it, `next lint` passed it, and the SSR suite missed it
+    // because the reference sits inside an onClick that only renders once the browser has search
+    // history. It would have thrown on the first click.
+    //
+    // `next/core-web-vitals` does not extend `eslint:recommended`, so `no-undef` was simply off —
+    // an asymmetry with the backend, which has had it since IMP-097. This is the cheapest gate
+    // there is for a codebase being refactored: exactly one violation across all of `src/`, and
+    // it was a bug.
+    'no-undef': 'error',
+
     // The rule that would have caught the dead imports this sprint removed by hand.
     'no-unused-vars': [
       'warn',

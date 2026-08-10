@@ -77,8 +77,15 @@ const PlaceCard = ({ place, priority = false }) => {
         return `${diffDays} days ago`;
       }
 
-      // Standard date format for older items
-      return date.toLocaleDateString(undefined, {
+      // Standard date format for older items.
+      //
+      // The locale is named, not left to the runtime. `undefined` means "whatever default this
+      // JavaScript engine has", and since IMP-040 this component renders in two of them: Node
+      // produced "1 Jan 2026" from the machine's system locale while the browser produced
+      // "Jan 1, 2026" from its own. React saw different text than it had server-rendered, failed
+      // hydration for each card, and re-rendered the subtree on the client — one of the things
+      // server-rendering the page was meant to avoid. Naming the locale makes both engines agree.
+      return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'

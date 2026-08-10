@@ -1,0 +1,29 @@
+import { FiLoader } from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+
+/** Shown under the form while the create request is in flight. */
+export const SubmittingSummary = ({ isSubmitting, primaryImage }) => (
+  <AnimatePresence>
+    {isSubmitting && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="mt-6 bg-primary-50 border border-primary-200 rounded-xl p-4 sm:p-6"
+      >
+        <div className="flex items-center mb-4">
+          <FiLoader className="animate-spin h-5 w-5 text-primary-600 mr-3" />
+          <h3 className="text-base sm:text-lg font-semibold text-primary-900">
+            Creating Your Place...
+          </h3>
+        </div>
+        <div className="text-xs sm:text-sm text-primary-700 space-y-1">
+          <p>• Validating form data</p>
+          <p>• {primaryImage ? 'Uploading image to Firebase Storage' : 'Preparing place data'}</p>
+          <p>• Saving to database</p>
+          <p>• Setting up admin permissions</p>
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);

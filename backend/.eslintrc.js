@@ -56,6 +56,18 @@ module.exports = {
       // reports itself rather than failing inside whatever the logger needs.
       files: ['src/config/env.js'],
       rules: { 'no-console': 'off' }
+    },
+    {
+      // The API suite (IMP-092). `env: { jest: true }` declares describe/test/expect/jest rather
+      // than switching `no-undef` off — the rule is the one that caught four missing imports
+      // during the Sprint 5.14 controller split, and a test file is exactly where a typo'd
+      // identifier should still fail.
+      files: ['tests/**/*.js'],
+      env: { jest: true },
+      rules: {
+        // A test's output is Jest's reporter, not a log stream.
+        'no-console': 'off'
+      }
     }
   ],
 
