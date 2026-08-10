@@ -53,3 +53,9 @@ Desktop.ini
 
 # Local-only planning knowledge base
 docs/
+
+# Playwright (IMP-094): traces, screenshots and the HTML report are per-run diagnostics, not source.
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

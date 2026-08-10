@@ -20,6 +20,8 @@
     "lint:backend": "cd backend && npm run lint",
     "lint:frontend": "cd frontend && npm run lint",
     "check:size": "node scripts/check-module-size.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -33,6 +35,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "concurrently": "^9.2.0",
     "prettier": "^3.9.6"
   },

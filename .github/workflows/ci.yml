@@ -11,11 +11,11 @@
 #                     re-runnable, checked against a real Postgres
 #   api-tests       — the backend suite against a real Postgres service container (IMP-092)
 #   frontend-tests  — the component and unit suite in jsdom (IMP-093)
+#   e2e             — real-browser journeys against the real stack (IMP-094)
 #
-# The two test jobs are split rather than merged because they need different things: the API suite
-# needs a database and runs single-worker against it, while the frontend suite needs neither and
-# runs in parallel. Merging them would make the fast one wait for the slow one's service container.
-# E2E (IMP-094) is still to come.
+# The test jobs are split rather than merged because they need different things: the API and E2E
+# suites need a database, the frontend suite needs neither and runs in parallel. Merging them would
+# make the fast one wait for the slow one's service container.
 
 name: CI
 
@@ -259,3 +259,72 @@ jobs:
       - name: Run the API test suite
         run: npm test
         working-directory: backend
+
+  e2e:
+    name: End-to-end journeys
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: easytrip
+          POSTGRES_PASSWORD: easytrip
+          POSTGRES_DB: easytrip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # `e2e/global-setup.js` uses this when present and boots a throwaway cluster when absent, so
+      # CI and a laptop take the same code path with no `if (CI)` branch in the setup.
+      DATABASE_URL: postgresql://easytrip:easytrip@localhost:5432/easytrip
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      # Chromium only. The suite asserts routing, hydration and integration rather than
+      # cross-browser rendering, so three engines would triple the runtime for no extra signal.
+      # `--with-deps` installs the system libraries the runner image does not ship.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run end-to-end journeys
+        run: npm run test:e2e
+
+      # The trace and screenshots are the only way to diagnose a browser failure after the fact;
+      # without them a red E2E job is just a stack trace with no page behind it.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
