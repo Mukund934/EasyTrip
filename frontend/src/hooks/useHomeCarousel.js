@@ -6,6 +6,15 @@ const TRANSITION_MS = 500;
 const AUTOPLAY_MS = 5000;
 
 /**
+ * Where liked places live between visits.
+ *
+ * One constant, not the same literal in the read effect and the write effect: renaming one and not
+ * the other loses every user's saved likes with no error anywhere — new likes save, and nothing
+ * ever reads them back.
+ */
+const LIKES_STORAGE_KEY = 'easytrip_liked_places';
+
+/**
  * The landing page's hero carousel (IMP-070 / IMP-124 line criterion).
  *
  * `isTransitioning` is a lock, not decoration: without it a fast click or a swipe landing during
@@ -30,22 +39,42 @@ export function useHomeCarousel(places, loadError) {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Load liked places from localStorage
+  /**
+   * Restore liked places, then allow persistence — in that order, enforced.
+   *
+   * `likesRestored` is not bookkeeping; without it the feature loses data. Both effects run on
+   * mount, and the write effect closes over the *initial* `[]`, so it overwrites the stored value
+   * before the restore has been applied. With `reactStrictMode` on, React then re-invokes both
+   * effects: the second read sees the `[]` it just wrote and resets state to empty. **The result
+   * was that every liked place was destroyed on every page load in development**, and in
+   * production the value was momentarily blanked before being rewritten — a window in which
+   * closing the tab lost the data.
+   *
+   * Found by the E2E persistence test (`TD-018`), which seeded four likes, reloaded, and got back
+   * an empty array.
+   */
+  const [likesRestored, setLikesRestored] = useState(false);
+
   useEffect(() => {
-    const saved = localStorage.getItem('easytrip_liked_places');
+    const saved = localStorage.getItem(LIKES_STORAGE_KEY);
     if (saved) {
       try {
-        setLikedPlaces(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Guard the shape too: the UI does `likedPlaces.includes(id)`, which silently misbehaves
+        // rather than throwing if a corrupted value is not an array.
+        if (Array.isArray(parsed)) setLikedPlaces(parsed);
       } catch (e) {
         console.error('Error loading liked places:', e);
       }
     }
+    setLikesRestored(true);
   }, []);
 
-  // Save liked places to localStorage
   useEffect(() => {
-    localStorage.setItem('easytrip_liked_places', JSON.stringify(likedPlaces));
-  }, [likedPlaces]);
+    // Never write before the restore has run, or the write races it and wins.
+    if (!likesRestored) return;
+    localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(likedPlaces));
+  }, [likedPlaces, likesRestored]);
 
   // Autoplay carousel
   useEffect(() => {
