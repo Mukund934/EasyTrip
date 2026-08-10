@@ -148,6 +148,31 @@ const collectEnvProblems = (env = process.env) => {
   const warnings = [];
   const production = env.NODE_ENV === 'production';
 
+  /**
+   * `FIREBASE_AUTH_EMULATOR_HOST` must never be set in production.
+   *
+   * This is not one of the RULES below because it is not a variable this app reads — it is one the
+   * **Firebase Admin SDK reads on its own**. When it is set, `verifyIdToken()` stops checking
+   * signatures and accepts any token the named emulator would issue, including the `alg: none`
+   * tokens the emulator mints freely. Setting it against a production deployment therefore turns
+   * the entire authentication layer off, silently, with no code change and nothing in the logs.
+   *
+   * That was true before this check existed; the SDK has always honoured the variable. What is new
+   * is that the E2E suite (`IMP-094`/`TD-020`) now *uses* it deliberately, which makes it a value
+   * someone might copy from a test environment into a real one. A misconfiguration that disables
+   * signature verification should stop the server, not be discovered later.
+   *
+   * The same reasoning as `IMP-002`: the difference between "authentication is enforced" and
+   * "authentication is skipped" must not be a single environment variable nobody checks.
+   */
+  if (production && !isBlank(env.FIREBASE_AUTH_EMULATOR_HOST)) {
+    errors.push(
+      'FIREBASE_AUTH_EMULATOR_HOST is set while NODE_ENV=production — the Firebase Admin SDK ' +
+        'would skip token signature verification entirely and accept forged tokens. Unset it. ' +
+        'It belongs only to the E2E suite (see e2e/README.md).'
+    );
+  }
+
   for (const rule of RULES) {
     const value = env[rule.name];
 

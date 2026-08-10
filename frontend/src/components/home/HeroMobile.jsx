@@ -142,6 +142,15 @@ export const HeroMobile = ({ home }) => {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={(e) => toggleLike(e, places[currentPlaceIndex]?.id)}
+                          // Icon-only control: without a name it is announced as just "button" (WCAG
+                          // 4.1.2). `aria-pressed` carries the on/off state, which is what a heart
+                          // toggle actually is — the same reasoning as IMP-081, applied here.
+                          aria-label={
+                            likedPlaces.includes(places[currentPlaceIndex]?.id)
+                              ? `Remove ${places[currentPlaceIndex]?.name} from your likes`
+                              : `Like ${places[currentPlaceIndex]?.name}`
+                          }
+                          aria-pressed={likedPlaces.includes(places[currentPlaceIndex]?.id)}
                           className={`absolute top-2 left-2 rounded-full backdrop-blur-sm w-11 h-11 flex items-center justify-center shadow-lg transition-colors ${
                             likedPlaces.includes(places[currentPlaceIndex]?.id)
                               ? 'bg-red-500 text-white'

@@ -4,12 +4,18 @@
 # point-in-time — which is the same class of problem as `next lint` never having executed
 # (IMP-097): a quality gate everyone assumes exists and nothing enforces.
 #
-# Two jobs, deliberately separate so a failure names its own cause:
-#   lint-and-build  — does the code pass lint and does the frontend compile
+# Five jobs, deliberately separate so a failure names its own cause:
+#   lint-and-build  — does the code pass lint (all three configs), formatting and the module-size
+#                     criterion, and does the frontend compile
 #   migrations      — does the schema actually build from nothing, and are the migrations
 #                     re-runnable, checked against a real Postgres
+#   api-tests       — the backend suite against a real Postgres service container (IMP-092)
+#   frontend-tests  — the component and unit suite in jsdom (IMP-093)
+#   e2e             — real-browser journeys against the real stack (IMP-094)
 #
-# Tests join in Phase 6 (IMP-092/093/094); the jobs below are the ones that can be green today.
+# The test jobs are split rather than merged because they need different things: the API and E2E
+# suites need a database, the frontend suite needs neither and runs in parallel. Merging them would
+# make the fast one wait for the slow one's service container.
 
 name: CI
 
@@ -57,6 +63,12 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # The workspace files neither tier owns: e2e/, scripts/ and playwright.config.js. They had no
+      # ESLint at all until TD-021 — roughly 600 lines including the code that provisions a database
+      # and starts a server (see the root .eslintrc.js for why that matters).
+      - name: Lint workspace files (e2e, scripts)
+        run: npm run lint:root
+
       - name: Lint backend
         run: npm run lint
         working-directory: backend
@@ -97,6 +109,32 @@ jobs:
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
           NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000'
+
+  frontend-tests:
+    name: Frontend component tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      # No database, no service container, no environment variables: Firebase is mocked at the
+      # module boundary and everything else under test is either a pure function or a component
+      # rendered into jsdom. The `npm test` script pins TZ through cross-env — deliberately to a
+      # zone that is NOT UTC, so that deleting a `timeZone` option in dateFormat.js fails here
+      # rather than shipping (BUG-046). A UTC runner would let that regression through.
+      - name: Run component and unit tests
+        run: npm test
+        working-directory: frontend
 
   migrations:
     name: Migrations against Postgres
@@ -227,3 +265,79 @@ jobs:
       - name: Run the API test suite
         run: npm test
         working-directory: backend
+
+  e2e:
+    name: End-to-end journeys
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: easytrip
+          POSTGRES_PASSWORD: easytrip
+          POSTGRES_DB: easytrip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # `e2e/global-setup.js` uses this when present and boots a throwaway cluster when absent, so
+      # CI and a laptop take the same code path with no `if (CI)` branch in the setup.
+      DATABASE_URL: postgresql://easytrip:easytrip@localhost:5432/easytrip
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      # Chromium only. The suite asserts routing, hydration and integration rather than
+      # cross-browser rendering, so three engines would triple the runtime for no extra signal.
+      # `--with-deps` installs the system libraries the runner image does not ship.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # The Firebase Auth Emulator runs from the `firebase-tools` devDependency installed by the
+      # root `npm ci` above — no extra setup step, and **no JVM**: only the Firestore, Realtime
+      # Database and Pub/Sub emulators need Java, the Auth emulator is Node (ADR-028).
+      #
+      # If it cannot start, `e2e/global-setup.js` records the reason and the authenticated specs
+      # skip *with that reason in the report* rather than silently passing. A skipped security test
+      # must never look like a green one.
+      - name: Run end-to-end journeys
+        run: npm run test:e2e
+
+      # The trace and screenshots are the only way to diagnose a browser failure after the fact;
+      # without them a red E2E job is just a stack trace with no page behind it.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

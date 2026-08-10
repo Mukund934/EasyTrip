@@ -48,9 +48,20 @@ const createPlace = async (placeData) => {
 
 const getPlaceById = async (id) => {
   const result = await pool.query(
+    // `created_by` and `updated_by` are deliberately NOT selected. They hold raw Firebase UIDs of
+    // the admins who curated the place, and this endpoint is public: Next serialises the whole
+    // payload into `__NEXT_DATA__`, so every anonymous visitor to a place page received a
+    // privileged account's stable identifier. Nothing consumed it — `PlaceCard` and
+    // `MagazineDetails` both list these keys in their *exclusion* filters, and the list projection
+    // already omitted them — so the exposure bought nothing.
+    //
+    // This is the same rule `IMP-021` applies to review authors, and it applies at least as
+    // strongly to an admin. The columns remain on the table as audit data; they are simply not
+    // public. Found by the E2E suite (IMP-094), which asserts against the delivered HTML rather
+    // than the JSON and so could see what an API-level assertion could not.
     `SELECT id, name, location, description, district, state, locality, pin_code,
            latitude, longitude, primary_image_url, themes, tags, custom_keys,
-           rating_count, rating_sum, created_at, updated_at, created_by, updated_by,
+           rating_count, rating_sum, created_at, updated_at,
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
         ELSE NULL

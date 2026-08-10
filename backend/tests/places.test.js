@@ -94,6 +94,26 @@ describe('GET /api/places/:id', () => {
     expect(res.body.name).toBe('Hampi');
   });
 
+  // Found by the E2E suite (IMP-094): this endpoint is public and Next serialises the whole payload
+  // into `__NEXT_DATA__`, so shipping `created_by`/`updated_by` put a curating admin's raw Firebase
+  // UID into the HTML of every place page, for every anonymous visitor. Nothing consumed it — both
+  // `PlaceCard` and `MagazineDetails` list these keys in their exclusion filters, and the list
+  // projection already omitted them.
+  //
+  // The same rule `IMP-021` applies to review authors, applied to the people with write access.
+  test('never exposes the curating admin’s Firebase uid', async () => {
+    const res = await request(app).get('/api/places/1');
+    expect(res.status).toBe(200);
+    expect(res.body).not.toHaveProperty('created_by');
+    expect(res.body).not.toHaveProperty('updated_by');
+    expect(JSON.stringify(res.body)).not.toContain('seed-admin-uid');
+  });
+
+  test('the list projection does not expose it either', async () => {
+    const res = await request(app).get('/api/places');
+    expect(JSON.stringify(res.body)).not.toContain('seed-admin-uid');
+  });
+
   test('404s for an id that does not exist', async () => {
     expect((await request(app).get('/api/places/99999')).status).toBe(404);
   });
