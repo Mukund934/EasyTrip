@@ -60,6 +60,19 @@ const startThrowawayPostgres = () => {
   const pgBin = findPgBin();
   const dataDir = path.join(os.tmpdir(), `easytrip-e2e-pg-${PG_PORT}`);
 
+  // A previous run that was interrupted leaves a live postmaster holding this directory, and
+  // `rmSync` then fails with EBUSY — a confusing error that has nothing to do with the code under
+  // test. Stop whatever is there first. Same reasoning as `releaseStalePorts` in `auth-emulator.js`:
+  // a test harness that cannot recover from its own crash makes every later failure ambiguous.
+  try {
+    execFileSync(pgTool(pgBin, 'pg_ctl'), ['-D', dataDir, '-m', 'immediate', 'stop'], {
+      stdio: 'ignore'
+    });
+    log('stopped a Postgres left running by an interrupted run');
+  } catch {
+    /* nothing running there, which is the normal case */
+  }
+
   fs.rmSync(dataDir, { recursive: true, force: true });
   log(`initialising a throwaway Postgres in ${dataDir}`);
   execFileSync(
