@@ -60,6 +60,27 @@ module.exports = {
       // Playwright's `test`/`expect` are imported rather than global, so no extra env is needed —
       // but the specs do use `Buffer` and the Node globals, which `env.node` already supplies.
       files: ['e2e/**/*.spec.js'],
+
+      /**
+       * A spec file is two runtimes in one file. Its body is Node, but the callback passed to
+       * `page.evaluate()` is serialised and executed *in the browser*, where `window` and
+       * `document` are the whole point. ESLint sees one flat file and cannot tell the two apart.
+       *
+       * **Why not `env: { browser: true }`.** That is the usual answer and it is too broad here: it
+       * would declare roughly a thousand globals, including bare `name`, `length`, `status`,
+       * `close`, `open` and `event`. This config exists to make a typo'd identifier an error rather
+       * than a mysterious CI hang — and every one of those names is a plausible typo that would
+       * then resolve silently. Two names, declared explicitly, keep `no-undef` sharp everywhere
+       * else. Anything a future spec genuinely needs gets added here deliberately.
+       *
+       * Scoped to `*.spec.js` on purpose: `global-setup.js` and `auth-emulator.js` are pure Node,
+       * and `window` appearing in one of them is a real error that must stay caught.
+       */
+      globals: {
+        window: 'readonly',
+        document: 'readonly'
+      },
+
       rules: {
         // A spec that builds a locator and never asserts on it is a real mistake, but the pattern
         // `const x = page.locator(...)` used only inside `expect(x)` reads as unused to ESLint in
