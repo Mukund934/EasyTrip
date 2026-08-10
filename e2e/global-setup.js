@@ -20,6 +20,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const authEmulator = require('./auth-emulator');
+
 const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend');
 const API_PORT = Number(process.env.E2E_API_PORT || 5100);
@@ -165,8 +167,11 @@ const startApi = async (databaseUrl) => {
       NODE_ENV: 'test',
       PORT: String(API_PORT),
       LOG_LEVEL: 'silent',
-      FIREBASE_PROJECT_ID: 'e2e-project',
-      FIREBASE_CLIENT_EMAIL: 'e2e@e2e-project.iam.gserviceaccount.com',
+      // Must match the emulator's project: `verifyIdToken` checks the token's `aud`/`iss`
+      // against it, so a mismatch here rejects every emulator-issued token for the wrong
+      // reason. Kept identical whether or not the emulator ran, so there is one value.
+      FIREBASE_PROJECT_ID: authEmulator.PROJECT_ID,
+      FIREBASE_CLIENT_EMAIL: `e2e@${authEmulator.PROJECT_ID}.iam.gserviceaccount.com`,
       FIREBASE_PRIVATE_KEY: throwawayPrivateKey(),
       CLOUDINARY_CLOUD_NAME: 'e2e-cloud',
       CLOUDINARY_API_KEY: 'e2e-key',
@@ -201,6 +206,41 @@ const startApi = async (databaseUrl) => {
   throw new Error(`The API never became healthy at ${healthUrl}:\n${output}`);
 };
 
+/**
+ * Bring up the Firebase Auth Emulator and provision the three test identities.
+ *
+ * Returns `{ pid, child }` when it ran, or `{ pid: null }` when it could not — a missing JVM or an
+ * uninstalled `firebase-tools` is reported and the authenticated specs skip **with that reason
+ * printed**, rather than the suite quietly losing its most important coverage.
+ */
+const startAuthEmulator = async (databaseUrl) => {
+  const available = authEmulator.isAvailable();
+  if (!available.ok) {
+    log(`auth emulator NOT started — ${available.reason}`);
+    log('the authenticated admin journeys will SKIP (see e2e/README.md)');
+    authEmulator.writeState({ enabled: false, reason: available.reason });
+    return { pid: null };
+  }
+
+  const child = await authEmulator.start(available.cli);
+
+  // Set for this process so `setCustomUserClaims` below talks to the emulator, and inherited by the
+  // API spawned after it so `verifyIdToken` does too.
+  process.env.FIREBASE_AUTH_EMULATOR_HOST = authEmulator.EMULATOR_HOST;
+  process.env.GOOGLE_CLOUD_PROJECT = authEmulator.PROJECT_ID;
+
+  const { Pool } = require(path.join(BACKEND, 'node_modules', 'pg'));
+  const pool = new Pool({ connectionString: databaseUrl });
+  try {
+    const tokens = await authEmulator.provisionIdentities(pool);
+    authEmulator.writeState({ enabled: true, tokens });
+  } finally {
+    await pool.end();
+  }
+
+  return { pid: child.pid, child };
+};
+
 module.exports = async () => {
   const provided = process.env.DATABASE_URL;
   let cluster = null;
@@ -213,12 +253,20 @@ module.exports = async () => {
   const databaseUrl = provided || cluster.url;
 
   await buildSchema(databaseUrl);
+
+  // The auth emulator must come up BEFORE the API, because the API inherits
+  // `FIREBASE_AUTH_EMULATOR_HOST` from this process's environment at boot — that variable is what
+  // makes the real `firebase-admin` accept emulator-issued tokens (ADR-028). Nothing in production
+  // code changes; the SDK reads the variable itself.
+  const auth = await startAuthEmulator(databaseUrl);
+
   const api = await startApi(databaseUrl);
 
   fs.writeFileSync(
     STATE_FILE,
     JSON.stringify({
       apiPid: api.pid,
+      authPid: auth.pid ?? null,
       dataDir: cluster?.dataDir ?? null,
       pgBin: cluster?.pgBin ?? null
     })
@@ -226,6 +274,7 @@ module.exports = async () => {
 
   // Detach the handles so this process can exit while the API keeps running for the suite.
   api.unref();
+  auth.child?.unref();
 };
 
 module.exports.STATE_FILE = STATE_FILE;

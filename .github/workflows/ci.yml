@@ -320,6 +320,13 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
+      # The Firebase Auth Emulator runs from the `firebase-tools` devDependency installed by the
+      # root `npm ci` above — no extra setup step, and **no JVM**: only the Firestore, Realtime
+      # Database and Pub/Sub emulators need Java, the Auth emulator is Node (ADR-028).
+      #
+      # If it cannot start, `e2e/global-setup.js` records the reason and the authenticated specs
+      # skip *with that reason in the report* rather than silently passing. A skipped security test
+      # must never look like a green one.
       - name: Run end-to-end journeys
         run: npm run test:e2e
 

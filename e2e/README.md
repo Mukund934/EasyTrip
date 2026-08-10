@@ -57,30 +57,50 @@ The tradeoff, stated plainly: this suite would not catch a defect that appears *
 production build (a minification-only bug, or a difference in how `getStaticProps` caches). Those
 belong to the `lint-and-build` job and to `IMP-113`'s SEO work.
 
-## Authentication, and what is deliberately not covered
+## Authentication — real Firebase tokens, no bypass
 
-**The suite never authenticates through Firebase.** The admin journeys drive the `et_id_token`
-cookie directly, because that cookie _is_ what the server-side gate reads — a Firebase ID token
-lives in browser JS memory and is never sent with a document request, so `AuthContext` mirrors it
-into that cookie for exactly this reason. Going through the real SDK would be a slower way of
-setting the same value.
+The suite authenticates with the **Firebase Auth Emulator** (`ADR-028`). Tokens it mints are
+verified by the **real** `firebase-admin` `verifyIdToken()` — the same call, on the same code path,
+that production makes. **No production code is modified and no production file knows the emulator
+exists**; the Admin SDK simply honours `FIREBASE_AUTH_EMULATOR_HOST`.
 
-Every token used here is deliberately unverifiable, so the admin specs assert the **deny** paths:
-no cookie, a malformed cookie, and a well-shaped but unsigned JWT carrying `admin: true` — the last
-one specifically because a claim is not the authority, `users.is_admin` is (`IMP-002`/`IMP-003`).
+Three deny options were rejected in `ADR-028`: an env-gated test verifier, accepting unsigned JWTs
+outside production, and committing a throwaway service account. The first two are a signature check
+with an off switch — the `x-user: AdminX` bypass Phase 1 existed to delete.
 
-**The allow path is not covered yet**, and this is the honest gap in the sprint. It needs a token
-`firebase-admin` will accept, which means the **Firebase Auth Emulator**:
+Three identities are provisioned per run, each proving one thing:
 
-- the API needs `FIREBASE_AUTH_EMULATOR_HOST` — an official, env-only switch, no code change;
-- the browser needs `connectAuthEmulator` in `src/config/firebase.js`, gated on a
-  `NEXT_PUBLIC_*` variable — a small but real production-code change;
-- the emulator needs `firebase-tools` and a JVM in CI.
+| Identity    | Token                        | `users.is_admin` | Proves                                                |
+| ----------- | ---------------------------- | ---------------- | ----------------------------------------------------- |
+| `admin`     | real                         | `true`           | The allow path                                        |
+| `nonAdmin`  | real                         | `false`          | A valid token is still not an admin (`HOME_REDIRECT`) |
+| `claimOnly` | real, carrying `admin: true` | `false`          | **`IMP-002`** — the database beats the claim          |
 
-Until that lands, the authenticated journeys the roadmap names — submitting a review, and admin
-create/edit/delete — are covered at the API layer only. Tracked as `TD-020`. **No test-only
-bypass was added to the production auth path to work around this**, because a verifier that can be
-switched off by an environment variable is a worse outcome than a smaller suite.
+`e2e/global-setup.js` starts the emulator before the API, so the API inherits
+`FIREBASE_AUTH_EMULATOR_HOST` and verifies for real. **No JVM is needed** — that prerequisite
+applies to Firestore, Realtime Database and Pub/Sub; the Auth emulator is Node. If `firebase-tools`
+is missing, the authenticated specs **skip with the reason printed**, because a skipped security
+test must not look like a passing one.
+
+### What this layer cannot prove
+
+Emulator mode **disables signature verification** — that is what lets the emulator issue usable
+tokens. So a payload tampered with while keeping a valid `aud`/`iss`/`exp` is accepted here and
+would be rejected in production. Discovered by writing that test and watching it pass; the assertion
+was replaced rather than the code weakened. Full breakdown in `SECURITY_AUDIT` §12.2.
+
+Still open: driving the browser UI as a signed-in user (the review form calls `getIdToken` on the
+_client_ SDK) needs `connectAuthEmulator` in `frontend/src/config/firebase.js`. Tracked in `TD-020`.
+
+### Assert the gate, not the final URL
+
+The admin pages carry client-side `useEffect` guards as defence in depth. That means a `page.goto`
+plus a final-URL assertion **cannot tell "the server denied you" from "the server let you in and the
+page bounced you afterwards"** — and the second means admin HTML was already sent. A mutation test
+proved it: reintroducing `IMP-002` left the URL assertion green.
+
+Authenticated specs therefore ask the gate directly with `maxRedirects: 0` and assert its status and
+`location`. Same mutation now fails 2 tests.
 
 ## Conventions
 

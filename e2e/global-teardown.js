@@ -33,6 +33,28 @@ module.exports = async () => {
     }
   }
 
+  if (state.authPid) {
+    // The Firebase CLI spawns a JVM child, so killing the CLI alone can leave the emulator holding
+    // port 9099 and the next run fails to start for a reason unrelated to the code under test.
+    // `taskkill /T` on Windows and a process-group kill elsewhere take the tree with it.
+    try {
+      if (process.platform === 'win32') {
+        execFileSync('taskkill', ['/PID', String(state.authPid), '/T', '/F'], { stdio: 'ignore' });
+      } else {
+        process.kill(-state.authPid);
+      }
+      log(`stopped the auth emulator (pid ${state.authPid})`);
+    } catch {
+      try {
+        process.kill(state.authPid);
+      } catch {
+        /* already gone */
+      }
+    }
+  }
+
+  require('./auth-emulator').cleanup();
+
   if (state.dataDir) {
     const pgCtl = state.pgBin ? path.join(state.pgBin, 'pg_ctl') : 'pg_ctl';
     try {

@@ -1,0 +1,266 @@
+/**
+ * Firebase Auth Emulator lifecycle and token minting for the E2E suite (`TD-020`, `ADR-028`).
+ *
+ * **Why an emulator rather than a bypass.** The suite needs to act as a signed-in admin. The
+ * tempting shortcuts — an env-gated test verifier in `authMiddleware`, accepting unsigned JWTs
+ * outside production, or committing a throwaway service account — were all rejected in `ADR-028`.
+ * The first two are a signature check with an off switch, which is the `x-user: AdminX` bypass
+ * Phase 1 existed to delete; the third is a committed private key, and `SECURITY_AUDIT` §12.0
+ * records what that costs.
+ *
+ * The emulator avoids all three. Tokens it mints are verified by the **real** `firebase-admin`
+ * `verifyIdToken()` — the same call production makes, on the same code path — because the Admin
+ * SDK honours `FIREBASE_AUTH_EMULATOR_HOST`. **No production code is modified, and no production
+ * code knows the emulator exists.**
+ *
+ * That variable also disables signature verification, which is why `env.js` refuses to boot when it
+ * is set with `NODE_ENV=production` (Sprint 6.4). The guard and this file are two halves of one
+ * decision.
+ *
+ * **Graceful absence is deliberate.** When `firebase-tools` is not installed, this module reports
+ * it and the authenticated specs *skip with a stated reason* rather than silently passing — an
+ * unavailable dependency should look like an unavailable dependency, not like coverage.
+ */
+const { spawn, execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const ROOT = path.resolve(__dirname, '..');
+const BACKEND = path.join(ROOT, 'backend');
+const HOST = '127.0.0.1';
+const PORT = Number(process.env.E2E_AUTH_EMULATOR_PORT || 9099);
+const PROJECT_ID = 'easytrip-e2e';
+
+const EMULATOR_HOST = `${HOST}:${PORT}`;
+const BASE = `http://${EMULATOR_HOST}/identitytoolkit.googleapis.com/v1`;
+
+/** Written for the specs and for teardown, both of which run in other processes. */
+const AUTH_STATE_FILE = path.join(os.tmpdir(), 'easytrip-e2e-auth.json');
+
+const log = (message) => console.log(`  [e2e auth] ${message}`);
+
+/**
+ * The three identities the suite needs, and the security property each one proves.
+ *
+ * The third is the important one. `resolveAdminStatus` treats `users.is_admin` as the authority and
+ * a Firebase custom `admin` claim as merely a cache of it — a disagreement resolves to NOT admin.
+ * Minting a genuinely signed token that *claims* admin while the database says otherwise is the
+ * only way to exercise that, and it is exactly the shape of the original `IMP-002` defect.
+ */
+const IDENTITIES = [
+  {
+    key: 'admin',
+    email: 'e2e-admin@easytrip.test',
+    isAdmin: true,
+    claim: null,
+    proves: 'a real token plus users.is_admin = true is allowed through'
+  },
+  {
+    key: 'nonAdmin',
+    email: 'e2e-user@easytrip.test',
+    isAdmin: false,
+    claim: null,
+    proves: 'a perfectly valid token is still not an admin'
+  },
+  {
+    key: 'claimOnly',
+    email: 'e2e-claim@easytrip.test',
+    isAdmin: false,
+    claim: { admin: true },
+    proves: 'a signed admin CLAIM does not beat the database'
+  }
+];
+
+/**
+ * Can the emulator run here?
+ *
+ * **No JVM check, deliberately.** The Firebase docs list Java as a prerequisite for "the
+ * emulators", and it is easy to copy that into a precondition — but it applies to Firestore,
+ * Realtime Database and Pub/Sub. **The Auth emulator is implemented in Node**, which was confirmed
+ * here by observing the running process rather than by reading the docs. Requiring Java would have
+ * skipped this suite on any runner without a JVM, for no reason, and a skipped security test is
+ * indistinguishable from an absent one.
+ */
+const isAvailable = () => {
+  const cli = path.join(
+    ROOT,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'firebase.cmd' : 'firebase'
+  );
+  if (!fs.existsSync(cli)) {
+    return { ok: false, reason: 'firebase-tools is not installed (run `npm ci` at the repo root)' };
+  }
+  return { ok: true, cli };
+};
+
+/**
+ * Release the emulator ports if a previous run left them held.
+ *
+ * The Firebase CLI supervises child processes, so killing the CLI alone can orphan whatever is
+ * bound to 9099 — and the next run then sits silently retrying a port it will never get, which is
+ * exactly how this integration failed the first time it was wired up. Cleaning up first turns a
+ * confusing hang into a non-event.
+ */
+const releaseStalePorts = () => {
+  for (const port of [PORT, 4400, 4500]) {
+    try {
+      if (process.platform === 'win32') {
+        const out = execFileSync('netstat', ['-ano'], { encoding: 'utf8' });
+        const pids = new Set(
+          out
+            .split('\n')
+            .filter((line) => line.includes(`:${port} `) && line.includes('LISTENING'))
+            .map((line) => line.trim().split(/\s+/).pop())
+        );
+        for (const pid of pids) {
+          execFileSync('taskkill', ['/PID', pid, '/T', '/F'], { stdio: 'ignore' });
+          log(`released port ${port} from a previous run (pid ${pid})`);
+        }
+      } else {
+        const pids = execFileSync('lsof', ['-ti', `tcp:${port}`], { encoding: 'utf8' }).split('\n');
+        for (const pid of pids.filter(Boolean)) {
+          process.kill(Number(pid), 'SIGKILL');
+          log(`released port ${port} from a previous run (pid ${pid})`);
+        }
+      }
+    } catch {
+      /* nothing listening, or no tool to ask — either way there is nothing to release */
+    }
+  }
+};
+
+const post = async (endpoint, body) => {
+  const response = await fetch(`${BASE}/${endpoint}?key=fake-api-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(`Auth emulator rejected ${endpoint}: ${JSON.stringify(json)}`);
+  }
+  return json;
+};
+
+/** Start the emulator and wait until it answers. Returns the child process. */
+const start = async (cli) => {
+  releaseStalePorts();
+
+  const child = spawn(
+    cli,
+    [
+      'emulators:start',
+      '--only',
+      'auth',
+      '--project',
+      PROJECT_ID,
+      '--config',
+      path.join(__dirname, 'firebase.json')
+    ],
+    {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
+      // Non-interactive: the CLI must never wait on a prompt this suite cannot answer.
+      env: { ...process.env, CI: 'true', NO_COLOR: '1' }
+    }
+  );
+
+  let output = '';
+  child.stdout.on('data', (chunk) => (output += chunk));
+  child.stderr.on('data', (chunk) => (output += chunk));
+
+  for (let attempt = 0; attempt < 90; attempt++) {
+    if (child.exitCode !== null) {
+      throw new Error(`The auth emulator exited during startup (${child.exitCode}):\n${output}`);
+    }
+    try {
+      const response = await fetch(`http://${EMULATOR_HOST}/`);
+      if (response.status < 500) {
+        log(`emulator ready on ${EMULATOR_HOST}`);
+        return child;
+      }
+    } catch {
+      /* not listening yet */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  child.kill();
+  throw new Error(`The auth emulator never became ready on ${EMULATOR_HOST}:\n${output}`);
+};
+
+/**
+ * Create the identities in the emulator and in Postgres, and mint a token for each.
+ *
+ * The two halves have to agree: the emulator owns the uid, and `users.firebase_uid` has to carry
+ * that same uid for `resolveAdminStatus` to find the row. Inserting after signUp rather than
+ * seeding a fixed uid is what keeps them in step.
+ */
+const provisionIdentities = async (pool) => {
+  const admin = require(path.join(BACKEND, 'node_modules', 'firebase-admin'));
+  const app = admin.apps.length
+    ? admin.apps[0]
+    : admin.initializeApp({ projectId: PROJECT_ID }, 'e2e-auth');
+
+  const tokens = {};
+
+  for (const identity of IDENTITIES) {
+    const created = await post('accounts:signUp', {
+      email: identity.email,
+      password: 'e2e-password',
+      returnSecureToken: true
+    });
+    const uid = created.localId;
+
+    if (identity.claim) {
+      // Set the claim through the real Admin SDK, then sign in again — a token only carries the
+      // claims that existed when it was issued.
+      await app.auth().setCustomUserClaims(uid, identity.claim);
+    }
+
+    const signedIn = await post('accounts:signInWithPassword', {
+      email: identity.email,
+      password: 'e2e-password',
+      returnSecureToken: true
+    });
+
+    await pool.query(
+      `INSERT INTO users (firebase_uid, email, name, is_admin)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (firebase_uid) DO UPDATE SET is_admin = EXCLUDED.is_admin`,
+      [uid, identity.email, `E2E ${identity.key}`, identity.isAdmin]
+    );
+
+    tokens[identity.key] = { uid, email: identity.email, idToken: signedIn.idToken };
+    log(`${identity.key}: uid ${uid.slice(0, 8)}… — ${identity.proves}`);
+  }
+
+  return tokens;
+};
+
+const writeState = (state) => fs.writeFileSync(AUTH_STATE_FILE, JSON.stringify(state, null, 2));
+
+/** Read by the specs. Returns `{ enabled, reason?, tokens? }`. */
+const readState = () => {
+  if (!fs.existsSync(AUTH_STATE_FILE)) {
+    return { enabled: false, reason: 'the auth emulator did not run for this suite' };
+  }
+  return JSON.parse(fs.readFileSync(AUTH_STATE_FILE, 'utf8'));
+};
+
+const cleanup = () => fs.rmSync(AUTH_STATE_FILE, { force: true });
+
+module.exports = {
+  AUTH_STATE_FILE,
+  EMULATOR_HOST,
+  PROJECT_ID,
+  IDENTITIES,
+  isAvailable,
+  start,
+  provisionIdentities,
+  writeState,
+  readState,
+  cleanup
+};
