@@ -53,5 +53,21 @@ module.exports = {
     // always noisy is a lint run nobody reads.
     '@next/next/no-img-element': 'off'
   },
+
+  overrides: [
+    {
+      // The component and unit suite (IMP-093). `env: { jest: true }` declares
+      // describe/test/expect/jest rather than switching `no-undef` off — the same choice the
+      // backend made, and for the same reason: a typo'd identifier in a test should still fail,
+      // and `no-undef` is exactly the rule that catches it.
+      //
+      // Note `next lint` only walks its default directories, so `tests/` was invisible to lint
+      // until `--dir tests` was added to the script. A test file nothing lints is where a silent
+      // typo lives longest.
+      files: ['tests/**/*.{js,jsx}', 'jest.config.js', 'jest.setup.js', 'jest.env.js'],
+      env: { jest: true, node: true }
+    }
+  ],
+
   ignorePatterns: ['node_modules/', '.next/', 'out/', 'build/']
 };

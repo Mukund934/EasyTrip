@@ -4,12 +4,18 @@
 # point-in-time — which is the same class of problem as `next lint` never having executed
 # (IMP-097): a quality gate everyone assumes exists and nothing enforces.
 #
-# Two jobs, deliberately separate so a failure names its own cause:
-#   lint-and-build  — does the code pass lint and does the frontend compile
+# Four jobs, deliberately separate so a failure names its own cause:
+#   lint-and-build  — does the code pass lint, formatting and the module-size criterion, and does
+#                     the frontend compile
 #   migrations      — does the schema actually build from nothing, and are the migrations
 #                     re-runnable, checked against a real Postgres
+#   api-tests       — the backend suite against a real Postgres service container (IMP-092)
+#   frontend-tests  — the component and unit suite in jsdom (IMP-093)
 #
-# Tests join in Phase 6 (IMP-092/093/094); the jobs below are the ones that can be green today.
+# The two test jobs are split rather than merged because they need different things: the API suite
+# needs a database and runs single-worker against it, while the frontend suite needs neither and
+# runs in parallel. Merging them would make the fast one wait for the slow one's service container.
+# E2E (IMP-094) is still to come.
 
 name: CI
 
@@ -97,6 +103,32 @@ jobs:
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
           NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000'
+
+  frontend-tests:
+    name: Frontend component tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      # No database, no service container, no environment variables: Firebase is mocked at the
+      # module boundary and everything else under test is either a pure function or a component
+      # rendered into jsdom. The `npm test` script pins TZ through cross-env — deliberately to a
+      # zone that is NOT UTC, so that deleting a `timeZone` option in dateFormat.js fails here
+      # rather than shipping (BUG-046). A UTC runner would let that regression through.
+      - name: Run component and unit tests
+        run: npm test
+        working-directory: frontend
 
   migrations:
     name: Migrations against Postgres
