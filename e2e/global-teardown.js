@@ -13,6 +13,39 @@ const path = require('node:path');
 const STATE_FILE = path.join(os.tmpdir(), 'easytrip-e2e-state.json');
 const log = (message) => console.log(`  [e2e teardown] ${message}`);
 
+/**
+ * Delete the cluster's data directory, retrying briefly.
+ *
+ * **`pg_ctl stop` returning does not mean Windows has released the directory.** The postmaster
+ * acknowledges the shutdown and exits, but its child processes finish flushing and close their
+ * handles a moment later, and `rmSync` in between fails with `EBUSY: resource busy or locked`.
+ *
+ * Observed, not theorised: a full run passed 46/46 and then exited **non-zero** on this line, which
+ * in CI is a red build for a green suite — the worst kind of failure, because the natural response
+ * is to stop trusting the suite. A bounded retry is the fix; there is nothing to wait *for* other
+ * than the OS, and no event to subscribe to.
+ *
+ * Failure to delete is deliberately not fatal. A leftover temp directory costs disk and nothing
+ * else, and `startThrowawayPostgres` already stops and removes a stale one on the next run. Losing
+ * the whole run's exit code over it is the outcome this function exists to prevent.
+ */
+const removeWithRetry = (dir, attempts = 20) => {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (i === attempts - 1) {
+        log(`could not remove ${dir} (${error.code}) — left for the next run to clean up`);
+        return;
+      }
+      // Synchronous by necessity: Playwright's globalTeardown is awaited, but this whole file is
+      // written synchronously and one blocking wait of a few ms beats restructuring it.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+};
+
 module.exports = async () => {
   if (!fs.existsSync(STATE_FILE)) return;
 
@@ -63,7 +96,7 @@ module.exports = async () => {
     } catch {
       /* already stopped */
     }
-    fs.rmSync(state.dataDir, { recursive: true, force: true });
+    removeWithRetry(state.dataDir);
     fs.rmSync(`${state.dataDir}.log`, { force: true });
   }
 
