@@ -108,7 +108,17 @@ export const MagazineDetails = ({ customKeys, themes, isLoading = false }) => {
               <FiInfo className="mr-2 h-5 w-5 text-purple-600" />
               Important Information
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/*
+              A `dl`, not a `div` — these are `dt`/`dd` pairs, and outside a `dl` they are invalid
+              markup that carries no term/definition relationship for a screen reader. Found by an
+              axe-core pass in Sprint 6.17 (`dlitem`, serious, 4 nodes on `/places/1`); the sibling
+              list in `admin/index.jsx` already had it right.
+
+              Each pair keeps its own wrapper for the card styling. HTML5 allows a `div` to group a
+              name/value pair inside a `dl` precisely so a group can be styled as a unit, and
+              Tailwind's preflight zeroes the `dl` margin, so nothing moves on screen.
+            */}
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredCustomKeys.map(([key, value], index) => {
                 // Different card styles for visual interest
                 const cardStyles = [
@@ -137,7 +147,7 @@ export const MagazineDetails = ({ customKeys, themes, isLoading = false }) => {
                   </motion.div>
                 );
               })}
-            </div>
+            </dl>
           </motion.div>
         )}
       </div>
