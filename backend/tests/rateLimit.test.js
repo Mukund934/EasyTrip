@@ -106,8 +106,16 @@ describe('what the limiters deliberately do NOT block', () => {
   });
 
   test('the image redirect is exempt from the global bucket', async () => {
-    // One browse page load arrives from the Next server as dozens of hits from ONE ip. These are
-    // cheap redirects; bucketing them 429s every user behind that proxy.
+    // ⚠️ This asserts current behaviour, and the behaviour is no longer justified — `BUG-049`.
+    //
+    // The reason used to be: "one browse page load arrives from the Next server as dozens of hits
+    // from ONE ip; bucketing them 429s every user behind that proxy." `IMP-037` removed that proxy
+    // hop, and Sprint 6.16 deleted the proxy itself as dead code, so nothing in the application
+    // requests these routes at all. The exemption now takes two public endpoints out of the global
+    // bucket for a condition that cannot occur.
+    //
+    // The test stays because it pins what the app does today; removing the exemption changes
+    // rate-limiting on live routes, which is an operational decision and is left to the owner.
     const codes = await fire(30, () => request(app).get('/api/places/3/image'));
     expect(codes.every((c) => c !== 429)).toBe(true);
   });

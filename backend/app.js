@@ -132,13 +132,22 @@ const limiterOptions = (windowMs, limit, message, extraSkip) => ({
   message: { message }
 });
 
-// The card-image fallback is fetched once per place with no stored primary_image_url, and
-// the frontend proxies it server-side (frontend/src/pages/api/places/[id]/image.js), so a
-// single visitor loading /browse arrives at Express as dozens of hits from ONE ip — the
-// Next server's. These reads are cheap redirects; keeping them out of the shared IP bucket
-// stops one busy page load from 429-ing every user behind that proxy.
-// Only the two redirect routes; /places/:id/images (the JSON list) is fetched by the
-// browser directly, so it is already keyed by the real end-user IP.
+// ⚠️ THE JUSTIFICATION FOR THIS EXEMPTION NO LONGER HOLDS — see `BUG-049`.
+//
+// It read: "the card-image fallback is fetched once per place with no stored
+// primary_image_url, and the frontend proxies it server-side, so a single visitor loading
+// /browse arrives at Express as dozens of hits from ONE ip — the Next server's. Bucketing
+// them 429s every user behind that proxy."
+//
+// That was true until `IMP-037`. The API now returns an absolute CDN url or null, and
+// `getPlaceImageUrl` resolves to a **local** placeholder when there is none, so the frontend
+// stopped requesting this endpoint entirely; the proxy that concentrated the traffic was
+// deleted in Sprint 6.16 as dead code. Nothing in the application calls these two routes now.
+//
+// So the exemption no longer protects end users behind a shared proxy IP — it exempts two
+// public endpoints from the global bucket for a condition that cannot occur. Removing it
+// changes rate-limiting behaviour on live routes, which is an operational decision rather
+// than a cleanup, so it is recorded and left in place rather than quietly changed.
 const isImageRead = (req) =>
   req.method === 'GET' && /^\/api\/places\/\d+\/(image|images\/\d+)$/.test(req.path);
 
