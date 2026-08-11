@@ -59,6 +59,7 @@ files are independent and parallelism is free.
 | `placeFormSteps.test.jsx`   | `IMP-125` — the wizard's in-flight panel names only services the request uses, and the shared step navigation points where it says |
 | `reviewAvatarSink.test.jsx` | `SECURITY_AUDIT` L8 — a review author avatar is never rendered as an image, in any form                                            |
 | `useWishlist.test.jsx`      | `IMP-108` — the seam between two storage backends: the signed-out key contract, restore-before-write, the one-shot sign-in import  |
+| `savedPage.test.jsx`        | `IMP-108`/`IMP-031` — empty, loading and failed-to-load are three distinct states; "nothing saved yet" never renders over an error |
 
 The component tests are deliberately weighted toward **contracts between modules**, because that is
 where this codebase's worst bugs lived: every helper was correct and the callers each reimplemented

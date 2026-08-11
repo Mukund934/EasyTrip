@@ -143,6 +143,15 @@ test.describe('the saved state survives, which is the whole point of IMP-108', (
     expect((await read.json()).placeIds).toEqual([1]);
   });
 
+  test('the saved-places page is not reachable without signing in', async ({ page }) => {
+    // The page renders somebody's personal list, so an anonymous visitor must not land on it. The
+    // page-level assertion is worth having on top of the API 401: a client-side guard that only
+    // *fetches* correctly would still paint the chrome of a private page first.
+    await page.goto('/saved');
+
+    await expect(page).toHaveURL(/\/login/);
+  });
+
   test('saving a place that does not exist is a 404 and stores nothing', async ({ request }) => {
     const response = await request.post(`${API}/auth/favorites`, {
       headers: auth('nonAdmin'),
