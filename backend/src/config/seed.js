@@ -152,7 +152,11 @@ const IMAGES = [
  */
 async function reset(pool) {
   await pool.query(
-    'TRUNCATE place_reviews, place_images, review_reports, places, users, newsletter_subscribers RESTART IDENTITY CASCADE'
+    // `user_saved_places` is listed rather than left to CASCADE. TRUNCATE ... CASCADE would reach
+    // it anyway through its `places` foreign key, but relying on that means the reset silently
+    // stops covering a table the day its FK changes — and a suite that leaves rows behind fails as
+    // "test order dependence", which is the hardest kind of failure to attribute.
+    'TRUNCATE place_reviews, place_images, review_reports, user_saved_places, places, users, newsletter_subscribers RESTART IDENTITY CASCADE'
   );
 }
 

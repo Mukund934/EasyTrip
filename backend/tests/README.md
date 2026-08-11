@@ -48,6 +48,27 @@ the real SDK signals by throwing.
 wipe each other's fixtures mid-test. Parallelism here needs one database per worker; a fast suite
 that lies is worse than a slow one that does not.
 
+> ### ⚠️ A schema change is invisible to a re-used local database
+>
+> `createSchema()` runs `schema.sql` and then every migration, and **all of it is
+> `CREATE TABLE IF NOT EXISTS` / `CREATE OR REPLACE`** — which is exactly what makes the migrations
+> re-runnable in production. The consequence locally: against a database that already has the
+> tables, editing `schema.sql` or adding a migration **changes nothing, and the suite still passes.**
+>
+> This was found the honest way, in Sprint 7.1. Two mutations that break `user_saved_places` — making
+> the unique constraint per-place instead of per-(user, place), and removing the `ON DELETE CASCADE`
+> — **survived** the mutation run. Both are caught immediately on a fresh database; the re-used
+> cluster was silently serving the unmutated table.
+>
+> **CI is unaffected** — its Postgres service container is new every run, which is why this has never
+> failed a build. But a developer iterating locally can edit the schema, watch the suite go green,
+> and ship a table that was never created. **Drop and recreate the database after any change to
+> `schema.sql` or `migrations/`:**
+>
+> ```bash
+> dropdb --if-exists easytrip_test && createdb easytrip_test
+> ```
+
 **Why the rate limiters are reset between tests.** The stores are in-memory and per-process, so
 they accumulate across a file. The newsletter bucket is 5 per hour by design, which is fewer
 requests than its own test file makes — without a reset, every assertion after the fifth depends on
@@ -73,6 +94,7 @@ how many requests the earlier ones happened to send.
 | `uploadImage.test.js`       | `IMP-024` — the staged temp file is removed on every path, including a rejected upload                                                     |
 | `cloudinaryCleanup.test.js` | Deletion never throws — an outage at the image host must not fail a user's delete                                                          |
 | `publicIdFromUrl.test.js`   | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
+| `savedPlaces.test.js`       | `IMP-108` — a wishlist is private, and the privacy comes from the SQL predicate rather than a check somebody remembered; plus idempotency  |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
 the mounted route table** rather than the behaviour of a request. That is deliberate, because the

@@ -77,6 +77,26 @@ CREATE TABLE IF NOT EXISTS review_reports (
 CREATE INDEX IF NOT EXISTS review_reports_status_created_at_idx
   ON review_reports (status, created_at DESC);
 
+-- The server-persisted wishlist (IMP-108, ADR-030). Kept byte-comparable with
+-- 007_saved_places.sql: this file builds a database from nothing and the migrations carry one
+-- forward, and if they diverge a fresh install and an upgraded install are different products.
+-- That is not hypothetical — 006_reconcile_triggers.sql exists because they had already diverged.
+CREATE TABLE IF NOT EXISTS user_saved_places (
+  id SERIAL PRIMARY KEY,
+  -- Firebase uid, as in place_reviews.user_id. Not a FK: users rows are created lazily.
+  user_id VARCHAR(255) NOT NULL,
+  -- CASCADE because a saved place pointing at a deleted place is a broken card, not a stale row.
+  place_id INT NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- One save per user per place, so saving is idempotent and a repeat is a 200, not a 409
+  CONSTRAINT user_saved_places_user_id_place_id_key UNIQUE (user_id, place_id)
+);
+
+-- For the CASCADE above, not for a query the feature makes: without it, deleting a place scans
+-- this table. Also the index FV-019 will read for "who else saved this place".
+CREATE INDEX IF NOT EXISTS user_saved_places_place_id_idx
+  ON user_saved_places (place_id);
+
 -- Newsletter signups. `email` is normalised (trimmed, lower-cased) by the API before insert,
 -- so the UNIQUE constraint is a real duplicate guard. `source` is intentionally unconstrained
 -- in the schema — the API owns the allowlist, so a new signup surface needs no migration.

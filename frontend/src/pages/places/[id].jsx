@@ -9,6 +9,7 @@ import {
   fetchPlaceReviews
 } from '../../services/placesApi';
 import { useAuth } from '../../context/AuthContext';
+import { useWishlist } from '../../hooks/useWishlist';
 import { usePlaceDetail } from '../../hooks/usePlaceDetail';
 import { usePlaceReviewActions } from '../../hooks/usePlaceReviewActions';
 import { useActiveSection } from '../../hooks/useActiveSection';
@@ -47,8 +48,16 @@ export default function PlaceDetails({
   const { currentUser, isAuthenticated, loading: authLoading } = auth;
   const { scrollY } = useScroll();
 
-  const [isFavorite, setIsFavorite] = useState(false);
   const [showTableOfContents, setShowTableOfContents] = useState(false);
+
+  /**
+   * The heart (`IMP-108`).
+   *
+   * This was `useState(false)` — so the icon reset to empty on every visit, and a place liked on
+   * the home carousel showed as unliked on its own detail page, because that heart wrote to
+   * `localStorage` and this one wrote to nothing. One hook now answers for both.
+   */
+  const wishlist = useWishlist();
 
   const { place, setPlace, images, reviews, setReviews, loading, contentLoading, error, refetch } =
     usePlaceDetail(
@@ -93,8 +102,8 @@ export default function PlaceDetails({
           place={place}
           onBack={() => router.back()}
           onShare={share}
-          onToggleFavorite={() => setIsFavorite((prev) => !prev)}
-          isFavorite={isFavorite}
+          onToggleFavorite={() => wishlist.toggle(place?.id)}
+          isFavorite={wishlist.isSaved(place?.id)}
           avgRating={avgRating}
           onShareSocial={shareTo}
         />
