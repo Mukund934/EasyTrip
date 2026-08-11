@@ -66,6 +66,7 @@ how many requests the earlier ones happened to send.
 | `imageUpload.test.js`       | `IMP-014` — the multipart path with multer running for real; only the network call is stubbed                                              |
 | `routeShadowing.test.js`    | `BUG C2` — no `(method, path)` declared by two routers, and every rate limiter attached to a route that exists                             |
 | `adminManagement.test.js`   | Granting and revoking admin — the column and the Firebase claim move together, and unrelated claims survive                                |
+| `dbTls.test.js`             | `TD-001` — production verifies the Postgres certificate, and the opt-out says so on every boot                                             |
 | `profile.test.js`           | `IMP-008` — a profile edit persists what it was sent, and reading one provisions a row                                                     |
 | `placeImages.test.js`       | `SECURITY_AUDIT` M1 — the placeholder SVG never reflects request input; plus the image resolution ladder and the place-scoped delete       |
 | `updatePlace.test.js`       | The admin edit path: partial updates, orphan cleanup on image replacement, and `BUG-048` pinned                                            |
