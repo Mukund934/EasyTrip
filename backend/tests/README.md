@@ -65,6 +65,7 @@ how many requests the earlier ones happened to send.
 | `env.test.js`             | the boot refusal — the server must not start on a half-configured environment                                                              |
 | `imageUpload.test.js`     | `IMP-014` — the multipart path with multer running for real; only the network call is stubbed                                              |
 | `routeShadowing.test.js`  | `BUG C2` — no `(method, path)` declared by two routers, and every rate limiter attached to a route that exists                             |
+| `adminManagement.test.js` | Granting and revoking admin — the column and the Firebase claim move together, and unrelated claims survive                                |
 | `publicIdFromUrl.test.js` | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
