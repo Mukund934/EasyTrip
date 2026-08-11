@@ -70,6 +70,7 @@ how many requests the earlier ones happened to send.
 | `profile.test.js`           | `IMP-008` — a profile edit persists what it was sent, and reading one provisions a row                                                     |
 | `placeImages.test.js`       | `SECURITY_AUDIT` M1 — the placeholder SVG never reflects request input; plus the image resolution ladder and the place-scoped delete       |
 | `updatePlace.test.js`       | The admin edit path: partial updates, orphan cleanup on image replacement, and `BUG-048` pinned                                            |
+| `uploadImage.test.js`       | `IMP-024` — the staged temp file is removed on every path, including a rejected upload                                                     |
 | `cloudinaryCleanup.test.js` | Deletion never throws — an outage at the image host must not fail a user's delete                                                          |
 | `publicIdFromUrl.test.js`   | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
 
