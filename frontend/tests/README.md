@@ -45,17 +45,19 @@ files are independent and parallelism is free.
 
 ## What is covered
 
-| Suite                      | Locks in                                                                                                                         |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `browseFilters.test.js`    | `IMP-011`/`IMP-070` — the shared-link round trip, `undefined`-not-empty-string criteria, the shallow-copy bug in `EMPTY_FILTERS` |
-| `ReviewForm.test.jsx`      | `BUG C1` — `onSubmit` gets `{rating, comment}`, not the DOM event; star clicks reach the handler; the `IMP-081` radio semantics  |
-| `dateFormat.test.js`       | `BUG-046` — the timezone pin, and three distinct empty-input contracts                                                           |
-| `rating.test.js`           | `BUG M-2` — unrated is `null`, never `0`                                                                                         |
-| `placeImage.test.js`       | `BUG M-1` — a gallery-only place resolves to its gallery image                                                                   |
-| `AuthContext.test.jsx`     | `BUG C1 defect 1` — the provider publishes every name its consumers destructure                                                  |
-| `PlaceCard.test.jsx`       | That the card _uses_ the shared helpers rather than hand-rolling them again                                                      |
-| `isrContracts.test.js`     | `TD-018` — what `getStaticProps`/`getStaticPaths` hand to Next: ISR intervals, the error retry, `notFound` **with** `revalidate` |
-| `useManagePlaces.test.jsx` | `TD-018`/`IMP-038` — the admin list walks every page, and reports it when the runaway cap stops it early                         |
+| Suite                       | Locks in                                                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `browseFilters.test.js`     | `IMP-011`/`IMP-070` — the shared-link round trip, `undefined`-not-empty-string criteria, the shallow-copy bug in `EMPTY_FILTERS`   |
+| `ReviewForm.test.jsx`       | `BUG C1` — `onSubmit` gets `{rating, comment}`, not the DOM event; star clicks reach the handler; the `IMP-081` radio semantics    |
+| `dateFormat.test.js`        | `BUG-046` — the timezone pin, and three distinct empty-input contracts                                                             |
+| `rating.test.js`            | `BUG M-2` — unrated is `null`, never `0`                                                                                           |
+| `placeImage.test.js`        | `BUG M-1` — a gallery-only place resolves to its gallery image                                                                     |
+| `AuthContext.test.jsx`      | `BUG C1 defect 1` — the provider publishes every name its consumers destructure                                                    |
+| `PlaceCard.test.jsx`        | That the card _uses_ the shared helpers rather than hand-rolling them again                                                        |
+| `isrContracts.test.js`      | `TD-018` — what `getStaticProps`/`getStaticPaths` hand to Next: ISR intervals, the error retry, `notFound` **with** `revalidate`   |
+| `useManagePlaces.test.jsx`  | `TD-018`/`IMP-038` — the admin list walks every page, and reports it when the runaway cap stops it early                           |
+| `placeFormSteps.test.jsx`   | `IMP-125` — the wizard's in-flight panel names only services the request uses, and the shared step navigation points where it says |
+| `reviewAvatarSink.test.jsx` | `SECURITY_AUDIT` L8 — a review author avatar is never rendered as an image, in any form                                            |
 
 The component tests are deliberately weighted toward **contracts between modules**, because that is
 where this codebase's worst bugs lived: every helper was correct and the callers each reimplemented
@@ -69,8 +71,23 @@ them wrongly.
   rendered here. Their _data_ functions are (`isrContracts.test.js`) and so are their hooks
   (`useManagePlaces.test.jsx`), but nothing asserts the markup those pages produce; that is the E2E
   suite's job.
-- **Visual regression.** Nothing asserts layout or styling.
+- **Visual regression.** Nothing asserts layout or styling. `placeFormSteps.test.jsx` compares two
+  step components' navigation classes _against each other_, which catches drift between the copies —
+  it does not know whether either is correct.
 - **The real Firebase SDK.** Mocked at the module boundary, exactly as far as the contract needs.
+
+## One known console warning, deliberately left alone
+
+`ReviewForm.test.jsx` prints `An update to ReviewForm inside a test was not wrapped in act(...)`.
+It is noise, and it is not hiding anything: `user.click` on a star dispatches a pointer _move_ on
+the way in, `onMouseEnter` sets `hoverRating`, and `@testing-library/user-event` 14.5.2 does not
+route that particular internal dispatch through React's act environment. `hoverRating` is
+purely visual, no assertion depends on it, and all 16 assertions in the file pass.
+
+Both available remedies are worse than the warning. Restructuring the test to avoid pointer movement
+would stop exercising the click, which is the behaviour under test; upgrading `user-event` to chase
+a cosmetic message would move a dependency for no behavioural gain. **Recorded here rather than
+silently skipped**, so the next person does not spend an afternoon on it.
 
 ## Assertion style
 

@@ -87,6 +87,84 @@ describe('GET /api/places', () => {
   });
 });
 
+/**
+ * The sort enum (`m1`, closed by `IMP-038`/`IMP-046`).
+ *
+ * `sortOrder: 'popular'` was offered in the browse dropdown for a long time and did nothing: the
+ * client-side `switch` handled `newest`/`rating`/`name` and silently ignored the fourth. Sorting
+ * moved server-side with `IMP-038`, and `popular` became real — but **nothing tested any of it**,
+ * which left the fix guarded by nothing at all.
+ *
+ * The failure mode is what makes this worth pinning. `SORT_ORDERS[sort] || SORT_ORDERS.newest`
+ * means deleting a key does not raise anything — the endpoint keeps returning 200 with a
+ * plausible-looking list in the wrong order. That is precisely how `m1` behaved for months.
+ */
+describe('GET /api/places — sort ordering (m1)', () => {
+  const namesSortedBy = async (sort) => {
+    const res = await request(app).get(`/api/places?sort=${sort}`);
+    expect(res.status).toBe(200);
+    return res.body.data.map((p) => p.name);
+  };
+
+  test('newest and oldest are genuine opposites', async () => {
+    // The seed writes all four in one statement, so `created_at` ties and `places.id` breaks it.
+    // That tiebreaker is the reason this assertion is stable rather than clock-dependent.
+    expect(await namesSortedBy('newest')).toEqual(['Badami', 'Gokarna', 'Coorg', 'Hampi']);
+    expect(await namesSortedBy('oldest')).toEqual(['Hampi', 'Coorg', 'Gokarna', 'Badami']);
+  });
+
+  test('name sorts alphabetically', async () => {
+    expect(await namesSortedBy('name')).toEqual(['Badami', 'Coorg', 'Gokarna', 'Hampi']);
+  });
+
+  test('rating puts unrated places last rather than treating them as zero', async () => {
+    const names = await namesSortedBy('rating');
+    // Hampi 4.5, Gokarna 3.0, then the two unrated. `NULLS LAST` is the whole point: without it
+    // Postgres sorts NULL highest on a DESC ordering, so the places nobody has reviewed would
+    // lead the "Highest Rated" list.
+    expect(names.slice(0, 2)).toEqual(['Hampi', 'Gokarna']);
+    expect(names.slice(2).sort()).toEqual(['Badami', 'Coorg']);
+  });
+
+  test('popular ranks by how many reviews, not how good they are', async () => {
+    // The seed alone cannot tell `popular` from `rating` — Hampi leads on both counts, so a test
+    // written against the fixture as-is would pass even if `popular` were mapped to `rating`'s
+    // SQL. Two more middling reviews on Gokarna separate them: it then has the most reviews and
+    // the worse average.
+    await pool.query(
+      `INSERT INTO place_reviews (place_id, user_id, user_name, rating, comment, created_at, updated_at)
+       VALUES (3, 'sort-uid-a', 'A', 3, null, NOW(), NOW()),
+              (3, 'sort-uid-b', 'B', 3, null, NOW(), NOW())`
+    );
+
+    // Gokarna: 3 reviews averaging 3.0. Hampi: 2 reviews averaging 4.5.
+    expect((await namesSortedBy('popular')).slice(0, 2)).toEqual(['Gokarna', 'Hampi']);
+    expect((await namesSortedBy('rating')).slice(0, 2)).toEqual(['Hampi', 'Gokarna']);
+  });
+
+  test('an unknown sort is refused, so a new UI option cannot fail silently', async () => {
+    // This is the guard that keeps `m1` from recurring. If the browse dropdown grows a fifth
+    // option the server does not implement, the request fails loudly here instead of quietly
+    // returning the default order and looking like the sort simply does not work well.
+    expect((await request(app).get('/api/places?sort=trending')).status).toBe(400);
+  });
+
+  test('every sort the API advertises is one it actually implements', async () => {
+    // The validator's `isIn` list and the model's `SORT_ORDERS` map are two separate declarations
+    // of the same set. Accepting a value the map lacks is the silent-fallback bug; rejecting one
+    // it has makes a working ordering unreachable.
+    const advertised = ['newest', 'oldest', 'rating', 'popular', 'name'];
+    for (const sort of advertised) {
+      expect((await request(app).get(`/api/places?sort=${sort}`)).status).toBe(200);
+    }
+    // And the orders are genuinely distinct, not five names for two behaviours.
+    const orders = new Set(
+      await Promise.all(advertised.map(async (s) => (await namesSortedBy(s)).join(',')))
+    );
+    expect(orders.size).toBeGreaterThanOrEqual(4);
+  });
+});
+
 describe('GET /api/places/:id', () => {
   test('returns one place', async () => {
     const res = await request(app).get('/api/places/1');

@@ -55,13 +55,30 @@ how many requests the earlier ones happened to send.
 
 ## What is covered
 
-| Suite               | Locks in                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auth.test.js`      | `IMP-001/002/003` — no client-supplied identity, no forged admin claim, DB is the authority                                                |
-| `places.test.js`    | CRUD, pagination, filters (`IMP-011`), the validation boundary (`IMP-057`)                                                                 |
-| `reviews.test.js`   | `IMP-019/021/023` — author privacy, upsert-not-duplicate, real reports, trigger-maintained aggregates, and the deliberate 403-vs-404 split |
-| `platform.test.js`  | health, profile scoping, newsletter, helmet headers, JSON error shapes                                                                     |
-| `rateLimit.test.js` | the buckets, **and** what they deliberately do not block                                                                                   |
+| Suite                       | Locks in                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `auth.test.js`              | `IMP-001/002/003` — no client-supplied identity, no forged admin claim, DB is the authority                                                |
+| `places.test.js`            | CRUD, pagination, filters (`IMP-011`), the validation boundary (`IMP-057`)                                                                 |
+| `reviews.test.js`           | `IMP-019/021/023` — author privacy, upsert-not-duplicate, real reports, trigger-maintained aggregates, and the deliberate 403-vs-404 split |
+| `platform.test.js`          | health, profile scoping, newsletter, helmet headers, JSON error shapes                                                                     |
+| `rateLimit.test.js`         | the buckets, **and** what they deliberately do not block                                                                                   |
+| `env.test.js`               | the boot refusal — the server must not start on a half-configured environment                                                              |
+| `imageUpload.test.js`       | `IMP-014` — the multipart path with multer running for real; only the network call is stubbed                                              |
+| `routeShadowing.test.js`    | `BUG C2` — no `(method, path)` declared by two routers, and every rate limiter attached to a route that exists                             |
+| `adminManagement.test.js`   | Granting and revoking admin — the column and the Firebase claim move together, and unrelated claims survive                                |
+| `dbTls.test.js`             | `TD-001` — production verifies the Postgres certificate, and the opt-out says so on every boot                                             |
+| `profile.test.js`           | `IMP-008` — a profile edit persists what it was sent, and reading one provisions a row                                                     |
+| `placeImages.test.js`       | `SECURITY_AUDIT` M1 — the placeholder SVG never reflects request input; plus the image resolution ladder and the place-scoped delete       |
+| `updatePlace.test.js`       | The admin edit path: partial updates, orphan cleanup on image replacement, and `BUG-048` pinned                                            |
+| `cloudinaryCleanup.test.js` | Deletion never throws — an outage at the image host must not fail a user's delete                                                          |
+| `publicIdFromUrl.test.js`   | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
+
+`routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
+the mounted route table** rather than the behaviour of a request. That is deliberate, because the
+failure it guards is invisible to a request — when two routers declare the same pair, the first one
+answers correctly and the second is simply never reached. It is also the only suite that depends on
+private Express internals (`app._router.stack`), and `tests/helpers/routeTable.js` throws by name
+rather than enumerating an empty table if a future Express removes them.
 
 ## What it does not cover
 

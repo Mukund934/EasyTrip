@@ -93,6 +93,13 @@ jobs:
       - name: Check module size (Phase 5 exit criterion)
         run: npm run check:size
 
+      # Detection, not remediation. backend/.env is already in three commits of public history
+      # (SECURITY_AUDIT §12.0) and no CI step can undo that — rotation is the fix, and it is the
+      # owner's call. What this stops is the *next* one, and the specific failure it guards is the
+      # one that actually happened: a .gitignore rule does nothing about a file already tracked.
+      - name: Scan for tracked credentials
+        run: npm run check:secrets
+
       # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
       # present to compile. These are deliberately fake: the job proves the app compiles, it does
       # not talk to Firebase, and a real credential in a workflow file would be a leak. They are

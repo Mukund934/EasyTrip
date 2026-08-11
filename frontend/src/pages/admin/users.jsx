@@ -6,19 +6,11 @@ import { toast } from 'react-toastify';
 import { FiArrowLeft, FiUserPlus, FiTrash2, FiShield, FiMail } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { adminService } from '../../services/adminService';
-
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  try {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  } catch {
-    return 'Invalid Date';
-  }
-};
+// The last of the five copies IMP-122 set out to consolidate. This one was already
+// character-for-character `formatDateShort` — same locale, same widths, `'N/A'` for empty and
+// `'Invalid Date'` for junk — apart from the one thing that mattered: it never pinned
+// `timeZone`, so "Admin since" moved a day for anyone behind UTC (BUG-046).
+import { formatDateShort as formatDate } from '../../utils/dateFormat';
 
 /**
  * Admin user management (IMP-018).

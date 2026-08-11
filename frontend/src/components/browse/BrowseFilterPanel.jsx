@@ -6,6 +6,7 @@
  * one shows selected values back as chips under each dropdown, caps tags at 15 rather than 20, and
  * applies on change instead of behind an Apply button.
  */
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import BrowseStatsCard from './BrowseStatsCard';
 import {
@@ -23,6 +24,14 @@ import {
 import FilterSection from './FilterSection';
 import { themeOptions, dateOptions } from './browseOptions';
 
+// The single deliberate exception to the one-date-policy rule, and the only one in the app.
+// `utils/dateFormat.js` pins the zone to UTC because a *stored* timestamp must read identically for
+// everyone. This is the opposite requirement: it is the reader's own "today", so it must follow the
+// reader's clock. See the render site for why it is client-only.
+const localToday = () =>
+  // eslint-disable-next-line no-restricted-syntax -- deliberately the viewer's zone, not UTC
+  new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
 const BrowseFilterPanel = ({
   currentUser,
   stats,
@@ -39,6 +48,11 @@ const BrowseFilterPanel = ({
   recentSearches,
   clearRecentSearches
 }) => {
+  // Empty on the server and on the first client render, then filled — the standard way to render
+  // a client-only value without lying to the hydrator.
+  const [today, setToday] = useState('');
+  useEffect(() => setToday(localToday()), []);
+
   const {
     location: selectedLocation,
     district: selectedDistrict,
@@ -446,13 +460,20 @@ const BrowseFilterPanel = ({
           <div className="mt-4 text-xs text-center text-gray-500">
             <div className="flex items-center justify-center">
               <FiClock className="mr-1 h-3 w-3" />
-              <span>
-                {new Date().toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </span>
+              {/*
+                Today's date, from the *viewer's* clock — which is the one thing on this page that
+                genuinely has no server-side answer. Rendering it during SSR produced markup the
+                browser then disagreed with whenever the two straddled midnight (guaranteed, not
+                rare, for anyone far enough behind UTC late in the day): a hydration mismatch for
+                a decoration. It is filled in after mount instead, so the server renders nothing
+                and there is nothing to disagree about.
+
+                Deliberately NOT routed through `utils/dateFormat.js`, and the one place in the
+                app allowed to format a date itself: those helpers pin the zone to UTC on purpose,
+                because a *stored* timestamp must read the same for everyone. This is the opposite
+                requirement — it must read as the reader's own today.
+              */}
+              <span>{today}</span>
             </div>
           </div>
         </div>

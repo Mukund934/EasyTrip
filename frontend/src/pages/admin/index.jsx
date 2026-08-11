@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateTime } from '../../utils/dateFormat';
 import { FiPlus, FiList, FiUsers } from 'react-icons/fi';
 import { requireAdminPage } from '../../services/adminGate';
 
@@ -124,7 +125,21 @@ export default function AdminDashboard() {
                 </div>
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Last login</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{new Date().toLocaleString()}</dd>
+                  {/*
+                    This read `new Date().toLocaleString()` — the *current* time, formatted with
+                    whatever locale and zone the runtime happened to have. So the field labelled
+                    "Last login" always said "just now", for everyone, forever. It was not a stale
+                    value or a rounding problem; it was invented data sitting in an admin dashboard
+                    next to two fields that are real.
+
+                    Firebase already tracks the real thing. `metadata.lastSignInTime` is the
+                    session's actual sign-in, and `formatDateTime` renders it in the same pinned
+                    zone as every other timestamp — and returns 'N/A' on its own when the metadata
+                    is not there, which is the honest answer.
+                  */}
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatDateTime(currentUser?.metadata?.lastSignInTime)}
+                  </dd>
                 </div>
               </dl>
             </div>

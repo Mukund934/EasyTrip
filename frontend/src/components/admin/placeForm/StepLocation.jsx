@@ -1,7 +1,8 @@
 // `FiLocation` is not a react-icons export — the page aliased FiMapPin to it. Keeping the alias
 // keeps the JSX below identical to what it was inline.
-import { FiAlertCircle, FiArrowLeft, FiMapPin as FiLocation } from 'react-icons/fi';
+import { FiAlertCircle, FiMapPin as FiLocation } from 'react-icons/fi';
 import { motion } from 'framer-motion';
+import { StepNavigation } from './StepNavigation';
 
 export const StepLocation = ({ form }) => {
   const { formData, errors, handleChange, goToStep } = form;
@@ -152,24 +153,11 @@ export const StepLocation = ({ form }) => {
         </div>
       </div>
 
-      <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
-        <button
-          type="button"
-          onClick={() => goToStep(1)}
-          className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base order-2 sm:order-1"
-        >
-          <FiArrowLeft className="mr-2" />
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={() => goToStep(3)}
-          className="inline-flex items-center justify-center px-4 sm:px-6 py-2 sm:py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors text-sm sm:text-base order-1 sm:order-2"
-        >
-          Next: Media & Themes
-          <FiArrowLeft className="ml-2 rotate-180" />
-        </button>
-      </div>
+      <StepNavigation
+        onPrevious={() => goToStep(1)}
+        onNext={() => goToStep(3)}
+        nextLabel="Next: Media & Themes"
+      />
     </motion.div>
   );
 };

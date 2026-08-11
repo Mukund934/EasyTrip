@@ -48,7 +48,44 @@ const getUser = jest.fn(async (uid) => ({ uid, email: `${uid}@easytrip.test`, di
 const revokeRefreshTokens = jest.fn(async () => undefined);
 const setCustomUserClaims = jest.fn(async () => undefined);
 
-const auth = () => ({ verifyIdToken, getUser, revokeRefreshTokens, setCustomUserClaims });
+/**
+ * Look a user up by email, as `adminController` does when granting or revoking admin.
+ *
+ * Added in Sprint 6.14. Its absence is the whole reason `addAdmin`/`removeAdmin` had **zero**
+ * coverage: without it, every request to those endpoints died inside the mock rather than in the
+ * code under test, so nobody could reach the privilege-change logic at all.
+ *
+ * The mapping is deliberately reversible against the seed (`admin@easytrip.test` ↔ `seed-admin-uid`)
+ * so a test can name either side. `customClaims` is settable per-user, because `syncAdminClaim`
+ * merges the existing set and `setCustomUserClaims` *replaces* it — an invariant that is
+ * untestable if every user is claimless.
+ */
+const seededUsers = new Map();
+
+/** Register (or replace) a Firebase user the mock will resolve by email. */
+const registerFirebaseUser = ({ uid, email, displayName = '', customClaims }) => {
+  seededUsers.set(email, { uid, email, displayName, customClaims });
+  return seededUsers.get(email);
+};
+
+/** Forget every registered user — call between tests so state does not leak across them. */
+const resetFirebaseUsers = () => seededUsers.clear();
+
+const getUserByEmail = jest.fn(async (email) => {
+  if (seededUsers.has(email)) return seededUsers.get(email);
+  throw makeError(
+    'auth/user-not-found',
+    'There is no user record corresponding to this identifier'
+  );
+});
+
+const auth = () => ({
+  verifyIdToken,
+  getUser,
+  getUserByEmail,
+  revokeRefreshTokens,
+  setCustomUserClaims
+});
 
 /**
  * A non-empty `apps` plus a working `app()` is what makes `initializeFirebaseAdmin` short-circuit:
@@ -64,9 +101,19 @@ module.exports = {
   initializeApp: jest.fn(() => fakeApp),
   credential: { cert: jest.fn(() => ({})) },
   // Test-only exports
-  __mock: { verifyIdToken, getUser, revokeRefreshTokens, setCustomUserClaims },
+  __mock: {
+    verifyIdToken,
+    getUser,
+    getUserByEmail,
+    revokeRefreshTokens,
+    setCustomUserClaims,
+    registerFirebaseUser,
+    resetFirebaseUsers
+  },
   INVALID,
   EXPIRED,
   tokenFor,
-  authHeader
+  authHeader,
+  registerFirebaseUser,
+  resetFirebaseUsers
 };

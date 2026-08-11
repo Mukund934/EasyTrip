@@ -94,3 +94,37 @@ describe('it resolves ratings through the shared helper (BUG M-2)', () => {
     expect(screen.queryByText('5.0')).not.toBeInTheDocument();
   });
 });
+
+describe('it formats dates through the shared helper (BUG-046 / IMP-122)', () => {
+  // A UTC midnight. Anywhere behind UTC — the suite runs in America/Los_Angeles, and roughly half
+  // the world qualifies — an unpinned formatter resolves this to the *previous day*.
+  const NEW_YEAR = { ...GALLERY_ONLY, created_at: '2026-01-01T00:00:00.000Z' };
+
+  test('a UTC-midnight date does not slip a day for viewers behind UTC', () => {
+    render(<PlaceCard place={NEW_YEAR} />);
+
+    // This is BUG-046 exactly, in the one component that renders on SSR `/browse` and hydrates in
+    // the visitor's browser. The card already names its locale — its own comment records that Node
+    // and the browser disagreeing on month format broke hydration for every card — but the time
+    // zone was left to the runtime, which is the same fault on the other axis.
+    expect(screen.getByText('Jan 1, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Dec 31, 2025')).not.toBeInTheDocument();
+  });
+
+  test('a missing date renders the shared empty value, not the epoch', () => {
+    // `new Date(null)` is the epoch, so an inline formatter renders a confident date for a row that
+    // simply has no timestamp. Asserting the *positive* value rather than the absence of "1970",
+    // because in a zone behind UTC the epoch renders as "Dec 31, 1969" and a `/1970/` matcher would
+    // pass while the bug was still there.
+    render(<PlaceCard place={{ ...GALLERY_ONLY, created_at: null }} />);
+    expect(screen.getByText('N/A')).toBeInTheDocument();
+  });
+
+  test('recent dates still read as relative time', () => {
+    // The relative branch is the card's own behaviour and is deliberately kept — only the absolute
+    // branch delegates. Without this, "use the shared helper" could quietly mean "lose the feature".
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    render(<PlaceCard place={{ ...GALLERY_ONLY, created_at: twoDaysAgo }} />);
+    expect(screen.getByText(/days ago|Yesterday|Today/)).toBeInTheDocument();
+  });
+});
