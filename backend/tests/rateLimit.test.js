@@ -154,3 +154,50 @@ describe('admin writes are bucketed but admin reads are not', () => {
     expect(codes.every((c) => c === 200)).toBe(true);
   });
 });
+
+/**
+ * The limiter buckets by client IP, so what counts as "the client IP" is the whole ceiling.
+ *
+ * `app.js` sets `trust proxy` **only** when `TRUST_PROXY_HOPS` is a positive integer, and its
+ * comment states the reason exactly: *"trusting the header without a proxy in front lets any caller
+ * spoof its own IP."* If Express trusted `X-Forwarded-For` unconditionally, every request could
+ * present a fresh address and receive a fresh bucket — the limiter would still be mounted, still
+ * emit headers, still pass every other test in this file, and bound nothing at all.
+ *
+ * That became load-bearing in Sprint 6.17: `BUG-049` put the two public image reads back under this
+ * ceiling, and a spoofable key would hand them straight back.
+ */
+describe('the rate-limit key cannot be chosen by the caller', () => {
+  test('trust proxy is off unless a hop count is configured', async () => {
+    // Introspection rather than behaviour, because this is the setting the behaviour below depends
+    // on — and `TRUST_PROXY_HOPS` is deliberately unset in the test environment.
+    expect(app.get('trust proxy')).toBeFalsy();
+  });
+
+  test('a spoofed X-Forwarded-For does not earn a fresh bucket', async () => {
+    // Two different claimed addresses, one real connection. The counter must keep going down: if
+    // the header were honoured, each request would look like a new client and `ratelimit-remaining`
+    // would read 999 both times.
+    const first = await request(app).get('/api/places').set('X-Forwarded-For', '203.0.113.1');
+    const second = await request(app).get('/api/places').set('X-Forwarded-For', '198.51.100.7');
+
+    expect([first.headers['ratelimit-remaining'], second.headers['ratelimit-remaining']]).toEqual([
+      '999',
+      '998'
+    ]);
+  });
+
+  test('and the same holds for the image reads BUG-049 just re-bucketed', async () => {
+    const first = await request(app)
+      .get('/api/places/3/image')
+      .set('X-Forwarded-For', '203.0.113.1');
+    const second = await request(app)
+      .get('/api/places/3/image')
+      .set('X-Forwarded-For', '198.51.100.7');
+
+    expect([first.headers['ratelimit-remaining'], second.headers['ratelimit-remaining']]).toEqual([
+      '999',
+      '998'
+    ]);
+  });
+});
