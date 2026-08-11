@@ -323,61 +323,66 @@ const listPlaces = async ({
   };
 };
 
+/**
+ * The columns a caller may update, as a hard-coded allowlist.
+ *
+ * The SET clause below is assembled at runtime, so this list is the only thing that ever becomes a
+ * column name. Nothing derived from a request reaches the SQL text — request data is exclusively
+ * parameterised — and a key that is not on this list is ignored rather than interpolated.
+ */
+const UPDATABLE_COLUMNS = [
+  'name',
+  'description',
+  'location',
+  'district',
+  'state',
+  'locality',
+  'pin_code',
+  'latitude',
+  'longitude',
+  'primary_image_url',
+  'themes',
+  'tags',
+  'custom_keys',
+  'updated_by'
+];
+
+/**
+ * Update a place, writing exactly the columns the caller provided.
+ *
+ * **Why presence rather than `COALESCE` (`BUG-048`).** This used to write every column as
+ * `COALESCE($n, column)`, which makes `null` mean *keep*. That reads as a sensible sparse-update
+ * idiom, and it worked for the one caller that relies on sparseness — `placeController.js:193`
+ * updates only `primary_image_url` after a create-with-image. It also made two things impossible:
+ *
+ * 1. **A coordinate could never be removed.** `updatePlace` in the controller computes `null`
+ *    deliberately for a cleared latitude or longitude — the validator even skips `toFloat()` so a
+ *    sanitised `0` cannot read as absent — and `COALESCE` discarded it every time. The controller's
+ *    clearing branch was unreachable, and an admin who pinned a place wrongly could only overwrite
+ *    the coordinates, never remove them.
+ * 2. **The sparse caller silently wiped `updated_by`.** It was the one column written
+ *    unconditionally (`updated_by = $14`), so a call that omitted it passed `undefined`, which
+ *    node-pg sends as NULL. A place created *with* a photo lost its audit attribution immediately
+ *    after creation; one created without kept it. `IMP-002` exists to make those columns mean
+ *    something.
+ *
+ * Keying on **presence** (`in`) rather than value separates the two cases the old shape conflated:
+ * an absent key means "leave it alone", and an explicit `null` means "clear it". Both callers get
+ * what they already meant, and neither had to change.
+ */
 const updatePlace = async (id, placeData) => {
-  const {
-    name,
-    description,
-    location,
-    district,
-    state,
-    locality,
-    pin_code,
-    latitude,
-    longitude,
-    primary_image_url,
-    themes,
-    tags,
-    custom_keys,
-    updated_by
-  } = placeData;
+  const columns = UPDATABLE_COLUMNS.filter((column) => column in placeData);
+  const values = columns.map((column) => placeData[column]);
+
+  // `updated_at` is the server's to set, never the caller's, so it is appended rather than bound.
+  const assignments = [
+    ...columns.map((column, i) => `${column} = $${i + 1}`),
+    'updated_at = NOW()'
+  ];
 
   const result = await pool.query(
-    `UPDATE places
-    SET
-      name = COALESCE($1, name),
-      description = COALESCE($2, description),
-      location = COALESCE($3, location),
-      district = COALESCE($4, district),
-      state = COALESCE($5, state),
-      locality = COALESCE($6, locality),
-      pin_code = COALESCE($7, pin_code),
-      latitude = COALESCE($8, latitude),
-      longitude = COALESCE($9, longitude),
-      primary_image_url = COALESCE($10, primary_image_url),
-      themes = COALESCE($11, themes),
-      tags = COALESCE($12, tags),
-      custom_keys = COALESCE($13, custom_keys),
-      updated_by = $14,
-      updated_at = NOW()
-    WHERE id = $15
-    RETURNING *`,
-    [
-      name,
-      description,
-      location,
-      district,
-      state,
-      locality,
-      pin_code,
-      latitude,
-      longitude,
-      primary_image_url,
-      themes,
-      tags,
-      custom_keys,
-      updated_by,
-      id
-    ]
+    `UPDATE places SET ${assignments.join(', ')} WHERE id = $${values.length + 1} RETURNING *`,
+    [...values, id]
   );
   return result.rows[0];
 };
