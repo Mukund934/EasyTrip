@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { FiChevronRight, FiFlag, FiMessageSquare, FiTrash2, FiUser } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import RatingStars from '../RatingStars';
-import { getCloudinaryThumbnail } from '../../utils/cloudinaryHelper';
 import { formatDate } from '../../utils/dateFormat';
 
 // Magazine-style Review Section
@@ -111,16 +110,25 @@ export const MagazineReviews = ({
             }`}
           >
             <div className="flex items-center mb-4">
+              {/*
+                No avatar image, deliberately (`SECURITY_AUDIT` L8). This used to branch on
+                `review.user_avatar` and render it through `getCloudinaryThumbnail` into an
+                `<img src>`. **No API response has ever carried that field** — a grep for
+                `user_avatar` across `backend/src` returns zero — so the branch never ran and the
+                icon below is what every review has always shown. Removing it changes nothing
+                rendered.
+
+                It is worth removing rather than leaving because `getCloudinaryThumbnail` is not a
+                sanitizer: its first line returns the input **unchanged** when the string does not
+                contain `cloudinary.com`. So the branch was an unvalidated sink waiting for someone
+                to add one field to a review payload, which is exactly what the original finding
+                said — *"dead today, unvalidated sink tomorrow"*.
+
+                If avatars are ever implemented, validate the URL at the point it enters the system
+                rather than relying on this helper, and re-add the image here deliberately.
+              */}
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mr-4 text-gray-500">
-                {review.user_avatar ? (
-                  <img
-                    src={getCloudinaryThumbnail(review.user_avatar, 400, 400)}
-                    alt={review.user_name}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  <FiUser className="w-6 h-6" />
-                )}
+                <FiUser className="w-6 h-6" />
               </div>
               <div>
                 <h4 className="font-medium text-gray-900">

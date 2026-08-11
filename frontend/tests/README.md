@@ -45,18 +45,19 @@ files are independent and parallelism is free.
 
 ## What is covered
 
-| Suite                      | Locks in                                                                                                                           |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `browseFilters.test.js`    | `IMP-011`/`IMP-070` — the shared-link round trip, `undefined`-not-empty-string criteria, the shallow-copy bug in `EMPTY_FILTERS`   |
-| `ReviewForm.test.jsx`      | `BUG C1` — `onSubmit` gets `{rating, comment}`, not the DOM event; star clicks reach the handler; the `IMP-081` radio semantics    |
-| `dateFormat.test.js`       | `BUG-046` — the timezone pin, and three distinct empty-input contracts                                                             |
-| `rating.test.js`           | `BUG M-2` — unrated is `null`, never `0`                                                                                           |
-| `placeImage.test.js`       | `BUG M-1` — a gallery-only place resolves to its gallery image                                                                     |
-| `AuthContext.test.jsx`     | `BUG C1 defect 1` — the provider publishes every name its consumers destructure                                                    |
-| `PlaceCard.test.jsx`       | That the card _uses_ the shared helpers rather than hand-rolling them again                                                        |
-| `isrContracts.test.js`     | `TD-018` — what `getStaticProps`/`getStaticPaths` hand to Next: ISR intervals, the error retry, `notFound` **with** `revalidate`   |
-| `useManagePlaces.test.jsx` | `TD-018`/`IMP-038` — the admin list walks every page, and reports it when the runaway cap stops it early                           |
-| `placeFormSteps.test.jsx`  | `IMP-125` — the wizard's in-flight panel names only services the request uses, and the shared step navigation points where it says |
+| Suite                       | Locks in                                                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `browseFilters.test.js`     | `IMP-011`/`IMP-070` — the shared-link round trip, `undefined`-not-empty-string criteria, the shallow-copy bug in `EMPTY_FILTERS`   |
+| `ReviewForm.test.jsx`       | `BUG C1` — `onSubmit` gets `{rating, comment}`, not the DOM event; star clicks reach the handler; the `IMP-081` radio semantics    |
+| `dateFormat.test.js`        | `BUG-046` — the timezone pin, and three distinct empty-input contracts                                                             |
+| `rating.test.js`            | `BUG M-2` — unrated is `null`, never `0`                                                                                           |
+| `placeImage.test.js`        | `BUG M-1` — a gallery-only place resolves to its gallery image                                                                     |
+| `AuthContext.test.jsx`      | `BUG C1 defect 1` — the provider publishes every name its consumers destructure                                                    |
+| `PlaceCard.test.jsx`        | That the card _uses_ the shared helpers rather than hand-rolling them again                                                        |
+| `isrContracts.test.js`      | `TD-018` — what `getStaticProps`/`getStaticPaths` hand to Next: ISR intervals, the error retry, `notFound` **with** `revalidate`   |
+| `useManagePlaces.test.jsx`  | `TD-018`/`IMP-038` — the admin list walks every page, and reports it when the runaway cap stops it early                           |
+| `placeFormSteps.test.jsx`   | `IMP-125` — the wizard's in-flight panel names only services the request uses, and the shared step navigation points where it says |
+| `reviewAvatarSink.test.jsx` | `SECURITY_AUDIT` L8 — a review author avatar is never rendered as an image, in any form                                            |
 
 The component tests are deliberately weighted toward **contracts between modules**, because that is
 where this codebase's worst bugs lived: every helper was correct and the callers each reimplemented
