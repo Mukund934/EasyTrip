@@ -122,37 +122,35 @@ app.use((req, res, next) => {
 // ahead of the body parsers and the routers so a flood is rejected before a
 // 10 MB payload is parsed, and so the buckets also cover the /api/admin/places
 // handlers that placeRoutes serves.
-const limiterOptions = (windowMs, limit, message, extraSkip) => ({
+const limiterOptions = (windowMs, limit, message) => ({
   windowMs,
   limit,
   standardHeaders: true,
   legacyHeaders: false,
   // CORS preflights are browser overhead, not caller intent.
-  skip: (req) => req.method === 'OPTIONS' || Boolean(extraSkip && extraSkip(req)),
+  skip: (req) => req.method === 'OPTIONS',
   message: { message }
 });
 
-// ⚠️ THE JUSTIFICATION FOR THIS EXEMPTION NO LONGER HOLDS — see `BUG-049`.
+// `BUG-049`, resolved in Sprint 6.17: the image reads are bucketed like everything else.
 //
-// It read: "the card-image fallback is fetched once per place with no stored
-// primary_image_url, and the frontend proxies it server-side, so a single visitor loading
-// /browse arrives at Express as dozens of hits from ONE ip — the Next server's. Bucketing
-// them 429s every user behind that proxy."
+// There used to be an `isImageRead` exemption here, taking GET /places/:id/image and
+// /places/:id/images/:imageId out of the global bucket entirely. The reason was specific and, at
+// the time, correct: the card-image fallback was fetched once per place *through a server-side
+// Next proxy*, so one /browse load arrived as dozens of hits from a single IP — the Next server's
+// — and bucketing them would have 429'd every user behind it.
 //
-// That was true until `IMP-037`. The API now returns an absolute CDN url or null, and
-// `getPlaceImageUrl` resolves to a **local** placeholder when there is none, so the frontend
-// stopped requesting this endpoint entirely; the proxy that concentrated the traffic was
-// deleted in Sprint 6.16 as dead code. Nothing in the application calls these two routes now.
+// `IMP-037` removed that architecture: the API returns an absolute CDN url or null, and
+// `getPlaceImageUrl` falls back to a local placeholder, so the frontend stopped requesting these
+// routes. Sprint 6.16 then deleted the proxy itself as dead code. Nothing can concentrate hits any
+// more — `next/image` cannot either, since `remotePatterns` admits only `res.cloudinary.com`.
 //
-// So the exemption no longer protects end users behind a shared proxy IP — it exempts two
-// public endpoints from the global bucket for a condition that cannot occur. Removing it
-// changes rate-limiting behaviour on live routes, which is an operational decision rather
-// than a cleanup, so it is recorded and left in place rather than quietly changed.
-const isImageRead = (req) =>
-  req.method === 'GET' && /^\/api\/places\/\d+\/(image|images\/\d+)$/.test(req.path);
-
+// So the exemption had inverted: with no proxy, the only callers are direct ones, and it was
+// lifting the ceiling from exactly the end-user IPs it existed to protect from each other. These
+// are public, unauthenticated, and cost one to three queries each. They are back under the same
+// 1000-per-15-minutes ceiling as the rest of the API.
 const globalLimiter = rateLimit(
-  limiterOptions(15 * 60 * 1000, 1000, 'Too many requests, please try again later', isImageRead)
+  limiterOptions(15 * 60 * 1000, 1000, 'Too many requests, please try again later')
 );
 const reviewWriteLimiter = rateLimit(
   limiterOptions(60 * 60 * 1000, 10, 'Too many reviews submitted, please try again later')

@@ -105,17 +105,42 @@ describe('what the limiters deliberately do NOT block', () => {
     expect(codes.every((c) => c !== 429)).toBe(true);
   });
 
-  test('the image redirect is exempt from the global bucket', async () => {
-    // ⚠️ This asserts current behaviour, and the behaviour is no longer justified — `BUG-049`.
-    //
-    // The reason used to be: "one browse page load arrives from the Next server as dozens of hits
-    // from ONE ip; bucketing them 429s every user behind that proxy." `IMP-037` removed that proxy
-    // hop, and Sprint 6.16 deleted the proxy itself as dead code, so nothing in the application
-    // requests these routes at all. The exemption now takes two public endpoints out of the global
-    // bucket for a condition that cannot occur.
-    //
-    // The test stays because it pins what the app does today; removing the exemption changes
-    // rate-limiting on live routes, which is an operational decision and is left to the owner.
+  /**
+   * `BUG-049` — the image reads are inside the global bucket again (Sprint 6.17).
+   *
+   * **Why this is asserted through headers rather than by exhausting the bucket.** The ceiling is
+   * 1000 per 15 minutes, so firing 30 requests and finding no 429 proves nothing at all — that is
+   * exactly what the *exempt* route did, and what the previous version of this test measured.
+   * `standardHeaders: true` makes the counter observable directly: an exempt route emitted **no
+   * `ratelimit-*` headers and consumed nothing**, while a bucketed one both advertises the policy
+   * and decrements `ratelimit-remaining`.
+   */
+  test('an image read is counted against the global bucket', async () => {
+    const res = await request(app).get('/api/places/3/image');
+
+    // Under the old exemption this object was empty.
+    expect(res.headers['ratelimit-limit']).toBe('1000');
+    expect(res.headers['ratelimit-remaining']).toBe('999');
+  });
+
+  test('and it consumes from the same bucket the JSON routes use', async () => {
+    // The property that matters is not "this route has a limit" but "it shares the ceiling", so a
+    // flood of image reads cannot leave the rest of the API unprotected. Two different routes, one
+    // counter, counting down.
+    const first = await request(app).get('/api/places');
+    const second = await request(app).get('/api/places/3/image');
+    const third = await request(app).get('/api/places/3/images/1');
+
+    expect([
+      first.headers['ratelimit-remaining'],
+      second.headers['ratelimit-remaining'],
+      third.headers['ratelimit-remaining']
+    ]).toEqual(['999', '998', '997']);
+  });
+
+  test('a burst of image reads is still nowhere near the ceiling', async () => {
+    // Bucketing them must not make ordinary browsing fail: 1000 per 15 minutes is roughly one
+    // request per second sustained, and a page load is nothing like that.
     const codes = await fire(30, () => request(app).get('/api/places/3/image'));
     expect(codes.every((c) => c !== 429)).toBe(true);
   });
