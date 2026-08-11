@@ -84,8 +84,13 @@ rather than enumerating an empty table if a future Express removes them.
 ## What it does not cover
 
 - The frontend. Component tests are `IMP-093`, end-to-end is `IMP-094`.
-- Cloudinary upload and destroy. Both are mocked at the config layer; exercising them needs either
-  a real account or a fake, and neither belongs in this suite.
+- **The Cloudinary network call itself.** No test contacts Cloudinary, and none should — their SDK
+  working is their test suite's job. What _is_ covered, since Sprint 6.17, is our own wrapper around
+  it: `uploadImage.test.js` and `cloudinaryCleanup.test.js` stub the `cloudinary` **package** rather
+  than `config/cloudinary`, one layer lower than every other suite, so the module's own logic runs
+  for real — the temp-file cleanup, the `secure_url` rename, the `'not found'`-is-success mapping.
+  _(This bullet used to read "both are mocked at the config layer … neither belongs in this suite",
+  which stopped being true when those two files were written.)_
 - Concurrency. Every assertion is sequential, so nothing here would catch a race between two
   simultaneous review submissions.
 - Driver-fault paths in the review controller — the `42P10` missing-constraint and `42P01`
