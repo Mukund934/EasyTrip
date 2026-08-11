@@ -128,7 +128,34 @@ export const useMapInstance = ({
       // guarded on it was therefore dead: markers never updated after the initial draw, the tile
       // selector did nothing, and selecting a place never flew to it. `whenReady` runs the
       // callback immediately if the map is already ready, which is the case here.
-      map.whenReady(() => setMapLoaded(true));
+      map.whenReady(() => {
+        setMapLoaded(true);
+
+        // Report the zoom the map actually has, not the one it was asked for (`BUG-045`).
+        //
+        // The requested zoom and the real one can differ from the first frame: this map is
+        // constructed with `zoom: 5` against `minZoom: 6`, so Leaflet clamps to 6 — while
+        // `ExploreMap` seeds its `mapMetrics` state from the *prop*. Nothing else corrected it,
+        // because the only other writer is the `zoomend` handler below, and no zoom event fires
+        // during construction. The overlay counter therefore read "Z: 5.0" over tiles at 6 until
+        // the user zoomed, which is the `M-6` class: a number displayed but never measured.
+        //
+        // Syncing from the instance rather than fixing the prop is deliberate. It is correct for
+        // any caller and for any future `minZoom`, and it leaves `zoom = 5` meaning what it says —
+        // the view intended when the constraints allow it.
+        //
+        // Both writers, exactly as `zoomend` does below. `setMapMetrics` is the one that reaches
+        // the overlay counter; `onZoomChange` is an optional callback for an external consumer and
+        // is currently passed by nobody — updating only that one would have looked like a fix and
+        // changed nothing on screen.
+        const initialZoom = map.getZoom();
+
+        if (onZoomChange) {
+          onZoomChange(initialZoom);
+        }
+
+        setMapMetrics((prev) => ({ ...prev, zoom: initialZoom }));
+      });
 
       map.on('moveend', () => {
         if (onCenterChange) {
