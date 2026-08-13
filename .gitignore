@@ -64,3 +64,10 @@ docs/
 # so it cannot be swept in by a `git add -A`. Anything in here that is genuinely meant to be shared
 # should be moved out rather than un-ignored.
 .claude/
+
+# Throwaway Postgres clusters. `e2e/global-setup.js` and the API suite both boot one when
+# DATABASE_URL is unset, and a data directory is ~66 MB of binary state that must never reach a
+# commit. One did land in the repo root once — a helper script fell back to `$PWD` when its
+# scratch-directory variable was unset — and it went unstaged only because Postgres creates the
+# directory 0700 and git could not read it. That is luck, not a guard. This is the guard.
+pgdata*/

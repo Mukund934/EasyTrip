@@ -5,6 +5,7 @@ import apiClient from '../services/apiClient';
 import { toast } from 'react-toastify';
 import { FiUser, FiMapPin, FiCalendar, FiSave } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import MyReviews from '../components/profile/MyReviews';
 
 export default function Profile() {
   const { currentUser, loading: authLoading, updateProfile, getIdToken } = useAuth();
@@ -244,6 +245,30 @@ export default function Profile() {
               </form>
             </div>
           </div>
+
+          {/*
+            "Your reviews" (`IMP-117`). The README advertised profiles that let you *manage
+            reviews*; until now this page was a three-field form and the claim was not true.
+
+            Deliberately a sibling card rather than a tab: the review history is the reason most
+            people would open this page at all, and hiding it behind a tab would leave the form —
+            which you edit once — as the whole page.
+          */}
+          <section aria-labelledby="my-reviews-heading" className="mt-8">
+            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+              <div className="px-4 py-5 sm:px-6 bg-primary-600">
+                <h2 id="my-reviews-heading" className="text-xl font-semibold text-white">
+                  Your Reviews
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm text-primary-100">
+                  Everything you have written, most recently updated first
+                </p>
+              </div>
+              <div className="px-4 py-5 sm:p-6">
+                <MyReviews />
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </>

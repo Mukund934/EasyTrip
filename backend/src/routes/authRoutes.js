@@ -10,6 +10,7 @@ const {
   addFavorite,
   removeFavorite
 } = require('../controllers/savedPlaceController');
+const { getMyReviews } = require('../controllers/myReviewController');
 
 const profileRules = [
   body('name')
@@ -69,5 +70,15 @@ router.delete(
   handleValidationErrors,
   removeFavorite
 );
+
+/**
+ * The caller's own review history (`IMP-117`).
+ *
+ * Deliberately separate from `GET /places/:id/reviews`, which anonymises authors so a stranger
+ * cannot correlate one person's reviews across the site. This read *is* that correlation, for the
+ * one person entitled to it — see `myReviewController` for why they are not one endpoint with a
+ * flag. Writes reuse `IMP-019`'s owner-gated place routes; there is nothing new to guard.
+ */
+router.get('/reviews', isAuthenticated, getMyReviews);
 
 module.exports = router;

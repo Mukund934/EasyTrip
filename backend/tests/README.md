@@ -95,6 +95,7 @@ how many requests the earlier ones happened to send.
 | `cloudinaryCleanup.test.js` | Deletion never throws — an outage at the image host must not fail a user's delete                                                          |
 | `publicIdFromUrl.test.js`   | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
 | `savedPlaces.test.js`       | `IMP-108` — a wishlist is private, and the privacy comes from the SQL predicate rather than a check somebody remembered; plus idempotency  |
+| `myReviews.test.js`         | `IMP-117` — the endpoint that deliberately performs the correlation `IMP-021` prevents, for the one person entitled to it                  |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
 the mounted route table** rather than the behaviour of a request. That is deliberate, because the
