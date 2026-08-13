@@ -57,9 +57,10 @@
 
 ![Weather & Map](./preview7.png)
 
-> ⚠️ The map is a Google Maps embed driven by the place's stored coordinates and works as shown.
-> The weather panel is a **UI placeholder** — no weather API is connected yet.
-> See [Not Yet Implemented](#-not-yet-implemented).
+> ⚠️ **This screenshot predates a change.** The map is a Google Maps embed driven by the place's
+> stored coordinates and works as shown. The weather panel does not: it displayed a hardcoded
+> forecast presented as real, and it has since been **removed from the page entirely** rather than
+> left there looking functional. See [Not Yet Implemented](#-not-yet-implemented).
 
 ---
 
@@ -97,13 +98,22 @@
 - ⭐ **Ratings & Reviews** – Read reviews and post a 1–5 star rating with a comment; one review per user per place (enforced by a `UNIQUE` constraint + upsert), with place averages maintained by a PostgreSQL trigger
 - 📱 **Responsive Design** – Optimized for all devices
 - 🖼️ **Magazine-Style Detail Pages** – Full-bleed hero, carousels, related places, and a Google Maps embed for the location
+- 🗺️ **Explore Map** – Leaflet map with marker clustering, multiple tile layers, a geolocation radius filter, and in-map search
+- ❤️ **Saved Places** – Heart any destination and find it again on `/saved`; persisted per user, server-side, and it follows you to another device
+- 🚩 **Report a Review** – Reports are persisted for moderation rather than faked client-side
 - 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name
 
 ### 🛡️ Admin Features
 
 - 🖊️ **Content Management** – Create, edit, and delete destinations
-- 📦 **Image Management** – Cloudinary-backed upload with a drag-and-drop admin UI and an SVG placeholder fallback
-- 👥 **Admin Management API** – List, grant, and revoke admin rights (`/api/admin/admins`) — API only, no UI yet
+- 📦 **Image Management** – Cloudinary-backed upload with a drag-and-drop admin UI, multi-image galleries, and an SVG placeholder fallback
+- 👥 **User Management** – List users and grant or revoke admin rights, from the dashboard and over the API (`/api/admin/admins`)
+
+### 🧪 Engineering
+
+- ✅ **513 assertions across three layers** – API tests against a real PostgreSQL, component tests, and browser journeys including authenticated ones against the Firebase Auth Emulator
+- ⚙️ **CI on every push** – five jobs: lint and build, frontend tests, migrations, API tests, and end-to-end
+- 🗄️ **Real migrations** – versioned, checksummed, and applied by a runner rather than at boot
 
 ---
 
@@ -111,18 +121,14 @@
 
 Built-but-incomplete or not started. Listed here so the feature list above stays honest.
 
-| Feature                      | Status today                                                                                                                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🗺️ Explore map (browse page) | The Leaflet UI is fully built — clustering, six tile layers, a geolocation radius filter, in-map search — but it renders **no markers**: PostgreSQL returns `DECIMAL` coordinates as strings and the marker filter requires `typeof === 'number'` |
-| ❤️ Favorites / wishlist      | Heart buttons exist in the UI but persist to component state only — there is no `favorites` table or endpoint                                                                                                                                     |
-| 📖 Multi-image galleries     | The `place_images` table, its read endpoint, and the gallery UI exist, but nothing writes to the table yet                                                                                                                                        |
-| ☀️ Weather information       | The weather widget on the detail page (preview 7) renders **placeholder values** — no weather API is wired up                                                                                                                                     |
-| 📝 Review moderation         | No moderation endpoints or queue; "report review" is a client-side stub                                                                                                                                                                           |
-| 📊 Analytics dashboard       | The admin dashboard is a set of static navigation tiles — no metrics are computed                                                                                                                                                                 |
-| 👥 Admin user-management UI  | The backend API works, but the dashboard's "User Management" and "Settings" tiles link to pages that do not exist yet                                                                                                                             |
-| 🧪 Tests & CI                | No test suite and no CI pipeline in this repository yet                                                                                                                                                                                           |
-| ✉️ Email verification        | Password reset works, but a new account's address is never confirmed                                                                                                                                                                              |
-| ⚡ Google One Tap            | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported                                                                            |
+| Feature                    | Status today                                                                                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ☀️ Weather information     | No weather is shown anywhere. The detail page used to render a hardcoded forecast presented as real; it was removed rather than left in place, and a real integration is not wired up yet |
+| 📝 Review moderation queue | Reporting a review is real and persisted, but there is no moderation queue or admin review surface for the reports it files                                                               |
+| 📊 Analytics dashboard     | The admin dashboard is a set of navigation tiles — no metrics are computed                                                                                                                |
+| 🗺️ My Trips / itineraries  | Saved places are persisted, but trips and itineraries are not built yet                                                                                                                   |
+| ✉️ Email verification      | Password reset works, but a new account's address is never confirmed                                                                                                                      |
+| ⚡ Google One Tap          | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported                    |
 
 ---
 
@@ -134,7 +140,7 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 - **React 18.2** - Modern React with hooks and context
 - **Tailwind CSS** - Utility-first CSS framework
 - **Framer Motion** - Animation library for smooth interactions
-- **Leaflet + markercluster** - Explore map on the browse page (see [Not Yet Implemented](#-not-yet-implemented))
+- **Leaflet + markercluster** - Explore map on the browse page
 - **React Icons** - Comprehensive icon library
 - **Axios** - HTTP client for the API service layer
 
@@ -564,7 +570,7 @@ await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
 
 ## 🚀 Deployment
 
-Deployment is manual — there is no CI/CD pipeline in this repository yet.
+**Deployment** is manual. CI is not: every push runs five jobs (see [Engineering](#-engineering)), but nothing deploys automatically on green.
 
 - **Frontend**: Vercel
 - **Backend**: Render

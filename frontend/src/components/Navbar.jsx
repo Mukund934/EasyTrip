@@ -15,7 +15,9 @@ import {
   FiUserPlus,
   FiSettings,
   FiChevronDown,
-  FiCompass
+  FiCompass,
+  FiHeart,
+  FiMap
 } from 'react-icons/fi';
 
 const Navbar = () => {
@@ -207,6 +209,33 @@ const Navbar = () => {
                           >
                             <FiUser className="mr-3 h-4 w-4 text-gray-500" />
                             My Profile
+                          </Link>
+                        </motion.div>
+
+                        {/*
+                          The only entry point to the wishlist (IMP-108). Without it the hearts
+                          write to a list with no door — which is how a saved-places feature ends up
+                          looking decorative.
+                        */}
+                        <motion.div variants={itemVariants}>
+                          <Link
+                            href="/saved"
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            <FiHeart className="mr-3 h-4 w-4 text-gray-500" />
+                            Saved Places
+                          </Link>
+                        </motion.div>
+
+                        {/* The trip workspace (IMP-109). Saved places feed it, so it sits next to
+                            them — discovery on the left, planning on the right. */}
+                        <motion.div variants={itemVariants}>
+                          <Link
+                            href="/trips"
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            <FiMap className="mr-3 h-4 w-4 text-gray-500" />
+                            My Trips
                           </Link>
                         </motion.div>
 

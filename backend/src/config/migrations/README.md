@@ -63,13 +63,15 @@ lock, an `INSERT`. The files were worth more than the hundred lines. Recorded as
 
 ## The files
 
-| File                          | What it does                                                                                                                                 |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001_phase1.sql`              | One review per user per place (`IMP-062`). De-duplicates first — the only destructive step in the set. Re-syncs `rating_sum`/`rating_count`. |
-| `002_profile_fields.sql`      | `users.location`, `users.dob` — collected by the profile form since forever, never stored (`IMP-008`).                                       |
-| `003_sprint23.sql`            | `review_reports` and `newsletter_subscribers`, behind Sprint 2.3's replacements for mocked UI (`IMP-019`, `IMP-023`).                        |
-| `004_performance_indexes.sql` | Phase 4 indexes (`IMP-043`). No transaction, deliberately — see the file header.                                                             |
-| `005_retire_boot_ddl.sql`     | Absorbs the `ALTER TABLE`s that `app.js` used to run on every boot (`IMP-069`).                                                              |
+| File                          | What it does                                                                                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001_phase1.sql`              | One review per user per place (`IMP-062`). De-duplicates first — the only destructive step in the set. Re-syncs `rating_sum`/`rating_count`.    |
+| `002_profile_fields.sql`      | `users.location`, `users.dob` — collected by the profile form since forever, never stored (`IMP-008`).                                          |
+| `003_sprint23.sql`            | `review_reports` and `newsletter_subscribers`, behind Sprint 2.3's replacements for mocked UI (`IMP-019`, `IMP-023`).                           |
+| `004_performance_indexes.sql` | Phase 4 indexes (`IMP-043`). No transaction, deliberately — see the file header.                                                                |
+| `005_retire_boot_ddl.sql`     | Absorbs the `ALTER TABLE`s that `app.js` used to run on every boot (`IMP-069`).                                                                 |
+| `007_saved_places.sql`        | `user_saved_places` — the wishlist (`IMP-108`, `ADR-030`). Apply before deploying the backend; the endpoints 500 until it lands.                |
+| `008_trips.sql`               | `trips` / `trip_days` / `trip_items` — the trip workspace (`IMP-109`, `ADR-031`). Note the SET NULL cascade, which differs from 007 on purpose. |
 
 `schema.sql` is the fresh-database path: it creates everything from nothing, and it is what
 `docker-compose.yml` runs on first start. The migrations are the upgrade path for a database that

@@ -105,9 +105,42 @@ describe('what the limiters deliberately do NOT block', () => {
     expect(codes.every((c) => c !== 429)).toBe(true);
   });
 
-  test('the image redirect is exempt from the global bucket', async () => {
-    // One browse page load arrives from the Next server as dozens of hits from ONE ip. These are
-    // cheap redirects; bucketing them 429s every user behind that proxy.
+  /**
+   * `BUG-049` — the image reads are inside the global bucket again (Sprint 6.17).
+   *
+   * **Why this is asserted through headers rather than by exhausting the bucket.** The ceiling is
+   * 1000 per 15 minutes, so firing 30 requests and finding no 429 proves nothing at all — that is
+   * exactly what the *exempt* route did, and what the previous version of this test measured.
+   * `standardHeaders: true` makes the counter observable directly: an exempt route emitted **no
+   * `ratelimit-*` headers and consumed nothing**, while a bucketed one both advertises the policy
+   * and decrements `ratelimit-remaining`.
+   */
+  test('an image read is counted against the global bucket', async () => {
+    const res = await request(app).get('/api/places/3/image');
+
+    // Under the old exemption this object was empty.
+    expect(res.headers['ratelimit-limit']).toBe('1000');
+    expect(res.headers['ratelimit-remaining']).toBe('999');
+  });
+
+  test('and it consumes from the same bucket the JSON routes use', async () => {
+    // The property that matters is not "this route has a limit" but "it shares the ceiling", so a
+    // flood of image reads cannot leave the rest of the API unprotected. Two different routes, one
+    // counter, counting down.
+    const first = await request(app).get('/api/places');
+    const second = await request(app).get('/api/places/3/image');
+    const third = await request(app).get('/api/places/3/images/1');
+
+    expect([
+      first.headers['ratelimit-remaining'],
+      second.headers['ratelimit-remaining'],
+      third.headers['ratelimit-remaining']
+    ]).toEqual(['999', '998', '997']);
+  });
+
+  test('a burst of image reads is still nowhere near the ceiling', async () => {
+    // Bucketing them must not make ordinary browsing fail: 1000 per 15 minutes is roughly one
+    // request per second sustained, and a page load is nothing like that.
     const codes = await fire(30, () => request(app).get('/api/places/3/image'));
     expect(codes.every((c) => c !== 429)).toBe(true);
   });
@@ -119,5 +152,52 @@ describe('admin writes are bucketed but admin reads are not', () => {
   test('a burst of admin reads is not rate limited', async () => {
     const codes = await fire(15, () => request(app).get('/api/admin/admins').set(header));
     expect(codes.every((c) => c === 200)).toBe(true);
+  });
+});
+
+/**
+ * The limiter buckets by client IP, so what counts as "the client IP" is the whole ceiling.
+ *
+ * `app.js` sets `trust proxy` **only** when `TRUST_PROXY_HOPS` is a positive integer, and its
+ * comment states the reason exactly: *"trusting the header without a proxy in front lets any caller
+ * spoof its own IP."* If Express trusted `X-Forwarded-For` unconditionally, every request could
+ * present a fresh address and receive a fresh bucket — the limiter would still be mounted, still
+ * emit headers, still pass every other test in this file, and bound nothing at all.
+ *
+ * That became load-bearing in Sprint 6.17: `BUG-049` put the two public image reads back under this
+ * ceiling, and a spoofable key would hand them straight back.
+ */
+describe('the rate-limit key cannot be chosen by the caller', () => {
+  test('trust proxy is off unless a hop count is configured', async () => {
+    // Introspection rather than behaviour, because this is the setting the behaviour below depends
+    // on — and `TRUST_PROXY_HOPS` is deliberately unset in the test environment.
+    expect(app.get('trust proxy')).toBeFalsy();
+  });
+
+  test('a spoofed X-Forwarded-For does not earn a fresh bucket', async () => {
+    // Two different claimed addresses, one real connection. The counter must keep going down: if
+    // the header were honoured, each request would look like a new client and `ratelimit-remaining`
+    // would read 999 both times.
+    const first = await request(app).get('/api/places').set('X-Forwarded-For', '203.0.113.1');
+    const second = await request(app).get('/api/places').set('X-Forwarded-For', '198.51.100.7');
+
+    expect([first.headers['ratelimit-remaining'], second.headers['ratelimit-remaining']]).toEqual([
+      '999',
+      '998'
+    ]);
+  });
+
+  test('and the same holds for the image reads BUG-049 just re-bucketed', async () => {
+    const first = await request(app)
+      .get('/api/places/3/image')
+      .set('X-Forwarded-For', '203.0.113.1');
+    const second = await request(app)
+      .get('/api/places/3/image')
+      .set('X-Forwarded-For', '198.51.100.7');
+
+    expect([first.headers['ratelimit-remaining'], second.headers['ratelimit-remaining']]).toEqual([
+      '999',
+      '998'
+    ]);
   });
 });

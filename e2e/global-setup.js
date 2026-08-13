@@ -33,6 +33,30 @@ const STATE_FILE = path.join(os.tmpdir(), 'easytrip-e2e-state.json');
 
 const log = (message) => console.log(`  [e2e setup] ${message}`);
 
+/**
+ * Record a started resource immediately, rather than describing the whole stack at the end.
+ *
+ * **Why incrementally.** This file used to write `STATE_FILE` once, after Postgres, the schema, the
+ * auth emulator *and* the API had all succeeded — and `global-teardown` returns early when the file
+ * does not exist. So any failure part-way through setup left teardown with nothing to stop, and
+ * whatever had already started leaked. Observed on 2026-08-11: the emulator failed to become ready,
+ * setup threw, and the throwaway Postgres was still holding port 55470 afterwards.
+ *
+ * Writing after each resource means teardown can always clean up exactly what got as far as
+ * existing. It survives a hard kill of this process too, which a `try/catch` around the body would
+ * not. `global-teardown` already guards every field independently, so a partial file is something
+ * it handles rather than something it has to be taught.
+ */
+const recordState = (patch) => {
+  let current = {};
+  try {
+    current = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+  } catch {
+    /* first write of this run, or an unreadable leftover — either way start clean */
+  }
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ ...current, ...patch }));
+};
+
 /** Locate the Postgres binaries without assuming they are on PATH. */
 const findPgBin = () => {
   if (process.env.E2E_PG_BIN) return process.env.E2E_PG_BIN;
@@ -255,6 +279,11 @@ const startAuthEmulator = async (databaseUrl) => {
 };
 
 module.exports = async () => {
+  // A leftover file from a run that was killed outright would otherwise have its stale pids merged
+  // into this run's state. Stale *ports* are a separate problem, and are released independently
+  // below and in `auth-emulator.js`.
+  fs.rmSync(STATE_FILE, { force: true });
+
   const provided = process.env.DATABASE_URL;
   let cluster = null;
 
@@ -262,6 +291,8 @@ module.exports = async () => {
     log('using the DATABASE_URL already in the environment (CI service container)');
   } else {
     cluster = startThrowawayPostgres();
+    // Recorded before the schema build, because everything after this point can throw.
+    recordState({ dataDir: cluster.dataDir, pgBin: cluster.pgBin });
   }
   const databaseUrl = provided || cluster.url;
 
@@ -272,18 +303,10 @@ module.exports = async () => {
   // makes the real `firebase-admin` accept emulator-issued tokens (ADR-028). Nothing in production
   // code changes; the SDK reads the variable itself.
   const auth = await startAuthEmulator(databaseUrl);
+  recordState({ authPid: auth.pid ?? null });
 
   const api = await startApi(databaseUrl);
-
-  fs.writeFileSync(
-    STATE_FILE,
-    JSON.stringify({
-      apiPid: api.pid,
-      authPid: auth.pid ?? null,
-      dataDir: cluster?.dataDir ?? null,
-      pgBin: cluster?.pgBin ?? null
-    })
-  );
+  recordState({ apiPid: api.pid });
 
   // Detach the handles so this process can exit while the API keeps running for the suite.
   api.unref();

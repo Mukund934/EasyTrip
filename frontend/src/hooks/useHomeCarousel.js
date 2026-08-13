@@ -1,18 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { formatAverageRating } from '../utils/rating';
+import { useWishlist } from './useWishlist';
 
 /** How long a slide transition is locked, and how long a slide is shown. */
 const TRANSITION_MS = 500;
 const AUTOPLAY_MS = 5000;
-
-/**
- * Where liked places live between visits.
- *
- * One constant, not the same literal in the read effect and the write effect: renaming one and not
- * the other loses every user's saved likes with no error anywhere — new likes save, and nothing
- * ever reads them back.
- */
-const LIKES_STORAGE_KEY = 'easytrip_liked_places';
 
 /**
  * The landing page's hero carousel (IMP-070 / IMP-124 line criterion).
@@ -20,16 +12,24 @@ const LIKES_STORAGE_KEY = 'easytrip_liked_places';
  * `isTransitioning` is a lock, not decoration: without it a fast click or a swipe landing during
  * an in-flight slide change queues a second index update and the direction animation plays
  * backwards. Every navigation path goes through it.
+ *
+ * **Likes moved out in `IMP-108`.** This hook used to own `easytrip_liked_places` — the read
+ * effect, the write effect, the `likesRestored` gate between them, and the storage key itself. All
+ * of it is now `useWishlist`, because the detail page's heart had a *second*, incompatible
+ * implementation (`useState(false)`, ephemeral) and one of the two had to stop being the source of
+ * truth. The signed-out behaviour, including the storage key and the array-of-numbers shape
+ * `TD-018` asserts on, is unchanged.
  */
 export function useHomeCarousel(places, loadError) {
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
   const [direction, setDirection] = useState(1);
-  const [likedPlaces, setLikedPlaces] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const carouselRef = useRef(null);
   const autoplayRef = useRef(null);
+
+  const wishlist = useWishlist();
 
   // Check screen size
   useEffect(() => {
@@ -38,43 +38,6 @@ export function useHomeCarousel(places, loadError) {
     window.addEventListener('resize', checkScreenSize);
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
-
-  /**
-   * Restore liked places, then allow persistence — in that order, enforced.
-   *
-   * `likesRestored` is not bookkeeping; without it the feature loses data. Both effects run on
-   * mount, and the write effect closes over the *initial* `[]`, so it overwrites the stored value
-   * before the restore has been applied. With `reactStrictMode` on, React then re-invokes both
-   * effects: the second read sees the `[]` it just wrote and resets state to empty. **The result
-   * was that every liked place was destroyed on every page load in development**, and in
-   * production the value was momentarily blanked before being rewritten — a window in which
-   * closing the tab lost the data.
-   *
-   * Found by the E2E persistence test (`TD-018`), which seeded four likes, reloaded, and got back
-   * an empty array.
-   */
-  const [likesRestored, setLikesRestored] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(LIKES_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Guard the shape too: the UI does `likedPlaces.includes(id)`, which silently misbehaves
-        // rather than throwing if a corrupted value is not an array.
-        if (Array.isArray(parsed)) setLikedPlaces(parsed);
-      } catch (e) {
-        console.error('Error loading liked places:', e);
-      }
-    }
-    setLikesRestored(true);
-  }, []);
-
-  useEffect(() => {
-    // Never write before the restore has run, or the write races it and wins.
-    if (!likesRestored) return;
-    localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(likedPlaces));
-  }, [likedPlaces, likesRestored]);
 
   // Autoplay carousel
   useEffect(() => {
@@ -128,12 +91,11 @@ export function useHomeCarousel(places, loadError) {
     }
   };
 
-  // Toggle like
+  // Toggle like. `stopPropagation` still belongs here — the heart sits inside the slide, which is
+  // itself clickable, and without it liking a place also navigates to it.
   const toggleLike = (e, id) => {
     e.stopPropagation();
-    setLikedPlaces((prev) =>
-      prev.includes(id) ? prev.filter((placeId) => placeId !== id) : [...prev, id]
-    );
+    wishlist.toggle(id);
   };
 
   // 'New' is this page's answer for an unrated place; the helper takes it as a parameter so the
@@ -146,7 +108,9 @@ export function useHomeCarousel(places, loadError) {
     currentPlaceIndex,
     autoplay,
     direction,
-    likedPlaces,
+    // Still called `likedPlaces` because that is what the two hero components read, and renaming a
+    // prop across them is churn this change does not need. It is now the wishlist's id list.
+    likedPlaces: wishlist.savedIds,
     isMobile,
     isTransitioning,
     carouselRef,

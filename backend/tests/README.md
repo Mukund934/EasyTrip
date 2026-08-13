@@ -48,6 +48,27 @@ the real SDK signals by throwing.
 wipe each other's fixtures mid-test. Parallelism here needs one database per worker; a fast suite
 that lies is worse than a slow one that does not.
 
+> ### ⚠️ A schema change is invisible to a re-used local database
+>
+> `createSchema()` runs `schema.sql` and then every migration, and **all of it is
+> `CREATE TABLE IF NOT EXISTS` / `CREATE OR REPLACE`** — which is exactly what makes the migrations
+> re-runnable in production. The consequence locally: against a database that already has the
+> tables, editing `schema.sql` or adding a migration **changes nothing, and the suite still passes.**
+>
+> This was found the honest way, in Sprint 7.1. Two mutations that break `user_saved_places` — making
+> the unique constraint per-place instead of per-(user, place), and removing the `ON DELETE CASCADE`
+> — **survived** the mutation run. Both are caught immediately on a fresh database; the re-used
+> cluster was silently serving the unmutated table.
+>
+> **CI is unaffected** — its Postgres service container is new every run, which is why this has never
+> failed a build. But a developer iterating locally can edit the schema, watch the suite go green,
+> and ship a table that was never created. **Drop and recreate the database after any change to
+> `schema.sql` or `migrations/`:**
+>
+> ```bash
+> dropdb --if-exists easytrip_test && createdb easytrip_test
+> ```
+
 **Why the rate limiters are reset between tests.** The stores are in-memory and per-process, so
 they accumulate across a file. The newsletter bucket is 5 per hour by design, which is fewer
 requests than its own test file makes — without a reset, every assertion after the fifth depends on
@@ -70,8 +91,12 @@ how many requests the earlier ones happened to send.
 | `profile.test.js`           | `IMP-008` — a profile edit persists what it was sent, and reading one provisions a row                                                     |
 | `placeImages.test.js`       | `SECURITY_AUDIT` M1 — the placeholder SVG never reflects request input; plus the image resolution ladder and the place-scoped delete       |
 | `updatePlace.test.js`       | The admin edit path: partial updates, orphan cleanup on image replacement, and `BUG-048` pinned                                            |
+| `uploadImage.test.js`       | `IMP-024` — the staged temp file is removed on every path, including a rejected upload                                                     |
 | `cloudinaryCleanup.test.js` | Deletion never throws — an outage at the image host must not fail a user's delete                                                          |
 | `publicIdFromUrl.test.js`   | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
+| `savedPlaces.test.js`       | `IMP-108` — a wishlist is private, and the privacy comes from the SQL predicate rather than a check somebody remembered; plus idempotency  |
+| `myReviews.test.js`         | `IMP-117` — the endpoint that deliberately performs the correlation `IMP-021` prevents, for the one person entitled to it                  |
+| `trips.test.js`             | `IMP-109` — **transitive** ownership: days and items carry no uid, so every one of eleven endpoints must join up to `trips` to prove it    |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
 the mounted route table** rather than the behaviour of a request. That is deliberate, because the
@@ -83,8 +108,13 @@ rather than enumerating an empty table if a future Express removes them.
 ## What it does not cover
 
 - The frontend. Component tests are `IMP-093`, end-to-end is `IMP-094`.
-- Cloudinary upload and destroy. Both are mocked at the config layer; exercising them needs either
-  a real account or a fake, and neither belongs in this suite.
+- **The Cloudinary network call itself.** No test contacts Cloudinary, and none should — their SDK
+  working is their test suite's job. What _is_ covered, since Sprint 6.17, is our own wrapper around
+  it: `uploadImage.test.js` and `cloudinaryCleanup.test.js` stub the `cloudinary` **package** rather
+  than `config/cloudinary`, one layer lower than every other suite, so the module's own logic runs
+  for real — the temp-file cleanup, the `secure_url` rename, the `'not found'`-is-success mapping.
+  _(This bullet used to read "both are mocked at the config layer … neither belongs in this suite",
+  which stopped being true when those two files were written.)_
 - Concurrency. Every assertion is sequential, so nothing here would catch a race between two
   simultaneous review submissions.
 - Driver-fault paths in the review controller — the `42P10` missing-constraint and `42P01`
