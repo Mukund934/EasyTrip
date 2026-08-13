@@ -39,6 +39,26 @@ export const formatDate = (dateString) => {
 };
 
 /**
+ * The short weekday of a calendar date — "Mon" — or `null`.
+ *
+ * Added for the weather forecast strip (`IMP-110`), which labels seven columns and has no room for
+ * a full date. Noon is substituted for the missing time before parsing: a bare `YYYY-MM-DD` is
+ * interpreted as UTC midnight, which lands on the previous day for anyone behind UTC and would
+ * label Tuesday's forecast "Mon" — `BUG-046` in a new place. Midday is far enough from both
+ * boundaries that no zone can move it.
+ */
+export const formatWeekdayShort = (dateString) => {
+  if (!dateString) return null;
+  const parsed = new Date(`${dateString}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  try {
+    return parsed.toLocaleDateString('en-US', { weekday: 'short', timeZone: ZONE });
+  } catch {
+    return null;
+  }
+};
+
+/**
  * A compact date — "Jan 1, 2026" — or `'N/A'`.
  *
  * For dense tables, where a long month name pushes the column wide and the reader is scanning

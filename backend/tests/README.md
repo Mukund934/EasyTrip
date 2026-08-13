@@ -97,6 +97,7 @@ how many requests the earlier ones happened to send.
 | `savedPlaces.test.js`       | `IMP-108` — a wishlist is private, and the privacy comes from the SQL predicate rather than a check somebody remembered; plus idempotency  |
 | `myReviews.test.js`         | `IMP-117` — the endpoint that deliberately performs the correlation `IMP-021` prevents, for the one person entitled to it                  |
 | `trips.test.js`             | `IMP-109` — **transitive** ownership: days and items carry no uid, so every one of eleven endpoints must join up to `trips` to prove it    |
+| `weather.test.js`           | `IMP-110` — nothing is ever invented: outage, unknown shape and missing coordinates each report absence rather than a number               |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
 the mounted route table** rather than the behaviour of a request. That is deliberate, because the

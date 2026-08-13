@@ -10,10 +10,19 @@ import {
   FiTag
 } from 'react-icons/fi';
 import { motion } from 'framer-motion';
+import PlaceWeather from './PlaceWeather';
 
 // Magazine-style Sidebar with progressive loading
 export const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
   <aside className="lg:sticky lg:top-24 space-y-8">
+    {/*
+      Real weather (`IMP-110`), first in the sidebar because it is the only thing here that changes
+      between two visits — and because it is the slot the fabricated widget used to occupy. It
+      fetches on the client: the page is ISR-cached, so a build-time forecast would be stale on
+      arrival and then served from cache to everyone.
+    */}
+    {place?.id && <PlaceWeather placeId={place.id} />}
+
     {/* Editor's Note */}
     <motion.div
       initial={{ opacity: 0, y: 20 }}

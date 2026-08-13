@@ -106,6 +106,17 @@ export const fetchPlaceReviews = async (id, options = {}) =>
   request(`/places/${id}/reviews`, options);
 
 export const fetchLocations = async (options = {}) => request('/places/locations', options);
+
+/**
+ * Real weather for a place (`IMP-110`).
+ *
+ * Lives here rather than in `placeService` because it needs no token — but it is deliberately NOT
+ * called from `getStaticProps`: a forecast baked into an ISR page would be up to five minutes stale
+ * on arrival and would then be served from cache to everyone. Weather is the one thing on this page
+ * that has to be fetched when the page is *looked at*.
+ */
+export const fetchPlaceWeather = async (id, options = {}) =>
+  request(`/places/${id}/weather`, options);
 export const fetchDistricts = async (options = {}) => request('/places/districts', options);
 export const fetchStates = async (options = {}) => request('/places/states', options);
 export const fetchTags = async (options = {}) => request('/places/tags', options);

@@ -5,6 +5,7 @@ const placeController = require('../controllers/placeController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
+const { getPlaceWeather } = require('../controllers/weatherController');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
@@ -251,6 +252,10 @@ router.get('/places/tags', placeController.getTags);
 router.get('/places/:id', placeController.getPlaceById);
 router.get('/places/:id/image', placeController.getPlaceImage);
 router.get('/places/:id/images', placeController.getPlaceImages);
+// Real weather (`IMP-110`), keyed on the place's own coordinates. Public: the forecast at a
+// tourist site is not private, and the page is server-rendered for crawlers. Deliberately NOT
+// `?lat=&lon=` — that would be an open proxy to a third party at our rate limit, from our IP.
+router.get('/places/:id/weather', placeIdParam, handleValidationErrors, getPlaceWeather);
 router.get('/places/:id/images/:imageId', placeController.getPlaceImage);
 // Public, but soft-authenticated: the response never exposes a uid, so ownership of a
 // review has to be marked server-side (`is_own`) for the edit UI to be able to find it.
