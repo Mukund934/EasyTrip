@@ -156,7 +156,7 @@ async function reset(pool) {
     // it anyway through its `places` foreign key, but relying on that means the reset silently
     // stops covering a table the day its FK changes — and a suite that leaves rows behind fails as
     // "test order dependence", which is the hardest kind of failure to attribute.
-    'TRUNCATE place_reviews, place_images, review_reports, user_saved_places, places, users, newsletter_subscribers RESTART IDENTITY CASCADE'
+    'TRUNCATE place_reviews, place_images, review_reports, user_saved_places, trip_items, trip_days, trips, places, users, newsletter_subscribers RESTART IDENTITY CASCADE'
   );
 }
 

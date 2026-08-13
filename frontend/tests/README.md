@@ -61,6 +61,7 @@ files are independent and parallelism is free.
 | `useWishlist.test.jsx`      | `IMP-108` — the seam between two storage backends: the signed-out key contract, restore-before-write, the one-shot sign-in import  |
 | `savedPage.test.jsx`        | `IMP-108`/`IMP-031` — empty, loading and failed-to-load are three distinct states; "nothing saved yet" never renders over an error |
 | `myReviews.test.jsx`        | `IMP-117` — a failed _delete_ keeps the list on screen; a failed _load_ replaces it. Two errors, two treatments                    |
+| `trips.test.jsx`            | `IMP-109` — the three states, a non-optimistic delete, and the end-before-start guard that fires while typing                      |
 
 The component tests are deliberately weighted toward **contracts between modules**, because that is
 where this codebase's worst bugs lived: every helper was correct and the callers each reimplemented

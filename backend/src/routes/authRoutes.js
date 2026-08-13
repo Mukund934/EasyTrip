@@ -11,6 +11,7 @@ const {
   removeFavorite
 } = require('../controllers/savedPlaceController');
 const { getMyReviews } = require('../controllers/myReviewController');
+const tripController = require('../controllers/tripController');
 
 const profileRules = [
   body('name')
@@ -80,5 +81,153 @@ router.delete(
  * flag. Writes reuse `IMP-019`'s owner-gated place routes; there is nothing new to guard.
  */
 router.get('/reviews', isAuthenticated, getMyReviews);
+
+/**
+ * The trip workspace (`IMP-109` / `FV-006`, `ADR-031`).
+ *
+ * Nested under the trip on purpose: a day and an item are only ever addressable *through* the trip
+ * that owns them, and the URL says so. `/api/auth/items/:id` would be a shape where forgetting the
+ * ownership join is one careless handler away — this one cannot be written without the trip id.
+ */
+const idParam = (name) =>
+  param(name).isInt({ min: 1 }).withMessage(`${name} must be a positive integer`).bail().toInt();
+
+const tripBodyRules = (required) => [
+  required
+    ? body('title')
+        .trim()
+        .notEmpty()
+        .withMessage('A trip needs a title')
+        .bail()
+        .isLength({ max: 200 })
+    : body('title')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('A trip needs a title')
+        .bail()
+        .isLength({ max: 200 }),
+  body('description').optional({ values: 'null' }).isLength({ max: 5000 }),
+  body('start_date')
+    .optional({ values: 'falsy' })
+    .isISO8601()
+    .withMessage('start_date must be a date'),
+  body('end_date').optional({ values: 'falsy' }).isISO8601().withMessage('end_date must be a date'),
+  body('status')
+    .optional({ values: 'falsy' })
+    .isIn(['draft', 'upcoming', 'completed'])
+    .withMessage('status must be draft, upcoming or completed'),
+  // The database has the same CHECK; this exists so a typo is a readable 400 rather than a 500
+  // carrying a constraint name the user cannot act on.
+  body().custom((value) => {
+    if (value.start_date && value.end_date && value.end_date < value.start_date) {
+      throw new Error('A trip cannot end before it starts');
+    }
+    return true;
+  })
+];
+
+const itemBodyRules = [
+  body('place_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
+  body('item_type')
+    .optional({ values: 'falsy' })
+    .isIn(['place', 'transport', 'meal', 'activity', 'note'])
+    .withMessage('item_type must be place, transport, meal, activity or note'),
+  body('title').optional().trim().isLength({ max: 200 }),
+  body('notes').optional({ values: 'null' }).isLength({ max: 2000 }),
+  // HH:MM or HH:MM:SS. A TIME column would reject anything else anyway; this makes it a 400.
+  body('start_time')
+    .optional({ values: 'falsy' })
+    .matches(/^\d{2}:\d{2}(:\d{2})?$/),
+  body('end_time')
+    .optional({ values: 'falsy' })
+    .matches(/^\d{2}:\d{2}(:\d{2})?$/),
+  // An item with neither a place nor a title has nothing to render.
+  body().custom((value) => {
+    if (!value.place_id && !String(value.title || '').trim()) {
+      throw new Error('An item needs a title, or a place to take one from');
+    }
+    return true;
+  })
+];
+
+router.get('/trips', isAuthenticated, tripController.listTrips);
+router.post(
+  '/trips',
+  isAuthenticated,
+  tripBodyRules(true),
+  handleValidationErrors,
+  tripController.createTrip
+);
+router.get(
+  '/trips/:tripId',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.getTrip
+);
+router.put(
+  '/trips/:tripId',
+  isAuthenticated,
+  [idParam('tripId'), ...tripBodyRules(false)],
+  handleValidationErrors,
+  tripController.updateTrip
+);
+router.delete(
+  '/trips/:tripId',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.deleteTrip
+);
+
+router.post(
+  '/trips/:tripId/days',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.addDay
+);
+router.delete(
+  '/trips/:tripId/days/:dayId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('dayId')],
+  handleValidationErrors,
+  tripController.deleteDay
+);
+
+router.post(
+  '/trips/:tripId/days/:dayId/items',
+  isAuthenticated,
+  [idParam('tripId'), idParam('dayId'), ...itemBodyRules],
+  handleValidationErrors,
+  tripController.addItem
+);
+router.put(
+  '/trips/:tripId/days/:dayId/items/order',
+  isAuthenticated,
+  [
+    idParam('tripId'),
+    idParam('dayId'),
+    body('item_ids').isArray({ min: 0 }).withMessage('item_ids must be an array'),
+    body('item_ids.*').isInt({ min: 1 }).withMessage('item_ids must contain positive integers')
+  ],
+  handleValidationErrors,
+  tripController.reorderItems
+);
+router.put(
+  '/trips/:tripId/items/:itemId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('itemId'), ...itemBodyRules],
+  handleValidationErrors,
+  tripController.updateItem
+);
+router.delete(
+  '/trips/:tripId/items/:itemId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('itemId')],
+  handleValidationErrors,
+  tripController.deleteItem
+);
 
 module.exports = router;

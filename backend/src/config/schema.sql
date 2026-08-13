@@ -97,6 +97,66 @@ CREATE TABLE IF NOT EXISTS user_saved_places (
 CREATE INDEX IF NOT EXISTS user_saved_places_place_id_idx
   ON user_saved_places (place_id);
 
+-- The trip workspace (IMP-109 / FV-006, ADR-031). Kept byte-comparable with 008_trips.sql for the
+-- reason 006_reconcile_triggers.sql exists: a fresh install and an upgraded install must converge.
+--
+-- Note the cascade that DIFFERS from user_saved_places above: trip_items.place_id is SET NULL, not
+-- CASCADE. A saved place pointing at a deleted place is a broken card; an itinerary item is the
+-- user's own plan that merely mentions a place, and deleting their line because an admin removed
+-- the place would destroy their writing. Hence `title` is NOT NULL and denormalised.
+CREATE TABLE IF NOT EXISTS trips (
+  id SERIAL PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  start_date DATE,
+  end_date DATE,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft', 'upcoming', 'completed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT trips_dates_ordered CHECK (
+    start_date IS NULL OR end_date IS NULL OR end_date >= start_date
+  )
+);
+
+CREATE INDEX IF NOT EXISTS trips_user_id_updated_at_idx ON trips (user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS trip_days (
+  id SERIAL PRIMARY KEY,
+  trip_id INT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  -- An ordinal; the calendar date is computed from trips.start_date in the API.
+  day_number INT NOT NULL CHECK (day_number > 0),
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT trip_days_trip_id_day_number_key UNIQUE (trip_id, day_number)
+);
+
+CREATE INDEX IF NOT EXISTS trip_days_trip_id_idx ON trip_days (trip_id);
+
+CREATE TABLE IF NOT EXISTS trip_items (
+  id SERIAL PRIMARY KEY,
+  trip_day_id INT NOT NULL REFERENCES trip_days(id) ON DELETE CASCADE,
+  place_id INT REFERENCES places(id) ON DELETE SET NULL,
+  item_type VARCHAR(20) NOT NULL DEFAULT 'place'
+    CHECK (item_type IN ('place', 'transport', 'meal', 'activity', 'note')),
+  title VARCHAR(200) NOT NULL,
+  notes TEXT,
+  -- TIME, not TIMESTAMPTZ: "10:00" means ten in the morning where the traveller is standing.
+  start_time TIME,
+  end_time TIME,
+  position INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT trip_items_times_ordered CHECK (
+    start_time IS NULL OR end_time IS NULL OR end_time >= start_time
+  )
+);
+
+CREATE INDEX IF NOT EXISTS trip_items_trip_day_id_idx ON trip_items (trip_day_id, position);
+CREATE INDEX IF NOT EXISTS trip_items_place_id_idx ON trip_items (place_id);
+
 -- Newsletter signups. `email` is normalised (trimmed, lower-cased) by the API before insert,
 -- so the UNIQUE constraint is a real duplicate guard. `source` is intentionally unconstrained
 -- in the schema — the API owns the allowlist, so a new signup surface needs no migration.
@@ -151,6 +211,26 @@ EXECUTE FUNCTION update_modified_column();
 DROP TRIGGER IF EXISTS update_newsletter_subscribers_modtime ON newsletter_subscribers;
 CREATE TRIGGER update_newsletter_subscribers_modtime
 BEFORE UPDATE ON newsletter_subscribers
+FOR EACH ROW
+EXECUTE FUNCTION update_modified_column();
+
+-- Trip workspace (IMP-109). `trips.updated_at` is not cosmetic: the "My Trips" list is ordered by
+-- it, so a trip you just edited has to rise to the top without the API remembering to say so.
+DROP TRIGGER IF EXISTS update_trips_modtime ON trips;
+CREATE TRIGGER update_trips_modtime
+BEFORE UPDATE ON trips
+FOR EACH ROW
+EXECUTE FUNCTION update_modified_column();
+
+DROP TRIGGER IF EXISTS update_trip_days_modtime ON trip_days;
+CREATE TRIGGER update_trip_days_modtime
+BEFORE UPDATE ON trip_days
+FOR EACH ROW
+EXECUTE FUNCTION update_modified_column();
+
+DROP TRIGGER IF EXISTS update_trip_items_modtime ON trip_items;
+CREATE TRIGGER update_trip_items_modtime
+BEFORE UPDATE ON trip_items
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
