@@ -1,5 +1,5 @@
 EasyTrip — repository structure
-Regenerated 2026-08-10 from the tracked file list. Directory-level rather than
+Regenerated 2026-08-10 from the tracked file list; scripts/ refreshed 2026-08-15. Directory-level rather than
 file-by-file: the previous version named individual files and 14 of the 37 it
 listed no longer existed, because the Phase 5 cleanup deleted them and nothing
 updated this file. A tree that has to be hand-edited on every refactor will
@@ -41,7 +41,10 @@ EasyTrip/
 │   ├── global-teardown.js        Destroys them after
 │   └── tests/                    Browser specs
 │
-├── scripts/                      Repo-wide checks (module-size architecture guard)
+├── scripts/                      Repo-wide guards and generators:
+│                                 check-module-size (Phase 5 exit criterion),
+│                                 check-secrets, check-api-docs (README's route
+│                                 table vs the real routers), generate-pwa-icons
 ├── .github/workflows/            CI: lint/build, component tests, migrations,
 │                                 API tests, E2E
 ├── docker-compose.yml            Local Postgres for development

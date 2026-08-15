@@ -57,10 +57,13 @@
 
 ![Weather & Map](./preview7.png)
 
-> ⚠️ **This screenshot predates a change.** The map is a Google Maps embed driven by the place's
-> stored coordinates and works as shown. The weather panel does not: it displayed a hardcoded
-> forecast presented as real, and it has since been **removed from the page entirely** rather than
-> left there looking functional. See [Not Yet Implemented](#-not-yet-implemented).
+> ⚠️ **This screenshot predates two changes, and the caveat that replaced it also went stale.**
+> The map is a Google Maps embed driven by the place's stored coordinates and works as shown.
+>
+> The weather panel in this shot was **fabricated** — a hardcoded forecast presented as real — and
+> was deleted rather than left looking functional. It has since been **rebuilt for real** against
+> Open-Meteo, keyed on the place's own coordinates, and it now states an absence instead of showing
+> a number when there is no reading. So the panel is genuine again, but it does not look like this.
 
 ---
 
@@ -73,6 +76,8 @@
 - [Project Architecture](#-project-architecture)
 - [Installation & Setup](#-installation--setup)
 - [API Documentation](#-api-documentation)
+- [Known Issues & Lessons Learned](#-known-issues--lessons-learned)
+- [Commit & Branch Hygiene](#-commit--branch-hygiene)
 - [Deployment](#-deployment)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -94,13 +99,16 @@
 ### ✨ User Features
 
 - 🏞️ **Destination Discovery** – Browse curated destinations with image-rich cards
-- 🔍 **Search & Filters** – Full-text search over name/description, plus location, district, state, and tag filters (server-side)
+- 🔍 **Ranked search with typeahead** – Postgres `tsvector` search weighted by field (name > place > tags > description), so `temples` finds `temple` and a place _named_ for your query outranks one that merely mentions it. Suggestions appear as you type, and filters for location, district, state and tags all run server-side
 - ⭐ **Ratings & Reviews** – Read reviews and post a 1–5 star rating with a comment; one review per user per place (enforced by a `UNIQUE` constraint + upsert), with place averages maintained by a PostgreSQL trigger
 - 📱 **Responsive Design** – Optimized for all devices
 - 🖼️ **Magazine-Style Detail Pages** – Full-bleed hero, carousels, related places, and a Google Maps embed for the location
 - 🗺️ **Explore Map** – Leaflet map with marker clustering, multiple tile layers, a geolocation radius filter, and in-map search
 - ❤️ **Saved Places** – Heart any destination and find it again on `/saved`; persisted per user, server-side, and it follows you to another device
-- 🚩 **Report a Review** – Reports are persisted for moderation rather than faked client-side
+- 🚩 **Report a Review** – Reports are persisted and feed a real admin moderation queue
+- 🗺️ **Trip Workspace** – Build an itinerary day by day: ordered items, times, notes, and transport legs between stops
+- ☀️ **Real Weather** – A live Open-Meteo forecast on each place page, keyed on that place's own coordinates. When there is no reading it says so rather than showing a number
+- 📴 **Installable & Offline** – A PWA: install it, and pages you have already visited still open with no connection
 - 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name
 
 ### 🛡️ Admin Features
@@ -108,10 +116,15 @@
 - 🖊️ **Content Management** – Create, edit, and delete destinations
 - 📦 **Image Management** – Cloudinary-backed upload with a drag-and-drop admin UI, multi-image galleries, and an SVG placeholder fallback
 - 👥 **User Management** – List users and grant or revoke admin rights, from the dashboard and over the API (`/api/admin/admins`)
+- 🚩 **Moderation Queue** – Reported reviews, grouped one row per review however many people reported it. Reporter identity is never exposed, to the admin or anyone else
+- 📊 **Analytics** – Real catalogue figures, plus a _needs attention_ panel that links to the work: places with no coordinates, places with no image, reports awaiting a decision
+- 📍 **Address Lookup** – Fill a place's coordinates from its address via OpenStreetMap. One match fills the form; several are offered for a choice rather than guessed at
 
 ### 🧪 Engineering
 
-- ✅ **513 assertions across three layers** – API tests against a real PostgreSQL, component tests, and browser journeys including authenticated ones against the Firebase Auth Emulator
+- ✅ **889 assertions across three layers** – 490 API tests against a real PostgreSQL, 320 component tests, and 79 browser journeys including authenticated ones against the Firebase Auth Emulator
+- 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
+- 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – five jobs: lint and build, frontend tests, migrations, API tests, and end-to-end
 - 🗄️ **Real migrations** – versioned, checksummed, and applied by a runner rather than at boot
 
@@ -121,14 +134,20 @@
 
 Built-but-incomplete or not started. Listed here so the feature list above stays honest.
 
-| Feature                    | Status today                                                                                                                                                                              |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ☀️ Weather information     | No weather is shown anywhere. The detail page used to render a hardcoded forecast presented as real; it was removed rather than left in place, and a real integration is not wired up yet |
-| 📝 Review moderation queue | Reporting a review is real and persisted, but there is no moderation queue or admin review surface for the reports it files                                                               |
-| 📊 Analytics dashboard     | The admin dashboard is a set of navigation tiles — no metrics are computed                                                                                                                |
-| 🗺️ My Trips / itineraries  | Saved places are persisted, but trips and itineraries are not built yet                                                                                                                   |
-| ✉️ Email verification      | Password reset works, but a new account's address is never confirmed                                                                                                                      |
-| ⚡ Google One Tap          | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported                    |
+| Feature                       | Status today                                                                                                                                                                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🌐 Multi-language (i18n)      | English only. The mechanism is not built, and the blocker is content rather than code — a locale switcher with nothing translated behind it is not a feature                                                                      |
+| 🖼️ Link-preview card art      | `og:image` points at the place's own photo, which is real and correct, but not a generated card with the name composited onto it                                                                                                  |
+| ✉️ Email verification         | Password reset works, but a new account's address is never confirmed                                                                                                                                                              |
+| ⚡ Google One Tap             | Deliberately removed — it was configured with a Firebase API key where a Google OAuth Client ID belongs, so it could never work. Google **popup** sign-in is supported                                                            |
+| 📴 Offline for signed-in data | Cached pages work offline; saved places, trips and profile do not. A service worker cache is per browser, not per person, so caching them would hand one user's data to the next person on a shared device — a deliberate refusal |
+
+> **Why this table keeps changing.** Four rows were removed on 2026-08-15 because the features
+> arrived: weather, trips, the moderation queue and the analytics dashboard. This is the second time
+> the section has gone stale — an earlier commit is literally titled _"the honesty table had stopped
+> being honest"_. The failure mode is structural rather than careless: a list of what is missing
+> decays every time something ships, and nothing fails when it does. **Treat it as a release-checklist
+> item, not a document that maintains itself** — `RELEASE_CHECKLIST.md` now says so.
 
 ---
 
@@ -501,43 +520,87 @@ The table below is the complete set of Express routes the backend actually regis
 
 | Method | Endpoint  | Auth | Description               |
 | ------ | --------- | ---- | ------------------------- |
-| GET    | `/health` | —    | Service + database status |
+| GET    | `/health` | -    | Service + database status |
 
-### Places
+### Places - public reads
 
-| Method | Endpoint                      | Auth   | Description                                                             |
-| ------ | ----------------------------- | ------ | ----------------------------------------------------------------------- |
-| GET    | `/places`                     | —      | List all places                                                         |
-| GET    | `/places/search`              | —      | Search / filter (`searchTerm`, `location`, `district`, `state`, `tags`) |
-| GET    | `/places/locations`           | —      | Distinct locations                                                      |
-| GET    | `/places/districts`           | —      | Distinct districts                                                      |
-| GET    | `/places/states`              | —      | Distinct states                                                         |
-| GET    | `/places/tags`                | —      | Distinct tags                                                           |
-| GET    | `/places/:id`                 | —      | Get place by ID                                                         |
-| GET    | `/places/:id/image`           | —      | Primary image (redirect/proxy, with placeholder fallback)               |
-| GET    | `/places/:id/images`          | —      | Gallery images for a place                                              |
-| GET    | `/places/:id/images/:imageId` | —      | Same handler as `/places/:id/image`                                     |
-| GET    | `/places/:id/reviews`         | —      | Reviews for a place                                                     |
-| POST   | `/places/:id/reviews`         | Bearer | Create a review — body `{ rating: 1-5, comment: string }`               |
+| Method | Endpoint                      | Auth | Description                                                                                                                                                |
+| ------ | ----------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/places`                     | -    | List places. Filters: `searchTerm`, `location`, `district`, `state`, `tags`, `themes`, `minRating`, `date`. Paged with `limit`/`offset`, ordered by `sort` |
+| GET    | `/places/search`              | -    | The same handler under a second name                                                                                                                       |
+| GET    | `/places/suggest`             | -    | Typeahead suggestions (`q`, `limit` up to 10)                                                                                                              |
+| GET    | `/places/locations`           | -    | Distinct locations                                                                                                                                         |
+| GET    | `/places/districts`           | -    | Distinct districts                                                                                                                                         |
+| GET    | `/places/states`              | -    | Distinct states                                                                                                                                            |
+| GET    | `/places/tags`                | -    | Distinct tags                                                                                                                                              |
+| GET    | `/places/:id`                 | -    | One place                                                                                                                                                  |
+| GET    | `/places/:id/image`           | -    | Primary image (redirect, with an SVG placeholder fallback)                                                                                                 |
+| GET    | `/places/:id/images`          | -    | Gallery images                                                                                                                                             |
+| GET    | `/places/:id/images/:imageId` | -    | Same handler as `/places/:id/image`                                                                                                                        |
+| GET    | `/places/:id/weather`         | -    | Live forecast for that place's own coordinates. Deliberately **not** `?lat=&lon=`, which would be an open proxy to a third party at our IP                 |
+| GET    | `/places/:id/reviews`         | -    | Reviews. Soft-authenticated: your own review is flagged for the edit UI, but no author id is ever returned                                                 |
 
-### Profile
+### Reviews - writes
 
-| Method | Endpoint            | Auth   | Description                            |
-| ------ | ------------------- | ------ | -------------------------------------- |
-| GET    | `/auth/profile`     | Bearer | Get the signed-in user's profile row   |
-| PUT    | `/auth/profile`     | Bearer | Update the signed-in user's profile    |
-| GET    | `/auth/check-admin` | Bearer | Whether the signed-in user is an admin |
+| Method | Endpoint                               | Auth   | Description                                                                                                                |
+| ------ | -------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/places/:id/reviews`                  | Bearer | Create or update your review - `{ rating: 1-5, comment }`. A second review edits the first                                 |
+| DELETE | `/places/:id/reviews/:reviewId`        | Bearer | Delete a review. Authors may delete their own; **admins may delete any**, through this same route rather than a second one |
+| POST   | `/places/:id/reviews/:reviewId/report` | Bearer | Report a review for moderation. Idempotent per person                                                                      |
+
+### Profile and personal data
+
+| Method | Endpoint                   | Auth   | Description              |
+| ------ | -------------------------- | ------ | ------------------------ |
+| GET    | `/auth/profile`            | Bearer | Your profile row         |
+| PUT    | `/auth/profile`            | Bearer | Update your profile      |
+| GET    | `/auth/check-admin`        | Bearer | Whether you are an admin |
+| GET    | `/auth/reviews`            | Bearer | Your review history      |
+| GET    | `/auth/favorites`          | Bearer | Your saved places        |
+| POST   | `/auth/favorites`          | Bearer | Save a place             |
+| DELETE | `/auth/favorites/:placeId` | Bearer | Unsave a place           |
+
+### Trips
+
+Days and items carry no owner of their own - every query joins up to `trips.user_id`. A second
+account cannot reach them even by addressing a victim's item through its own trip id.
+
+| Method | Endpoint                                      | Auth   | Description                                                                                    |
+| ------ | --------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------- |
+| GET    | `/auth/trips`                                 | Bearer | Your trips                                                                                     |
+| POST   | `/auth/trips`                                 | Bearer | Create a trip                                                                                  |
+| GET    | `/auth/trips/:tripId`                         | Bearer | One trip, with its days and items                                                              |
+| PUT    | `/auth/trips/:tripId`                         | Bearer | Update a trip                                                                                  |
+| DELETE | `/auth/trips/:tripId`                         | Bearer | Delete a trip                                                                                  |
+| POST   | `/auth/trips/:tripId/days`                    | Bearer | Add a day                                                                                      |
+| DELETE | `/auth/trips/:tripId/days/:dayId`             | Bearer | Remove a day                                                                                   |
+| POST   | `/auth/trips/:tripId/days/:dayId/items`       | Bearer | Add an item to a day                                                                           |
+| PUT    | `/auth/trips/:tripId/days/:dayId/items/order` | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied |
+| PUT    | `/auth/trips/:tripId/items/:itemId`           | Bearer | Update an item                                                                                 |
+| DELETE | `/auth/trips/:tripId/items/:itemId`           | Bearer | Remove an item                                                                                 |
 
 ### Admin
 
-| Method | Endpoint               | Auth  | Description                                           |
-| ------ | ---------------------- | ----- | ----------------------------------------------------- |
-| POST   | `/admin/places`        | Admin | Create a place (`multipart/form-data`, field `image`) |
-| PUT    | `/admin/places/:id`    | Admin | Update a place (`multipart/form-data`, field `image`) |
-| DELETE | `/admin/places/:id`    | Admin | Delete a place                                        |
-| GET    | `/admin/admins`        | Admin | List admin accounts                                   |
-| POST   | `/admin/admins`        | Admin | Grant admin rights                                    |
-| DELETE | `/admin/admins/:email` | Admin | Revoke admin rights                                   |
+| Method | Endpoint                            | Auth  | Description                                                                                             |
+| ------ | ----------------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
+| POST   | `/admin/places`                     | Admin | Create a place (`multipart/form-data`, field `image`)                                                   |
+| PUT    | `/admin/places/:id`                 | Admin | Update a place (`multipart/form-data`, field `image`)                                                   |
+| DELETE | `/admin/places/:id`                 | Admin | Delete a place                                                                                          |
+| POST   | `/admin/places/:id/images`          | Admin | Add a gallery image                                                                                     |
+| DELETE | `/admin/places/:id/images/:imageId` | Admin | Remove a gallery image                                                                                  |
+| GET    | `/admin/admins`                     | Admin | List admin accounts                                                                                     |
+| POST   | `/admin/admins`                     | Admin | Grant admin rights                                                                                      |
+| DELETE | `/admin/admins/:email`              | Admin | Revoke admin rights                                                                                     |
+| GET    | `/admin/reports`                    | Admin | Moderation queue, one row per reported review. Filter by `status`. No reporter or author id is returned |
+| PATCH  | `/admin/reports/reviews/:reviewId`  | Admin | Resolve every open report on a review - `{ resolution }`. `409` when another moderator already did      |
+| GET    | `/admin/analytics`                  | Admin | Catalogue figures, rating distribution, review activity, and places needing attention                   |
+| GET    | `/admin/geocode`                    | Admin | Forward geocoding (`q`), paced to 1 req/s as the OpenStreetMap usage policy requires                    |
+
+### Newsletter
+
+| Method | Endpoint      | Auth | Description                                    |
+| ------ | ------------- | ---- | ---------------------------------------------- |
+| POST   | `/newsletter` | -    | Subscribe. Rate-limited to 5 attempts per hour |
 
 ### Example API Usage
 
@@ -565,6 +628,87 @@ await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
 ---
 
 </details>
+
+---
+
+## 🔬 Known Issues & Lessons Learned
+
+This project began as a university team project and has been rebuilt in the open. The list below is
+deliberate: **the defects are more interesting than the features**, and every one of them is a thing
+this codebase now has a guard against.
+
+### The one worth leading with: authentication was broken by construction
+
+The original build never initialised the Firebase Admin SDK on the server. It compensated with a
+development bypass — a request carrying the header `x-user: AdminX` was treated as an authenticated
+administrator.
+
+That is not a bug that slipped through review. It is a **dev/prod parity failure**: the local
+experience was designed around not having working authentication, so nothing in day-to-day
+development ever exercised the real path, and the bypass became load-bearing. Removing it in
+isolation would have turned every request into a 401; initialising the SDK in isolation would have
+left the bypass live. The three fixes had to land together.
+
+**What replaced it:** the SDK initialises at boot and the process **exits** if its service-account
+variables are missing — a server that cannot verify a token refuses to start rather than 401-ing
+every request in production. `users.is_admin` in PostgreSQL is the authority for admin status; a
+Firebase custom claim is treated as a cache of it, and a disagreement between the two is detected
+rather than trusted.
+
+**The lesson that generalises:** a convenience that only exists in development will be relied upon,
+and the more useful it is the more load it silently takes. The verification for this one is 11
+forged-token attacks rejected against a booted server, plus authenticated browser journeys driving
+real tokens through the Firebase Auth Emulator.
+
+### Six defects that shipped, and how each was found
+
+None of these were found by reading the code. Each has a guard now.
+
+| Defect                                                                                                                        | How it was found                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `og:url` was computed from `window.location`, so it shipped as `content=""` to every crawler — the one consumer that reads it | Writing an E2E assertion against the **raw response body** rather than the hydrated DOM. A browser-based check would have passed |
+| A React state handler used the spread form, so two fields set in one batch lost the first                                     | A test that filled three form fields at once. No user had hit it, because typing is one event per tick                           |
+| One of five admin pages had no server-side gate                                                                               | Adding a sixth page and looking for the pattern to copy — the page I might have copied was the broken one                        |
+| A test suite was quietly calling a **live** third-party service on every run                                                  | A surviving mutation that pointed at a missing assertion, which turned out to be sitting on top of the real problem              |
+| A database index test passed or failed depending on which pooled connection answered                                          | A mutation run, where it failed for changes that had nothing to do with indexing                                                 |
+| Two backlog items were being implemented for reasons that had stopped being true                                              | Verifying the premise before the fix, rather than only afterwards                                                                |
+
+### The habit behind most of those: mutation testing
+
+Load-bearing behaviour is verified by **deliberately breaking it and checking that a test fails.**
+Schema changes run against a database dropped and recreated each time — `CREATE TABLE IF NOT EXISTS`
+makes a migration mutation invisible against a re-used one, which cost two survived mutations before
+it was understood.
+
+The genuinely useful output is not the score. It is the **attribution**: when an assertion fails for
+a mutation it has no business detecting, that assertion is passing for the wrong reason. Two of the
+defects above were found exactly that way.
+
+### Documentation decays, so some of it is enforced
+
+Three claims in this README were false at some point _because the code improved_: an endpoint table
+that fell 23 routes behind, a "not yet implemented" list that kept describing shipped features, and
+a test count that only ever went up.
+
+A document nobody can fail is a document that drifts. So the falsifiable parts are now checked in
+CI — `npm run check:api-docs` compares this file's route table against the routers in both
+directions, and fails on an undocumented route _or_ a documented one that does not exist.
+
+---
+
+## 🧾 Commit & Branch Hygiene
+
+The early history contains bulk `Add files via upload` commits — the repository was originally
+managed through the GitHub web UI. That history is **kept rather than rewritten**: it is honest
+about how the project started, and rewriting shared history to look tidier is a worse habit than
+having an untidy beginning.
+
+Everything since adopts:
+
+- **Conventional commits** — `feat:`, `fix:`, `docs:`, `chore:`, `test:`, `security:`, with a scope.
+- **One cohesive change per commit**, with the reasoning in the body. The body explains _why_, and
+  names the alternative that was rejected — that is the part which is expensive to reconstruct later.
+- **A green tree at every commit.** Each lands with its tests, and the suites are run before it.
 
 ---
 

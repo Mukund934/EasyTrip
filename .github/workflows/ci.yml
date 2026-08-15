@@ -100,6 +100,14 @@ jobs:
       - name: Scan for tracked credentials
         run: npm run check:secrets
 
+      # The README's API table opens by claiming to be "the complete set of Express routes the
+      # backend actually registers". That is a falsifiable sentence, and on 2026-08-15 it was false
+      # by 23 routes — trips, wishlist, weather, typeahead, moderation, analytics and geocoding had
+      # all shipped without it, and nothing failed because nothing was checking. This checks, in
+      # both directions: an undocumented route and a documented-but-nonexistent one both fail.
+      - name: Check the API reference matches the routes
+        run: npm run check:api-docs
+
       # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
       # present to compile. These are deliberately fake: the job proves the app compiles, it does
       # not talk to Firebase, and a real credential in a workflow file would be a leak. They are
