@@ -99,6 +99,7 @@ how many requests the earlier ones happened to send.
 | `trips.test.js`             | `IMP-109` — **transitive** ownership: days and items carry no uid, so every one of eleven endpoints must join up to `trips` to prove it                                                |
 | `weather.test.js`           | `IMP-110` — nothing is ever invented: outage, unknown shape and missing coordinates each report absence rather than a number                                                           |
 | `suggest.test.js`           | `IMP-112` / `ADR-033` — the typeahead: tiering, the cap, and `q` treated as text rather than a LIKE pattern (a lone `%` must not return the catalogue)                                 |
+| `moderation.test.js`        | `IMP-111` / `ADR-036` — the queue groups by review not report, reporter identity never leaves the database, and the one delete path now admits admins without widening for anyone else |
 | `geocode.test.js`           | `IMP-116` / `ADR-035` — the admin gate, the outcome classification, and the two properties no response reveals: the identifying `User-Agent` and the 1 req/s pacing                    |
 | `search.test.js`            | `IMP-112` — every assertion pins a property `ILIKE` did **not** have (stemming, prefix, weighting, breadth, query-syntax safety), plus the two regressions from it that are deliberate |
 
