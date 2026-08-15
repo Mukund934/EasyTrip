@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { FiArrowLeft, FiUserPlus, FiTrash2, FiShield, FiMail } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { adminService } from '../../services/adminService';
+import { requireAdminPage } from '../../services/adminGate';
 // The last of the five copies IMP-122 set out to consolidate. This one was already
 // character-for-character `formatDateShort` — same locale, same widths, `'N/A'` for empty and
 // `'Invalid Date'` for junk — apart from the one thing that mattered: it never pinned
@@ -250,3 +251,16 @@ export default function AdminUsers() {
     </>
   );
 }
+
+// Server-side admin gate (`IMP-054`) — added Sprint 7.10.
+//
+// This page was the ONE of five under `pages/admin/` that never had it: `index`, `addPlace`,
+// `managePlaces` and `editPlace/[id]` all export `requireAdminPage`, and this one relied solely on
+// the client-side `useEffect` redirect above. Not a data leak — every request it makes is
+// admin-gated server-side and 403s — but it served the admin shell to anyone who asked for the
+// URL, and it made the projects stated posture untrue of one page.
+//
+// Found while adding a sixth admin page (`moderation`), which is exactly when a gap like this is
+// most likely to be copied rather than noticed. `adminPageGate.test.js` now asserts the rule for
+// every page in the directory, so the seventh cannot forget.
+export const getServerSideProps = requireAdminPage;

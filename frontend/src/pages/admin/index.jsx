@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateTime } from '../../utils/dateFormat';
-import { FiPlus, FiList, FiUsers } from 'react-icons/fi';
+import { FiPlus, FiList, FiUsers, FiFlag } from 'react-icons/fi';
 import { requireAdminPage } from '../../services/adminGate';
 
 export default function AdminDashboard() {
@@ -57,6 +57,16 @@ export default function AdminDashboard() {
       icon: <FiUsers className="h-8 w-8" />,
       href: '/admin/users',
       color: 'bg-purple-100 text-purple-600'
+    },
+    {
+      // IMP-111. Without this tile the page is reachable only by typing the URL — which is how
+      // `/admin/users` ended up with a working API, a written service and no caller at all until
+      // IMP-018 noticed (see that page's header).
+      title: 'Review Moderation',
+      description: 'Reviews the community has reported',
+      icon: <FiFlag className="h-8 w-8" />,
+      href: '/admin/moderation',
+      color: 'bg-red-100 text-red-600'
     }
     // The "Settings" tile that used to sit here linked to /admin/settings, which has never existed
     // and is not on the roadmap. Removing the tile is one of the two options IMP-025 lists for it;
