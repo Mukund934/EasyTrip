@@ -6,6 +6,7 @@ const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/auth
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
 const { getPlaceWeather } = require('../controllers/weatherController');
+const { SORT_KEYS } = require('../models/placeModel');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
@@ -169,10 +170,12 @@ const listRules = [
     .optional({ values: 'falsy' })
     .isInt({ min: 0 })
     .withMessage('offset must be zero or greater'),
+  // Enumerated from the model rather than restated, so adding a sort cannot leave the validator
+  // rejecting a value the model supports (or accepting one it does not).
   query('sort')
     .optional({ values: 'falsy' })
-    .isIn(['newest', 'oldest', 'rating', 'popular', 'name'])
-    .withMessage('sort must be one of: newest, oldest, rating, popular, name'),
+    .isIn(SORT_KEYS)
+    .withMessage(`sort must be one of: ${SORT_KEYS.join(', ')}`),
   query('projection')
     .optional({ values: 'falsy' })
     .isIn(['list', 'map'])

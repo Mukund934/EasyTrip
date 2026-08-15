@@ -48,7 +48,11 @@ const listPlacesHandler = async (req, res) => {
         limit: result.limit,
         offset: result.offset,
         hasMore: result.offset + data.length < result.total,
-        sort: placeModel.SORT_ORDERS[sort] ? sort : 'newest'
+        // The sort that actually ran, from the model, not a second guess at it here. A search with
+        // no explicit `sort` resolves to `relevance` (IMP-112) and `relevance` with no search term
+        // resolves back to `newest`; re-deriving that rule in the controller is how the response
+        // ends up claiming an order the query did not use.
+        sort: result.sort
       }
     };
 

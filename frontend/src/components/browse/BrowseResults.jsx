@@ -58,6 +58,7 @@ const BrowseResults = ({
   setViewMode,
   sortOrder,
   setSortOrder,
+  canSortByRelevance,
   showSortMenu,
   setShowSortMenu,
   mapFullscreen,
@@ -122,26 +123,31 @@ const BrowseResults = ({
                 transition={{ type: 'spring', damping: 20, stiffness: 300 }}
                 className="absolute right-0 mt-2 w-56 bg-white shadow-xl rounded-xl py-2 z-20 border border-gray-100"
               >
-                {sortOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => {
-                      setSortOrder(option.id);
-                      setShowSortMenu(false);
-                    }}
-                    className={`flex items-center justify-between px-4 py-3 text-sm w-full text-left transition-colors ${
-                      sortOrder === option.id
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center">
-                      <span className="mr-3">{option.icon}</span>
-                      <span>{option.label}</span>
-                    </div>
-                    {sortOrder === option.id && <FiCheck className="h-4 w-4 text-primary-600" />}
-                  </button>
-                ))}
+                {/* "Best Match" is offered only while a search term exists: without one the
+                    server ranks every row identically and resolves the sort back to `newest`,
+                    so listing it here would let the user pick an order that does not run. */}
+                {sortOptions
+                  .filter((option) => option.id !== 'relevance' || canSortByRelevance)
+                  .map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => {
+                        setSortOrder(option.id);
+                        setShowSortMenu(false);
+                      }}
+                      className={`flex items-center justify-between px-4 py-3 text-sm w-full text-left transition-colors ${
+                        sortOrder === option.id
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <span className="mr-3">{option.icon}</span>
+                        <span>{option.label}</span>
+                      </div>
+                      {sortOrder === option.id && <FiCheck className="h-4 w-4 text-primary-600" />}
+                    </button>
+                  ))}
               </motion.div>
             )}
           </AnimatePresence>

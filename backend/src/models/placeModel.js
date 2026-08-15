@@ -150,21 +150,43 @@ const SORT_ORDERS = {
   name: 'places.name ASC, places.id ASC'
 };
 
+// `relevance` (IMP-112) is deliberately NOT in SORT_ORDERS: every entry there is a constant SQL
+// fragment, and relevance is not — its ORDER BY has to reference the bound search parameter, so it
+// is assembled per call once the parameter index is known. Keeping it out means SORT_ORDERS stays
+// what its comment says it is: the injection boundary, a map of key to fixed SQL.
+const RELEVANCE_SORT = 'relevance';
+
+/** Every sort a caller may ask for. The route validator enumerates from this, so the two agree. */
+const SORT_KEYS = [...Object.keys(SORT_ORDERS), RELEVANCE_SORT];
+
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
 
 /**
  * Build the shared WHERE clause. Returns the SQL fragment and its bound parameters so the
  * count query and the page query stay provably in step — they cannot filter differently.
+ *
+ * `searchParam` is the 1-based index of the bound search text, or null when the caller supplied
+ * none. The relevance ORDER BY needs to reference that same parameter, and passing the index back
+ * is what keeps the ranked expression and the filter reading the identical value — recomputing the
+ * term for the ORDER BY would be a second source of truth for what the user searched for.
  */
 const buildFilters = (criteria = {}) => {
   const { searchTerm, location, district, state, tags, themes, minRating, date } = criteria;
   const params = [];
   let where = ' WHERE 1=1';
+  let searchParam = null;
 
+  // Full-text search (IMP-112, ADR-032), replacing `name ILIKE '%q%' OR description ILIKE '%q%'`.
+  //
+  // `easytrip_search_query` (migration 009) turns arbitrary text into a prefix tsquery that cannot
+  // throw, so nothing here has to sanitise the term beyond binding it — and a query that is all
+  // stopwords ("the") reduces to an empty tsquery, which matches nothing. That is a deliberate
+  // behaviour change from ILIKE, which matched every place containing those letters anywhere.
   if (searchTerm) {
-    params.push(`%${searchTerm}%`);
-    where += ` AND (places.name ILIKE $${params.length} OR places.description ILIKE $${params.length})`;
+    params.push(searchTerm);
+    searchParam = params.length;
+    where += ` AND places.search_vector @@ easytrip_search_query($${searchParam})`;
   }
 
   if (location) {
@@ -209,7 +231,7 @@ const buildFilters = (criteria = {}) => {
       ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length})`;
   }
 
-  return { where, params };
+  return { where, params, searchParam };
 };
 
 const clampLimit = (value) => {
@@ -244,15 +266,38 @@ const clampOffset = (value) => {
  */
 const listPlaces = async ({
   filters = {},
-  sort = 'newest',
+  sort,
   limit,
   offset,
   projection = 'list',
   withStats = false
 } = {}) => {
-  const { where, params } = buildFilters(filters);
-  const orderBy = SORT_ORDERS[sort] || SORT_ORDERS.newest;
+  const { where, params, searchParam } = buildFilters(filters);
   const isMap = projection === 'map';
+
+  // Which sort actually runs, resolved here rather than in the controller so there is one answer
+  // and the response can report it truthfully.
+  //
+  // Two rules beyond "use what was asked for":
+  //
+  //   1. **A search defaults to relevance.** Returning newest-first for a typed query is the bug
+  //      IMP-112 exists to fix — it makes a place *named* "Gokarna" sort below one that merely
+  //      mentions it, whenever the latter was added more recently. An explicit `sort` still wins:
+  //      the browse sort selector is the user overriding this, not fighting it.
+  //   2. **Relevance without a search term falls back to newest.** There is nothing to rank, and
+  //      `ts_rank_cd` against an empty tsquery is 0 for every row — a total order collapsing to
+  //      the tiebreakers, which would silently look like an arbitrary sort rather than an error.
+  const requested = sort && (SORT_ORDERS[sort] || sort === RELEVANCE_SORT) ? sort : null;
+  const effectiveSort =
+    requested === RELEVANCE_SORT && !searchParam
+      ? 'newest'
+      : requested || (searchParam ? RELEVANCE_SORT : 'newest');
+
+  const orderBy =
+    effectiveSort === RELEVANCE_SORT
+      ? `ts_rank_cd(places.search_vector, easytrip_search_query($${searchParam})) DESC,` +
+        ` places.rating_count DESC, places.id DESC`
+      : SORT_ORDERS[effectiveSort];
   const columns = isMap ? MAP_COLUMNS : LIST_COLUMNS;
 
   const safeLimit = isMap ? null : clampLimit(limit);
@@ -311,6 +356,7 @@ const listPlaces = async ({
     total: count.rows[0]?.total ?? 0,
     limit: safeLimit ?? page.rows.length,
     offset: safeOffset,
+    sort: effectiveSort,
     stats: stats
       ? {
           total: stats.catalogue_total ?? 0,
@@ -430,6 +476,8 @@ module.exports = {
   DEFAULT_LIMIT,
   MAX_LIMIT,
   SORT_ORDERS,
+  SORT_KEYS,
+  RELEVANCE_SORT,
   updatePlace,
   deletePlace,
   getUniqueLocations,
