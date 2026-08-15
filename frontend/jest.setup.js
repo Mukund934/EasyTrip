@@ -33,4 +33,15 @@ class ImmediateIntersectionObserver {
 }
 
 global.IntersectionObserver = ImmediateIntersectionObserver;
-window.IntersectionObserver = ImmediateIntersectionObserver;
+
+// Guarded, because this file runs for **every** suite and a bare `window.` reference makes the
+// `node` test environment unusable project-wide — the whole file throws `window is not defined`
+// before a single test loads. That is not hypothetical: `seoCrawlSurface.test.js` (`IMP-113`) has
+// to run under `node`, since `resolveSiteUrl` branches on `typeof window` to decide whether the
+// server-only `SITE_URL` is readable, and under jsdom that branch is unreachable.
+//
+// `global` already covers the jsdom case — in jsdom `global` and `window` are the same object — so
+// the assignment below is belt-and-braces for any environment where they are not.
+if (typeof window !== 'undefined') {
+  window.IntersectionObserver = ImmediateIntersectionObserver;
+}
