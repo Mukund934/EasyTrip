@@ -130,6 +130,45 @@ test.describe('ranked search through the whole stack (IMP-112)', () => {
   });
 });
 
+test.describe('the typeahead (IMP-112)', () => {
+  test('typing offers matching places, and choosing one applies it', async ({ page }) => {
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('gok');
+
+    const suggestion = page.getByRole('button', { name: /Gokarna/ });
+    await expect(suggestion).toBeVisible();
+
+    await suggestion.click();
+    await expect(cards(page)).toHaveCount(1);
+    await expect(cards(page).first()).toContainText('Gokarna');
+  });
+
+  test('a suggestion is disambiguated by where it is', async ({ page }) => {
+    // A bare list of place names is ambiguous the moment two states share one — the row has to
+    // carry the district and state to be choosable.
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('gok');
+    await expect(page.getByRole('button', { name: /Gokarna.*Karnataka/ })).toBeVisible();
+  });
+
+  test('the suggest request is one the server answers', async ({ page }) => {
+    // Same class of failure as the sort enum above: `/api/places/suggest` is declared before
+    // `/places/:id`, and if that order were ever reversed the request would 404 or 400 rather than
+    // erroring visibly — the dropdown would simply never appear.
+    const statuses = [];
+    page.on('response', (r) => {
+      if (r.url().includes('/api/places/suggest')) statuses.push(r.status());
+    });
+
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('hamp');
+    await expect(page.getByRole('button', { name: /Hampi/ }).first()).toBeVisible();
+
+    expect(statuses.length).toBeGreaterThan(0);
+    expect(statuses.filter((s) => s !== 200)).toEqual([]);
+  });
+});
+
 test.describe('browse to detail', () => {
   test('clicking a place opens its detail page', async ({ page }) => {
     await page.goto('/browse?q=Hampi');

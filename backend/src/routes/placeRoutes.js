@@ -6,7 +6,7 @@ const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/auth
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
 const { getPlaceWeather } = require('../controllers/weatherController');
-const { SORT_KEYS } = require('../models/placeModel');
+const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
@@ -186,6 +186,23 @@ const listRules = [
     .withMessage('withStats must be a boolean')
 ];
 
+// Typeahead (IMP-112). `q` is deliberately NOT `notEmpty()`: the browser sends an empty one the
+// instant the box is cleared, and that is an empty result, not a client error. The length cap
+// matches `searchTerm`'s so the two search surfaces cannot disagree about what is too long.
+const suggestRules = [
+  query('q')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('q must be at most 200 characters'),
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: SUGGEST_MAX_LIMIT })
+    .withMessage(`limit must be between 1 and ${SUGGEST_MAX_LIMIT}`)
+];
+
 const reviewRules = [
   placeIdParam,
   body('rating')
@@ -248,6 +265,11 @@ router.get(
   handleValidationErrors,
   placeController.listPlaces
 );
+// Typeahead (IMP-112). Must be declared before `/places/:id`, like every other literal segment
+// here — Express matches in declaration order, so a `:id` route above this would swallow
+// `/places/suggest` and hand "suggest" to a handler expecting an integer (`BUG C2`, guarded by
+// `routeShadowing.test.js`).
+router.get('/places/suggest', suggestRules, handleValidationErrors, placeController.suggestPlaces);
 router.get('/places/locations', placeController.getAllLocations);
 router.get('/places/districts', placeController.getDistricts);
 router.get('/places/states', placeController.getStates);

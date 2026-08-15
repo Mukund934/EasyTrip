@@ -97,6 +97,15 @@ const buildQuery = (params = {}) => {
 export const fetchPlaces = async (params = {}, options = {}) =>
   request(`/places${buildQuery(params)}`, options);
 
+/**
+ * Search suggestions for the typeahead (`IMP-112`).
+ *
+ * Returns `{ data: [{ id, name, location, district, state }] }` — at most eight, capped server-side.
+ * Public, so it lives here rather than in `placeService`.
+ */
+export const fetchPlaceSuggestions = async (term, options = {}) =>
+  request(`/places/suggest${buildQuery({ q: term })}`, options);
+
 export const fetchPlaceById = async (id, options = {}) => request(`/places/${id}`, options);
 
 export const fetchPlaceImages = async (id, options = {}) =>

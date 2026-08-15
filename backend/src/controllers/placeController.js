@@ -407,8 +407,37 @@ const deletePlace = async (req, res) => {
   }
 };
 
+/**
+ * Search suggestions (`IMP-112` / `ADR-033`).
+ *
+ * Public and unauthenticated, like every other place read. Returns a bare array rather than the
+ * `{ data, pagination }` envelope the list endpoints use: there is no pagination here by
+ * construction — the cap is the point — and an envelope would invite a client to ask for page two
+ * of a typeahead.
+ *
+ * An empty or whitespace-only `q` is `[]` with a 200, not a 400. The browser sends one the moment
+ * the box is cleared, and a 400 there is an error the client has to special-case to ignore.
+ */
+const suggestPlaces = async (req, res) => {
+  try {
+    const suggestions = await placeModel.suggestPlaces({
+      term: req.query.q,
+      limit: req.query.limit
+    });
+    res.status(200).json({ data: suggestions });
+  } catch (error) {
+    logger.error({ err: error }, 'Error building search suggestions');
+    res.status(500).json({
+      message: 'Error getting suggestions',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 module.exports = {
   listPlaces: listPlacesHandler,
+  suggestPlaces,
   getPlaceById,
   createPlace,
   updatePlace,

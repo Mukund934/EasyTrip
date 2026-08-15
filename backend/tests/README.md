@@ -98,6 +98,7 @@ how many requests the earlier ones happened to send.
 | `myReviews.test.js`         | `IMP-117` — the endpoint that deliberately performs the correlation `IMP-021` prevents, for the one person entitled to it                                                              |
 | `trips.test.js`             | `IMP-109` — **transitive** ownership: days and items carry no uid, so every one of eleven endpoints must join up to `trips` to prove it                                                |
 | `weather.test.js`           | `IMP-110` — nothing is ever invented: outage, unknown shape and missing coordinates each report absence rather than a number                                                           |
+| `suggest.test.js`           | `IMP-112` / `ADR-033` — the typeahead: tiering, the cap, and `q` treated as text rather than a LIKE pattern (a lone `%` must not return the catalogue)                                 |
 | `search.test.js`            | `IMP-112` — every assertion pins a property `ILIKE` did **not** have (stemming, prefix, weighting, breadth, query-syntax safety), plus the two regressions from it that are deliberate |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of

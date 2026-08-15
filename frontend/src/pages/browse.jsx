@@ -9,6 +9,7 @@ import { useBrowseFilters } from '../hooks/useBrowseFilters';
 import { useBrowsePlaces } from '../hooks/useBrowsePlaces';
 import { useBrowseFacets, useBrowseMapPlaces } from '../hooks/useBrowseFacets';
 import { useRecentSearches } from '../hooks/useRecentSearches';
+import { usePlaceSuggestions } from '../hooks/usePlaceSuggestions';
 import BrowseHero from '../components/browse/BrowseHero';
 import BrowseMobileFilters from '../components/browse/BrowseMobileFilters';
 import BrowseToolbar from '../components/browse/BrowseToolbar';
@@ -196,6 +197,10 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     resetFilters();
   }, [resetFilters]);
 
+  // Typeahead (IMP-112). Keyed on the already-debounced filter value, not on raw keystrokes —
+  // `debouncedSearch` above is the only timer in this path.
+  const suggestions = usePlaceSuggestions(filters.searchTerm);
+
   // Everything the hero's search box needs, in one prop rather than nine.
   const search = useMemo(
     () => ({
@@ -204,6 +209,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
       setSearchActive,
       searchInputRef,
       recentSearches,
+      suggestions,
       handleSearchFocus: () => {
         setSearchActive(true);
         searchInputRef.current?.focus();
@@ -224,7 +230,16 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
         clearAll();
       }
     }),
-    [debouncedSearch, searchActive, recentSearches, setters, remember, removeSearch, clearAll]
+    [
+      debouncedSearch,
+      searchActive,
+      recentSearches,
+      suggestions,
+      setters,
+      remember,
+      removeSearch,
+      clearAll
+    ]
   );
 
   return (
