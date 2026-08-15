@@ -6,6 +6,7 @@ const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/auth
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
 const { getPlaceWeather } = require('../controllers/weatherController');
+const { geocodeAddress } = require('../controllers/geocodeController');
 const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
@@ -311,6 +312,23 @@ router.post(
   reportRules,
   handleValidationErrors,
   placeController.reportPlaceReview
+);
+
+// Forward geocoding for the admin place forms (IMP-116). Admin-gated because it forwards
+// caller-supplied text to a third party at our IP and inside a 1 req/s budget — see the
+// controller for why that is still not SSRF.
+router.get(
+  '/admin/geocode',
+  isAdmin,
+  query('q')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('q must be at most 200 characters'),
+  handleValidationErrors,
+  geocodeAddress
 );
 
 // Admin routes - the only registration for these URLs. `/api` is mounted before

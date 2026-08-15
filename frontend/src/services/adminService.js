@@ -50,8 +50,24 @@ const removeAdmin = async (token, email) => {
   return response.data;
 };
 
+/**
+ * Look up coordinates for a free-text address (`IMP-116`).
+ *
+ * Returns `{ results, status }` where `status` is `exact` · `ambiguous` · `no_match`. The server
+ * derives that rather than the caller counting `results.length`, so the three cases cannot be
+ * classified differently by two clients.
+ */
+const geocode = async (token, query) => {
+  const response = await apiClient.get(`/admin/geocode?q=${encodeURIComponent(query)}`, {
+    authToken: token,
+    requireAuth: true
+  });
+  return response.data;
+};
+
 export const adminService = {
   addAdmin,
   removeAdmin,
-  getAllAdmins
+  getAllAdmins,
+  geocode
 };
