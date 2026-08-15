@@ -769,6 +769,13 @@ No public demo URL is published here yet; the screenshots above are from a local
 
 ## 🤝 Contributing
 
+**[`CONTRIBUTING.md`](CONTRIBUTING.md) is the working manual** — setup in the order that works,
+which test layer to reach for, the repository guards, and the house rules that are not obvious from
+the code. Its goal is that you never have to ask a question to get from clone to pull request; a step
+that needed one is a bug in that file.
+
+The short version:
+
 1. Fork the repo
 2. Create a branch: `git checkout -b feat/amazing-feature`
 3. Make the change **with its tests**, and run the suites for the tiers you touched
