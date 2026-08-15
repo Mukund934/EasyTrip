@@ -5,6 +5,7 @@ const { isAdmin } = require('../utils/authMiddleware');
 const { handleValidationErrors } = require('../utils/errorHandler');
 const { getAllAdmins, addAdmin, removeAdmin } = require('../controllers/adminController');
 const { listReports, resolveReports } = require('../controllers/moderationController');
+const { getAnalytics } = require('../controllers/analyticsController');
 const { STATUSES, RESOLUTIONS, MAX_LIMIT } = require('../models/moderationModel');
 
 // Place CRUD is registered once, in placeRoutes.js. It used to be declared here as
@@ -78,6 +79,20 @@ router.patch(
   ],
   handleValidationErrors,
   resolveReports
+);
+
+// ---------------------------------------------------------------------------
+// Analytics (IMP-111, ADR-037)
+// ---------------------------------------------------------------------------
+router.get(
+  '/analytics',
+  isAdmin,
+  query('days')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 90 })
+    .withMessage('days must be between 1 and 90'),
+  handleValidationErrors,
+  getAnalytics
 );
 
 module.exports = router;

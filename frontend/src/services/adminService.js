@@ -99,11 +99,23 @@ const resolveReports = async (token, reviewId, resolution) => {
   return response.data;
 };
 
+/**
+ * Admin analytics (`IMP-111`). Returns `{ catalogue, ratings, activity, needsAttention }`.
+ */
+const getAnalytics = async (token) => {
+  const response = await apiClient.get('/admin/analytics', {
+    authToken: token,
+    requireAuth: true
+  });
+  return response.data;
+};
+
 export const adminService = {
   addAdmin,
   removeAdmin,
   getAllAdmins,
   geocode,
   getReports,
-  resolveReports
+  resolveReports,
+  getAnalytics
 };

@@ -5,12 +5,44 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateTime } from '../../utils/dateFormat';
 import { FiPlus, FiList, FiUsers, FiFlag } from 'react-icons/fi';
+import { adminService } from '../../services/adminService';
+import { AdminStats } from '../../components/admin/AdminStats';
 import { requireAdminPage } from '../../services/adminGate';
 
 export default function AdminDashboard() {
-  const { currentUser, loading, isAdmin } = useAuth();
+  const { currentUser, loading, isAdmin, getIdToken } = useAuth();
   const router = useRouter();
   const [loadingPage, setLoadingPage] = useState(true);
+
+  // Real figures (IMP-111, ADR-037). Fetched here rather than in `AdminStats` so the component
+  // stays a pure renderer and can be asserted against a fixture without a network.
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsError, setAnalyticsError] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  useEffect(() => {
+    if (loading || !currentUser || !isAdmin) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getIdToken();
+        if (!token) throw new Error('Your session has expired. Please sign in again.');
+        const payload = await adminService.getAnalytics(token);
+        if (!cancelled) setAnalytics(payload);
+      } catch (err) {
+        // Surfaced, not swallowed. A dashboard that renders nothing where numbers should be reads
+        // as "everything is zero" — a wrong answer rather than a missing one.
+        if (!cancelled) setAnalyticsError(err?.message || 'Could not load the figures.');
+      } finally {
+        if (!cancelled) setAnalyticsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, currentUser, isAdmin, getIdToken]);
 
   // Check if user is admin
   useEffect(() => {
@@ -88,6 +120,8 @@ export default function AdminDashboard() {
               Manage destinations and users
             </p>
           </div>
+
+          <AdminStats analytics={analytics} loading={analyticsLoading} error={analyticsError} />
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {adminFeatures.map((feature, index) => (
