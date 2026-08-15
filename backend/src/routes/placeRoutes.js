@@ -8,6 +8,7 @@ const { handleValidationErrors } = require('../utils/errorHandler');
 const { getPlaceWeather } = require('../controllers/weatherController');
 const { geocodeAddress } = require('../controllers/geocodeController');
 const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
+const { SUPPORTED_GEOCODERS } = require('../controllers/helpers/coordinateSource');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
@@ -100,6 +101,14 @@ const placeBodyRules = (required) => [
     .optional({ values: 'falsy' })
     .isFloat({ min: -180, max: 180 })
     .withMessage('Longitude must be between -180 and 180'),
+  // Which geocoder produced those coordinates, when one did (IMP-127). Rejected rather than
+  // silently dropped: this field decides whether an attribution notice appears, so a typo that
+  // quietly removed one would be invisible in exactly the way a licence obligation must not be.
+  // The allowlist is `SUPPORTED_GEOCODERS`, which the 010 migration's CHECK constraint mirrors.
+  body('coordinates_source')
+    .optional({ values: 'falsy' })
+    .isIn(SUPPORTED_GEOCODERS)
+    .withMessage(`coordinates_source must be one of: ${SUPPORTED_GEOCODERS.join(', ')}`),
   optionalUrl('primary_image_url'),
   optionalUrl('image_url'),
   body('themes')

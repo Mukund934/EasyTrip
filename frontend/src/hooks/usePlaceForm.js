@@ -68,7 +68,15 @@ export function usePlaceForm({ getIdToken, createPlace, onCreated, geocode }) {
    */
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((previous) => ({ ...previous, [name]: value }));
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+      // Typing over a coordinate revokes the lookup's claim to it (IMP-127). The server enforces
+      // this too — it compares the pin it is given against the pin it has — but leaving a stale
+      // `nominatim` in the form would mean the UI and the row disagree about what is about to be
+      // saved, and the admin would be reading the wrong one.
+      ...(name === 'latitude' || name === 'longitude' ? { coordinates_source: null } : {})
+    }));
 
     // Clear the error as soon as the user starts fixing the field.
     if (errors[name]) {
@@ -298,6 +306,11 @@ export function usePlaceForm({ getIdToken, createPlace, onCreated, geocode }) {
       ...previous,
       latitude: String(result.latitude),
       longitude: String(result.longitude),
+      // The one place this is ever set. It travels with the create request so the place page can
+      // credit OpenStreetMap for exactly the coordinates that came from it (IMP-127) — ODbL 4.3
+      // obliges attribution for geocoding output, and a blanket notice would credit OSM for pins
+      // an admin typed by hand.
+      coordinates_source: 'nominatim',
       district: previous.district?.trim() ? previous.district : result.district || '',
       state: previous.state?.trim() ? previous.state : result.state || '',
       pin_code: previous.pin_code?.trim() ? previous.pin_code : result.postcode || ''

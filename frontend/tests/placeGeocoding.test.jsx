@@ -210,6 +210,80 @@ describe('what a result is allowed to overwrite', () => {
   });
 });
 
+describe('the form records where the coordinates came from (IMP-127)', () => {
+  test('an untouched form claims nothing', () => {
+    const { result } = setup(jest.fn());
+    // `null`, not `''`: `buildPlaceFormData` drops null, so no claim is sent at all. An empty
+    // string would reach the API's allowlist and be rejected as an unknown geocoder.
+    expect(result.current.formData.coordinates_source).toBeNull();
+  });
+
+  test('an exact match attributes the coordinates to the geocoder', async () => {
+    const { result } = setup(async () => ({ results: [HAMPI], status: 'exact' }));
+
+    type(result, { location: 'Hampi' });
+    await act(async () => {
+      await result.current.handleLocationLookup();
+    });
+
+    expect(result.current.formData.coordinates_source).toBe('nominatim');
+  });
+
+  test('choosing a candidate attributes it too', async () => {
+    const { result } = setup(async () => ({ results: [HAMPI, OTHER], status: 'ambiguous' }));
+
+    type(result, { location: 'Hampi' });
+    await act(async () => {
+      await result.current.handleLocationLookup();
+    });
+    // Before the choice there are no coordinates, so there is nothing to attribute.
+    expect(result.current.formData.coordinates_source).toBeNull();
+
+    act(() => result.current.applyGeocodeResult(OTHER));
+    expect(result.current.formData.coordinates_source).toBe('nominatim');
+  });
+
+  test('typing over a looked-up coordinate revokes the claim', async () => {
+    // The property the whole item turns on: attribution belongs to a coordinate pair, not to a
+    // row. Leaving `nominatim` here would credit OpenStreetMap for a number the admin typed.
+    const { result } = setup(async () => ({ results: [HAMPI], status: 'exact' }));
+
+    type(result, { location: 'Hampi' });
+    await act(async () => {
+      await result.current.handleLocationLookup();
+    });
+    expect(result.current.formData.coordinates_source).toBe('nominatim');
+
+    type(result, { latitude: '15.4' });
+    expect(result.current.formData.coordinates_source).toBeNull();
+  });
+
+  test('editing an unrelated field leaves the claim alone', async () => {
+    const { result } = setup(async () => ({ results: [HAMPI], status: 'exact' }));
+
+    type(result, { location: 'Hampi' });
+    await act(async () => {
+      await result.current.handleLocationLookup();
+    });
+
+    type(result, { name: 'Hampi Ruins', description: 'Edited.' });
+    expect(result.current.formData.coordinates_source).toBe('nominatim');
+  });
+
+  test('typing over the longitude revokes it as well', async () => {
+    // Both halves of the pair, not just the one that happened to get a test.
+    const { result } = setup(async () => ({ results: [HAMPI], status: 'exact' }));
+
+    type(result, { location: 'Hampi' });
+    await act(async () => {
+      await result.current.handleLocationLookup();
+    });
+
+    type(result, { longitude: '76.5' });
+    expect(result.current.formData.coordinates_source).toBeNull();
+  });
+});
+
 describe('failures', () => {
   test('a rejected lookup is reported and the busy flag clears', async () => {
     const { result } = setup(async () => {

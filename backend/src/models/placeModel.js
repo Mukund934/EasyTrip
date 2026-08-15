@@ -10,6 +10,7 @@ const createPlace = async (placeData) => {
     pin_code,
     latitude,
     longitude,
+    coordinates_source,
     primary_image_url,
     themes,
     tags,
@@ -21,9 +22,9 @@ const createPlace = async (placeData) => {
   const result = await pool.query(
     `INSERT INTO places (
       name, description, location, district, state, locality, pin_code,
-      latitude, longitude, primary_image_url, themes, tags, custom_keys,
+      latitude, longitude, coordinates_source, primary_image_url, themes, tags, custom_keys,
       created_by, updated_by, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
     RETURNING *`,
     [
       name,
@@ -35,6 +36,10 @@ const createPlace = async (placeData) => {
       pin_code,
       latitude,
       longitude,
+      // `?? null` rather than a bare pass-through: an absent key must reach the database as NULL,
+      // and node-pg turns `undefined` into NULL anyway — but only silently, which is how
+      // `updated_by` was wiped in BUG-048. Saying it is cheaper than rediscovering it.
+      coordinates_source ?? null,
       primary_image_url,
       themes || '{}',
       tags || '{}',
@@ -60,7 +65,7 @@ const getPlaceById = async (id) => {
     // public. Found by the E2E suite (IMP-094), which asserts against the delivered HTML rather
     // than the JSON and so could see what an API-level assertion could not.
     `SELECT id, name, location, description, district, state, locality, pin_code,
-           latitude, longitude, primary_image_url, themes, tags, custom_keys,
+           latitude, longitude, coordinates_source, primary_image_url, themes, tags, custom_keys,
            rating_count, rating_sum, created_at, updated_at,
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
@@ -106,6 +111,11 @@ const UPDATABLE_COLUMNS = [
   'pin_code',
   'latitude',
   'longitude',
+  // Presence-keyed like every other column here, which is what lets the controller express the
+  // three cases IMP-127 needs: re-declare the source, clear it, or leave it entirely alone. The
+  // sparse `updatePlace(id, { primary_image_url })` after a create-with-image omits the key and
+  // therefore cannot wipe a provenance the create had just recorded.
+  'coordinates_source',
   'primary_image_url',
   'themes',
   'tags',

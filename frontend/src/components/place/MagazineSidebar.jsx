@@ -185,6 +185,30 @@ export const MagazineSidebar = ({ place, reviews = [], isLoading = false }) => (
           )}
         </div>
 
+        {/* ODbL 4.3 attribution for the geocoding output (IMP-127).
+            The embed above is Google's, and it credits Google — for the *map*. The coordinates it
+            is centred on are a different piece of data with a different licence: when they came
+            from Nominatim, OpenStreetMap is owed a credit here and nowhere else on this page.
+
+            Conditional on purpose. Rendering this for every place would credit OpenStreetMap for
+            pins an admin typed by hand, which is a fabricated provenance — the same class of
+            untruth IMP-027 removed, arrived at while trying to be scrupulous. `coordinates_source`
+            exists so this notice can be exactly as broad as the obligation. */}
+        {place.coordinates_source === 'nominatim' && (
+          <p className="mb-4 text-xs text-gray-500">
+            Coordinates ©{' '}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              OpenStreetMap
+            </a>{' '}
+            contributors, ODbL.
+          </p>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <motion.a
             whileHover={{ scale: 1.02 }}

@@ -88,6 +88,33 @@ export const StepBasicInfo = ({ form }) => {
             </button>
           </div>
 
+          {/* Attribution for the geocoder, shown whether or not a lookup has run yet (IMP-127).
+              ODbL 4.3 requires crediting OpenStreetMap for geocoding output, and an exact match
+              applies itself without ever rendering the candidate list below — so a notice attached
+              only to that list would be absent in the common case. It doubles as the answer to
+              "where do these coordinates come from?", which the button alone does not say. */}
+          <p className="mt-2 text-xs text-gray-500">
+            The lookup fills coordinates from{' '}
+            <a
+              href="https://nominatim.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              Nominatim
+            </a>
+            . Data ©{' '}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              OpenStreetMap
+            </a>{' '}
+            contributors, ODbL.
+          </p>
+
           {/* Ambiguous lookups only (IMP-116). A single match fills the form directly — this list
               exists so that several matches are never resolved by guessing the first one, which is
               how the wrong pin ends up on a public map. */}

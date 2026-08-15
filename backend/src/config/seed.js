@@ -48,6 +48,11 @@ const PLACES = [
     pin_code: '583239',
     latitude: 15.335,
     longitude: 76.46,
+    // The one seeded place whose coordinates are attributed to a geocoder (IMP-127), so the ODbL
+    // notice has a fixture that renders it and the three places below have one that must not.
+    // Both directions matter: an attribution nobody can see is the bug, and an attribution on
+    // hand-typed coordinates is the bug the conditional exists to avoid.
+    coordinates_source: 'nominatim',
     primary_image_url: 'https://res.cloudinary.com/demo/image/upload/v1/hampi.jpg',
     themes: ['heritage', 'adventure'],
     tags: ['unesco', 'ruins', 'photography'],
@@ -173,8 +178,8 @@ async function seed(pool) {
     await pool.query(
       `INSERT INTO places
          (name, description, location, district, state, locality, pin_code, latitude, longitude,
-          primary_image_url, themes, tags, custom_keys, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)`,
+          coordinates_source, primary_image_url, themes, tags, custom_keys, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)`,
       [
         p.name,
         p.description,
@@ -185,6 +190,7 @@ async function seed(pool) {
         p.pin_code,
         p.latitude,
         p.longitude,
+        p.coordinates_source ?? null,
         p.primary_image_url,
         p.themes,
         p.tags,

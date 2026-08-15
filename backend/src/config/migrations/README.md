@@ -63,17 +63,32 @@ lock, an `INSERT`. The files were worth more than the hundred lines. Recorded as
 
 ## The files
 
-| File                          | What it does                                                                                                                                    |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001_phase1.sql`              | One review per user per place (`IMP-062`). De-duplicates first — the only destructive step in the set. Re-syncs `rating_sum`/`rating_count`.    |
-| `002_profile_fields.sql`      | `users.location`, `users.dob` — collected by the profile form since forever, never stored (`IMP-008`).                                          |
-| `003_sprint23.sql`            | `review_reports` and `newsletter_subscribers`, behind Sprint 2.3's replacements for mocked UI (`IMP-019`, `IMP-023`).                           |
-| `004_performance_indexes.sql` | Phase 4 indexes (`IMP-043`). No transaction, deliberately — see the file header.                                                                |
-| `005_retire_boot_ddl.sql`     | Absorbs the `ALTER TABLE`s that `app.js` used to run on every boot (`IMP-069`).                                                                 |
-| `007_saved_places.sql`        | `user_saved_places` — the wishlist (`IMP-108`, `ADR-030`). Apply before deploying the backend; the endpoints 500 until it lands.                |
-| `008_trips.sql`               | `trips` / `trip_days` / `trip_items` — the trip workspace (`IMP-109`, `ADR-031`). Note the SET NULL cascade, which differs from 007 on purpose. |
+| File                            | What it does                                                                                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001_phase1.sql`                | One review per user per place (`IMP-062`). De-duplicates first — the only destructive step in the set. Re-syncs `rating_sum`/`rating_count`.              |
+| `002_profile_fields.sql`        | `users.location`, `users.dob` — collected by the profile form since forever, never stored (`IMP-008`).                                                    |
+| `003_sprint23.sql`              | `review_reports` and `newsletter_subscribers`, behind Sprint 2.3's replacements for mocked UI (`IMP-019`, `IMP-023`).                                     |
+| `004_performance_indexes.sql`   | Phase 4 indexes (`IMP-043`). No transaction, deliberately — see the file header.                                                                          |
+| `005_retire_boot_ddl.sql`       | Absorbs the `ALTER TABLE`s that `app.js` used to run on every boot (`IMP-069`).                                                                           |
+| `006_reconcile_triggers.sql`    | Reconciles the rating triggers so `rating_sum`/`rating_count` cannot drift from `place_reviews`.                                                          |
+| `007_saved_places.sql`          | `user_saved_places` — the wishlist (`IMP-108`, `ADR-030`). Apply before deploying the backend; the endpoints 500 until it lands.                          |
+| `008_trips.sql`                 | `trips` / `trip_days` / `trip_items` — the trip workspace (`IMP-109`, `ADR-031`). Note the SET NULL cascade, which differs from 007 on purpose.           |
+| `009_search.sql`                | `places.search_vector` (weighted, generated) + its GIN index and the prefix-query function (`IMP-112`, `ADR-032`).                                        |
+| `010_coordinate_provenance.sql` | `places.coordinates_source` + two CHECKs — which geocoder produced a pin, so the ODbL notice credits exactly the rows that owe it (`IMP-127`, `ADR-039`). |
 
-`schema.sql` is the fresh-database path: it creates everything from nothing, and it is what
+`schema.sql` is the fresh-database path: it creates the tables from nothing, and it is what
 `docker-compose.yml` runs on first start. The migrations are the upgrade path for a database that
-already exists. Both must agree — when you add a migration, update `schema.sql` to match, or a
-fresh database and a migrated one will diverge.
+already exists — **and also the second half of the fresh path.** Every route to a working database
+runs `schema.sql` and then `npm run migrate`: CI does it explicitly (`.github/workflows/ci.yml`,
+job `migrations`), the API suite's `createSchema()` does it, and the quickstart tells a contributor
+to. Neither half is optional.
+
+That is why **table** creations are mirrored in `schema.sql` while **column** additions are not.
+`009` and `010` add columns with constraints attached; declaring the column in `schema.sql` and
+constraining it in the migration would leave a fresh database holding an unconstrained column for
+the length of the migration run, which is a real state a bug can be written against. One file owns
+each column.
+
+_(This paragraph replaced an instruction to "update `schema.sql` to match" every migration —
+written when the fresh path was `schema.sql` alone, and already contradicted by `009`, which
+correctly did not. Corrected 2026-08-16 in the Sprint 8.2 integrity pass.)_

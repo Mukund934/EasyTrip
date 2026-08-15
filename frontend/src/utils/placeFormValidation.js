@@ -112,6 +112,10 @@ export const emptyPlaceForm = () => ({
   pin_code: '',
   latitude: '',
   longitude: '',
+  // Which geocoder filled the coordinates, when one did (IMP-127). `null` — not `''` — because
+  // `buildPlaceFormData` drops null and undefined, so an untouched form sends no claim at all
+  // rather than an empty string the API would have to interpret.
+  coordinates_source: null,
   themes: [],
   tags: [],
   custom_keys: {}

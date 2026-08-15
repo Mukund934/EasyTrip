@@ -9,6 +9,7 @@ const placeModel = require('../models/placeModel');
 const logger = require('../utils/logger');
 const { getCurrentUser } = require('./helpers/currentUser');
 const { criteriaFromQuery } = require('./helpers/placeQuery');
+const { sameCoordinate, resolveCoordinateSource } = require('./helpers/coordinateSource');
 const fs = require('fs');
 const {
   uploadImage,
@@ -136,6 +137,7 @@ const createPlace = async (req, res) => {
       pin_code,
       latitude,
       longitude,
+      coordinates_source,
       themes,
       tags,
       custom_keys
@@ -150,6 +152,12 @@ const createPlace = async (req, res) => {
       });
     }
 
+    // A falsy coordinate means "no coordinate" throughout this controller, and the validator skips
+    // `toFloat()` so a sanitized 0 cannot read as absent. Parsed once here because the provenance
+    // decision below needs to know whether a pair actually survived (IMP-127).
+    const nextLatitude = latitude ? parseFloat(latitude) : null;
+    const nextLongitude = longitude ? parseFloat(longitude) : null;
+
     // Create place data without image initially
     const placeData = {
       name: name.trim(),
@@ -159,8 +167,15 @@ const createPlace = async (req, res) => {
       state: state?.trim() || null,
       locality: locality?.trim() || null,
       pin_code: pin_code?.trim() || null,
-      latitude: latitude ? parseFloat(latitude) : null,
-      longitude: longitude ? parseFloat(longitude) : null,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+      // Every create sets its coordinates, so `coordinatesChanged` is unconditionally true — the
+      // same rule as an update, with no prior claim to inherit.
+      coordinates_source: resolveCoordinateSource({
+        requested: coordinates_source,
+        hasCoordinates: nextLatitude !== null && nextLongitude !== null,
+        coordinatesChanged: true
+      }),
       primary_image_url: null, // Will be updated after upload
       themes: parseJsonField(themes, []),
       tags: parseJsonField(tags, []),
@@ -255,6 +270,7 @@ const updatePlace = async (req, res) => {
       pin_code,
       latitude,
       longitude,
+      coordinates_source,
       themes,
       tags,
       custom_keys
@@ -296,6 +312,19 @@ const updatePlace = async (req, res) => {
       }
     }
 
+    const nextLatitude =
+      latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : currentPlace.latitude;
+    const nextLongitude =
+      longitude !== undefined ? (longitude ? parseFloat(longitude) : null) : currentPlace.longitude;
+
+    // Compared by value, not by whether the field was sent (IMP-127). The edit form posts every
+    // field on every save, so "was latitude in the body?" is true even when the admin only touched
+    // the description — and treating that as a coordinate change would revoke OSM attribution on
+    // an unrelated edit. What matters is whether the pin actually moved.
+    const coordinatesChanged =
+      !sameCoordinate(nextLatitude, currentPlace.latitude) ||
+      !sameCoordinate(nextLongitude, currentPlace.longitude);
+
     const placeData = {
       name: name || currentPlace.name,
       description: description !== undefined ? description : currentPlace.description,
@@ -304,14 +333,14 @@ const updatePlace = async (req, res) => {
       state: state !== undefined ? state : currentPlace.state,
       locality: locality !== undefined ? locality : currentPlace.locality,
       pin_code: pin_code !== undefined ? pin_code : currentPlace.pin_code,
-      latitude:
-        latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : currentPlace.latitude,
-      longitude:
-        longitude !== undefined
-          ? longitude
-            ? parseFloat(longitude)
-            : null
-          : currentPlace.longitude,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+      coordinates_source: resolveCoordinateSource({
+        requested: coordinates_source,
+        hasCoordinates: nextLatitude !== null && nextLongitude !== null,
+        coordinatesChanged,
+        current: currentPlace.coordinates_source
+      }),
       primary_image_url: imageUrl,
       themes: parseJsonField(themes, currentPlace.themes || []),
       tags: parseJsonField(tags, currentPlace.tags || []),

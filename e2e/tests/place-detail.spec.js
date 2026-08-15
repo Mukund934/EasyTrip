@@ -73,3 +73,25 @@ test.describe('ratings render the empty case correctly (BUG M-2)', () => {
     await expect(page.getByText('4.5').first()).toBeVisible();
   });
 });
+
+test.describe('ODbL attribution for geocoded coordinates (IMP-127)', () => {
+  // Fetched as raw HTML rather than driven through `page`, and that is the point: this page is
+  // ISR-cached, so the notice has to be in what the server delivers. A licence notice that only
+  // appears after hydration is absent for every crawler, every JS-less client, and every "view
+  // source" — the same failure the empty `og:url` turned out to be (Sprint 8.1).
+  test('the notice is in the server-delivered HTML for a geocoded place', async ({ request }) => {
+    const html = await (await request.get('/places/1')).text();
+
+    expect(html).toContain('Coordinates ©');
+    expect(html).toContain('https://www.openstreetmap.org/copyright');
+    expect(html).toContain('ODbL');
+  });
+
+  test('and is absent for a place whose coordinates nobody geocoded', async ({ request }) => {
+    // Gokarna is seeded with real coordinates and no provenance. Crediting OpenStreetMap here
+    // would be an invented claim rather than a licence fix.
+    const html = await (await request.get('/places/3')).text();
+
+    expect(html).not.toContain('Coordinates ©');
+  });
+});
