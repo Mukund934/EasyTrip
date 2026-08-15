@@ -74,8 +74,10 @@
 - [Not Yet Implemented](#-not-yet-implemented)
 - [Technology Stack](#️-technology-stack)
 - [Project Architecture](#-project-architecture)
+- [Architecture Patterns](#️-architecture-patterns)
 - [Installation & Setup](#-installation--setup)
 - [API Documentation](#-api-documentation)
+- [Data Sources & Attribution](#️-data-sources--attribution)
 - [Known Issues & Lessons Learned](#-known-issues--lessons-learned)
 - [Commit & Branch Hygiene](#-commit--branch-hygiene)
 - [Deployment](#-deployment)
@@ -122,7 +124,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **889 assertions across three layers** – 490 API tests against a real PostgreSQL, 320 component tests, and 79 browser journeys including authenticated ones against the Firebase Auth Emulator
+- ✅ **920 assertions across three layers** – 509 API tests against a real PostgreSQL, 330 component tests, and 81 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at `e9b8612`; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – five jobs: lint and build, frontend tests, migrations, API tests, and end-to-end
@@ -155,7 +157,7 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 
 ### 🎨 Frontend
 
-- **Next.js 13.4** - React framework, **Pages Router** (`frontend/src/pages`); public pages are client-rendered, admin pages are gated in `getServerSideProps`
+- **Next.js 13.4** - React framework, **Pages Router** (`frontend/src/pages`). Rendering is chosen per route rather than globally: the home page and `/places/[id]` are `getStaticProps` + ISR (`revalidate: 300`), `/browse` is `getServerSideProps` because its content is a function of eight filter dimensions crossed with free text and has no bounded set of paths to pre-render, and the four `/admin/*` pages are `getServerSideProps` for the auth gate
 - **React 18.2** - Modern React with hooks and context
 - **Tailwind CSS** - Utility-first CSS framework
 - **Framer Motion** - Animation library for smooth interactions
@@ -192,29 +194,42 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 
 ```bash
 EasyTrip/
-├── backend/                  # Node.js + Express API
-│   ├── app.js                # Entry point: CORS, routes, health check, pg pool
-│   ├── script/make-admin.js  # CLI to grant admin rights
+├── backend/                    # Node.js + Express API
+│   ├── app.js                  # Entry point: CORS, routes, health check, pg pool
+│   ├── script/                 # make-admin.js (grant admin), migrate.js (the migration runner)
+│   ├── tests/                  # Jest + supertest, against a real PostgreSQL
 │   └── src/
-│       ├── config/           # db, cloudinary, firebase, schema.sql
-│       ├── controllers/      # Request handling / business logic
-│       ├── models/           # SQL data access (parameterized queries)
-│       ├── routes/           # Express routers
-│       ├── services/         # Service helpers
-│       └── utils/            # Auth middleware & helpers
+│       ├── config/
+│       │   ├── migrations/     # Numbered, checksummed .sql — the upgrade path
+│       │   ├── schema.sql      # The fresh-database path
+│       │   └── seed.js         # Deterministic fixtures, shared by tests and `npm run seed`
+│       ├── controllers/        # Request handling / business logic
+│       ├── models/             # SQL data access (parameterized queries)
+│       ├── routes/             # Express routers
+│       ├── services/           # Outbound integrations (weather, geocoding)
+│       └── utils/              # Auth middleware & helpers
 │
-└── frontend/                 # Next.js app (Pages Router)
-    ├── public/               # Static assets
-    └── src/
-        ├── components/       # UI components
-        ├── config/           # Firebase client config
-        ├── context/          # Auth / user context
-        ├── hooks/            # Custom hooks
-        ├── pages/            # Routes (incl. pages/api image helpers)
-        ├── services/         # API clients (axios)
-        ├── styles/           # Global styles
-        └── utils/            # Utilities
+├── frontend/                   # Next.js app (Pages Router)
+│   ├── public/                 # Static assets, manifest, service worker
+│   ├── tests/                  # Jest + React Testing Library
+│   └── src/
+│       ├── components/         # UI components
+│       ├── config/             # Firebase client config
+│       ├── context/            # Auth / user context
+│       ├── hooks/              # Custom hooks
+│       ├── pages/              # Routes (incl. pages/api image helpers)
+│       ├── services/           # API clients (axios)
+│       ├── styles/             # Global styles
+│       └── utils/              # Utilities
+│
+├── e2e/                        # Playwright journeys + the Firebase Auth Emulator harness
+└── scripts/                    # Repository guards run in CI (see below)
 ```
+
+`scripts/` holds the checks that keep this file and the codebase honest — module size,
+credential-shaped strings, and the API route table below, which is compared against the real routers
+in both directions. They are guards rather than tests: each one fails on a fact about the repository,
+not on behaviour.
 
 ---
 
@@ -631,6 +646,34 @@ await fetch(`${process.env.NEXT_PUBLIC_API_URL}/places/${placeId}/reviews`, {
 
 ---
 
+## 🗺️ Data Sources & Attribution
+
+Two third-party datasets are rendered in this product, and both carry obligations that are part of
+the software rather than a footnote.
+
+| Source                                                                 | Used for                                                                         | Licence                  | What that requires of us                                                                                                                                                                                       |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) via Nominatim | Map tiles on the explore map, and coordinates filled by the admin address lookup | **ODbL**                 | Attribution — **for the tiles and, separately, for the geocoding output.** Max 1 request/second, an identifying `User-Agent`, results cached, and **no auto-complete**, which the usage policy forbids by name |
+| [Open-Meteo](https://open-meteo.com/)                                  | The forecast panel on each place page                                            | **CC-BY 4.0**, free tier | Attribution, and the free tier is **non-commercial only**                                                                                                                                                      |
+
+Three consequences that are easy to miss:
+
+- **Geocoding attribution is a separate obligation from tile attribution** (ODbL §4.3). It is
+  satisfied per place, not site-wide: `places.coordinates_source` records which pins a geocoder
+  produced, so the notice appears on those and not on the ones an admin typed. A blanket notice
+  would have been one line and would have credited OpenStreetMap for coordinates it never supplied.
+- **Share-alike is not triggered.** Individual geocoding results are insubstantial extracts and may
+  be stored beside proprietary data; aggregating them into a database that reproduces a substantial
+  part of OpenStreetMap would be a different question.
+- **Open-Meteo's free tier ends at monetisation, not at a request count.** Putting an advertisement
+  or a subscription on this site would breach it without a line of code changing. That is a product
+  decision with an API consequence, and it is on the release checklist rather than in someone's head.
+
+The typeahead is **not** a geocoder call — it runs against this project's own PostgreSQL, which is
+why an as-you-type suggestion list is compatible with a policy that forbids auto-complete.
+
+---
+
 ## 🔬 Known Issues & Lessons Learned
 
 This project began as a university team project and has been rebuilt in the open. The list below is
@@ -727,10 +770,23 @@ No public demo URL is published here yet; the screenshots above are from a local
 ## 🤝 Contributing
 
 1. Fork the repo
-2. Create a new branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m "Add amazing feature"`
-4. Push branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+2. Create a branch: `git checkout -b feat/amazing-feature`
+3. Make the change **with its tests**, and run the suites for the tiers you touched
+4. Commit in the conventional style described in
+   [Commit & Branch Hygiene](#-commit--branch-hygiene) — `feat(scope): what changed`, with the
+   _why_ and the rejected alternative in the body
+5. Push the branch and open a Pull Request
+
+Before pushing:
+
+```bash
+npm run lint          # all three tiers
+npm run check:size    # no module over 500 lines outside the recorded waivers
+npm run check:api-docs # this README's route table still matches the routers
+```
+
+_(Step 3 previously read `git commit -m "Add amazing feature"` — boilerplate that contradicted the
+commit-hygiene section two headings below it. Corrected 2026-08-16.)_
 
 ---
 
@@ -750,23 +806,40 @@ EasyTrip is a **two-person team project**, not the work of a single author.
 👤 Dharmendra — [@dharmendra23101](https://github.com/dharmendra23101)  
 👤 Mukund Thakur — [@Mukund934](https://github.com/Mukund934)
 
-## 🗺️ Roadmap
+---
+
+## 🧭 Roadmap
 
 Near-term work is listed in [Not Yet Implemented](#-not-yet-implemented). The items below are
-longer-term ideas, none of which have been started.
+longer-term and **not started**.
 
-### Upcoming Features
+### Next
 
-- [ ] Mobile app (React Native)
-- [ ] Trip planning and itinerary builder
-- [ ] Social features and user connections
-- [ ] Advanced recommendation engine
-- [ ] Multi-language support
-- [ ] Offline mode support
-- [ ] Integration with booking platforms
-- [ ] Weather information integration
-- [ ] Travel blog and stories feature
-- [ ] Augmented reality features
+- [ ] **Itinerary feasibility** — check a planned day against real travel times and say what does
+      not fit, before an AI is allowed to generate one. The validator comes first precisely so a
+      generated itinerary can be _checked_ rather than trusted
+- [ ] **Route optimisation** — reorder a day's stops to cut the backtracking, and show what changed
+- [ ] **Collaborative trips** — invites, roles, and proposals rather than a shared password
+- [ ] **Budget and expense splitting** — minimal-transaction settlement
+- [ ] **Multi-language** — blocked on translation content, not on the mechanism
+- [ ] **A live demo** — with working auth and seeded data
+
+### Later, and deliberately vaguer
+
+- [ ] Retrieval-grounded trip planning, with an evaluation harness built **before** the feature it
+      measures
+- [ ] Semantic search over the catalogue (`pgvector` on the database that already exists)
+- [ ] Mobile app
+
+### Ruled out
+
+- **Autonomous booking or purchasing agents.** Spending someone's money without a human in the loop
+  is not a feature this project wants, at any level of model quality.
+
+> **This list used to advertise four things that had already shipped** — trip planning, offline
+> support, weather, and a travel-content surface — because a roadmap decays every time an item lands
+> and nothing fails when it does. Same failure as the
+> [Not Yet Implemented](#-not-yet-implemented) table, same fix: it is a release-checklist item.
 
 ---
 
