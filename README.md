@@ -280,12 +280,11 @@ Each template documents every variable and where to obtain it. Summary:
 # Database — connection string used by app.js, the models, and script/make-admin.js
 DATABASE_URL=postgresql://user:password@host:5432/easytrip
 
-# Database — discrete vars, still read by src/config/db.js (admin/user models)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=your_postgres_user
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_DB=easytrip
+# DATABASE_URL is the only database variable the server reads. The discrete
+# POSTGRES_HOST/PORT/USER/PASSWORD/DB set that this file used to list belonged
+# to a second connection pool, and that pool was deleted when IMP-044 collapsed
+# nine of them into one. They are documented in docker-compose.yml because the
+# Postgres *container* takes them; nothing in backend/ does.
 
 # Firebase Admin SDK
 FIREBASE_PROJECT_ID=your_firebase_project_id
@@ -315,9 +314,14 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 # TRUST_PROXY_HOPS=1
 ```
 
-> Both `DATABASE_URL` and the `POSTGRES_*` set are currently required: most queries use the
-> `DATABASE_URL` pool, while `src/config/db.js` (used by the admin/user models) builds its pool
-> from the discrete variables. Consolidating onto a single shared pool is a known cleanup item.
+> **`DATABASE_URL` is the whole database configuration.** There is exactly one `new Pool()` in the
+> server, in `src/config/db.js`, and it carries the TLS settings with it — which is what made
+> verifying the certificate a one-line change instead of a nine-file one.
+>
+> _(This paragraph used to say both `DATABASE_URL` and a `POSTGRES_*` set were required, describing
+> a second pool that `IMP-044` deleted when it collapsed nine pools into one. `db.js` and
+> `backend/.env.example` had both said so for weeks. Since 2026-08-16 `npm run check:env-docs`
+> fails on a documented variable that nothing reads, so this particular fiction cannot come back.)_
 
 ---
 
@@ -790,6 +794,7 @@ Before pushing:
 npm run lint          # all three tiers
 npm run check:size    # no module over 500 lines outside the recorded waivers
 npm run check:api-docs # this README's route table still matches the routers
+npm run check:env-docs # the .env.example files still match what the code reads
 ```
 
 _(Step 3 previously read `git commit -m "Add amazing feature"` — boilerplate that contradicted the

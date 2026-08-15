@@ -23,6 +23,7 @@
     "check:size": "node scripts/check-module-size.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:api-docs": "node scripts/check-api-docs.mjs",
+    "check:env-docs": "node scripts/check-env-docs.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "format": "prettier --write .",

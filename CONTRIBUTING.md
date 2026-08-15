@@ -114,6 +114,7 @@ npm run lint             # all three tiers
 npm run check:size       # no module over 500 lines outside the recorded waivers
 npm run check:secrets    # no credential-shaped names or values in tracked files
 npm run check:api-docs   # the README's route table matches the routers, both directions
+npm run check:env-docs   # every variable the code reads is in a .env.example, and vice versa
 npx prettier --check .
 ```
 

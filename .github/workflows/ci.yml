@@ -108,6 +108,14 @@ jobs:
       - name: Check the API reference matches the routes
         run: npm run check:api-docs
 
+      # The same guarantee for environment variables, and it was a manual "diff this grep against
+      # the template" line in RELEASE_CHECKLIST until 2026-08-16 — which is to say, a check nobody
+      # ran between releases. Running it once found both directions already broken: five phantom
+      # POSTGRES_* variables the README claimed were "still read by src/config/db.js" (they are
+      # not), and API_URL, a deliberate server-only override, documented nowhere at all.
+      - name: Check the environment templates match the code
+        run: npm run check:env-docs
+
       # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
       # present to compile. These are deliberately fake: the job proves the app compiles, it does
       # not talk to Firebase, and a real credential in a workflow file would be a leak. They are
