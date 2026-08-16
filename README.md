@@ -584,19 +584,20 @@ The table below is the complete set of Express routes the backend actually regis
 Days and items carry no owner of their own - every query joins up to `trips.user_id`. A second
 account cannot reach them even by addressing a victim's item through its own trip id.
 
-| Method | Endpoint                                      | Auth   | Description                                                                                    |
-| ------ | --------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------- |
-| GET    | `/auth/trips`                                 | Bearer | Your trips                                                                                     |
-| POST   | `/auth/trips`                                 | Bearer | Create a trip                                                                                  |
-| GET    | `/auth/trips/:tripId`                         | Bearer | One trip, with its days and items                                                              |
-| PUT    | `/auth/trips/:tripId`                         | Bearer | Update a trip                                                                                  |
-| DELETE | `/auth/trips/:tripId`                         | Bearer | Delete a trip                                                                                  |
-| POST   | `/auth/trips/:tripId/days`                    | Bearer | Add a day                                                                                      |
-| DELETE | `/auth/trips/:tripId/days/:dayId`             | Bearer | Remove a day                                                                                   |
-| POST   | `/auth/trips/:tripId/days/:dayId/items`       | Bearer | Add an item to a day                                                                           |
-| PUT    | `/auth/trips/:tripId/days/:dayId/items/order` | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied |
-| PUT    | `/auth/trips/:tripId/items/:itemId`           | Bearer | Update an item                                                                                 |
-| DELETE | `/auth/trips/:tripId/items/:itemId`           | Bearer | Remove an item                                                                                 |
+| Method | Endpoint                                      | Auth   | Description                                                                                                                                             |
+| ------ | --------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/auth/trips`                                 | Bearer | Your trips                                                                                                                                              |
+| POST   | `/auth/trips`                                 | Bearer | Create a trip                                                                                                                                           |
+| GET    | `/auth/trips/:tripId`                         | Bearer | One trip, with its days and items                                                                                                                       |
+| GET    | `/auth/trips/:tripId/feasibility`             | Bearer | Deterministic check that the plan can be executed — day bounds, overlaps, estimated travel time, backtracking, duplicates. Reports; never blocks a save |
+| PUT    | `/auth/trips/:tripId`                         | Bearer | Update a trip                                                                                                                                           |
+| DELETE | `/auth/trips/:tripId`                         | Bearer | Delete a trip                                                                                                                                           |
+| POST   | `/auth/trips/:tripId/days`                    | Bearer | Add a day                                                                                                                                               |
+| DELETE | `/auth/trips/:tripId/days/:dayId`             | Bearer | Remove a day                                                                                                                                            |
+| POST   | `/auth/trips/:tripId/days/:dayId/items`       | Bearer | Add an item to a day                                                                                                                                    |
+| PUT    | `/auth/trips/:tripId/days/:dayId/items/order` | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied                                                          |
+| PUT    | `/auth/trips/:tripId/items/:itemId`           | Bearer | Update an item                                                                                                                                          |
+| DELETE | `/auth/trips/:tripId/items/:itemId`           | Bearer | Remove an item                                                                                                                                          |
 
 ### Admin
 

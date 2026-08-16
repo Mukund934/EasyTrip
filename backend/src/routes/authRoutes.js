@@ -166,6 +166,15 @@ router.get(
   handleValidationErrors,
   tripController.getTrip
 );
+// Read-only, and nested like every other trip route so ownership is proved by the trip id rather
+// than by a handler remembering to check (`FV-025`).
+router.get(
+  '/trips/:tripId/feasibility',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.getTripFeasibility
+);
 router.put(
   '/trips/:tripId',
   isAuthenticated,

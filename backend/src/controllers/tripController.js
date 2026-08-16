@@ -1,4 +1,5 @@
 const tripModel = require('../models/tripModel');
+const feasibilityService = require('../services/feasibilityService');
 const logger = require('../utils/logger');
 
 /**
@@ -40,6 +41,31 @@ const getTrip = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Error loading trip');
     res.status(500).json({ message: 'Error loading this trip' });
+  }
+};
+
+/**
+ * GET /api/auth/trips/:tripId/feasibility
+ *
+ * The deterministic answer to *"can this plan actually be completed?"* (`FV-025`).
+ *
+ * A **read**, not a gate on saving. The workspace lets somebody build a plan in whatever order
+ * suits them, and an editor that refuses a half-finished day is an editor people stop using — the
+ * item's own kill criteria warn against exactly that ("validation becomes slow enough to make
+ * saving a trip feel broken"). So this reports; the caller decides what to do with the report.
+ *
+ * Ownership comes from the same `getTripWorkspace` every other trip read uses, so a trip that is
+ * not yours is a 404 here for the same reason and by the same query.
+ */
+const getTripFeasibility = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
+    if (!trip) return notFound(res);
+
+    res.status(200).json({ feasibility: feasibilityService.checkTrip(trip) });
+  } catch (error) {
+    logger.error({ err: error }, 'Error checking trip feasibility');
+    res.status(500).json({ message: 'Error checking this trip' });
   }
 };
 
@@ -200,6 +226,7 @@ const reorderItems = async (req, res) => {
 module.exports = {
   listTrips,
   getTrip,
+  getTripFeasibility,
   createTrip,
   updateTrip,
   deleteTrip,
