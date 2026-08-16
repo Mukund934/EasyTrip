@@ -110,6 +110,7 @@
 - 🚩 **Report a Review** – Reports are persisted and feed a real admin moderation queue
 - 🗺️ **Trip Workspace** – Build an itinerary day by day: ordered items, times, notes, and transport legs between stops
 - ✅ **Feasibility check** – A deterministic answer to "can this plan actually be done?": days outside the trip's dates, overlapping times, not enough time to travel between two stops, a day that doubles back on itself. It separates _cannot be done_ from _worth a look_, and every travel figure says it is an estimate — there is no routing service behind it, and the assumptions are printed rather than hidden
+- 🧭 **Route ordering** – For a day of stops, it looks for a shorter way round the same places, shows which ones would move and how much driving that saves, and then waits: it suggests, and never rearranges anything on its own. Days that already have times on them are left alone, because the clock decides that order
 - ☀️ **Real Weather** – A live Open-Meteo forecast on each place page, keyed on that place's own coordinates. When there is no reading it says so rather than showing a number
 - 📴 **Installable & Offline** – A PWA: install it, and pages you have already visited still open with no connection
 - 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name
@@ -125,7 +126,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **976 assertions across three layers** – 544 API tests against a real PostgreSQL, 344 component tests, and 88 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 10.2 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,009 assertions across three layers** – 563 API tests against a real PostgreSQL, 358 component tests, and 88 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 10.4 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – five jobs: lint and build, frontend tests, migrations, API tests, and end-to-end

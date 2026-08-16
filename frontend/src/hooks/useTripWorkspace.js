@@ -31,6 +31,10 @@ export function useTripWorkspace(tripId) {
   const [checking, setChecking] = useState(false);
   const [feasibilityError, setFeasibilityError] = useState(null);
 
+  // Route suggestions, keyed by day id (`FV-026`). A map rather than one value because each day is
+  // asked about separately, and a second day's answer must not replace the first's.
+  const [routeSuggestions, setRouteSuggestions] = useState({});
+
   const refresh = useCallback(async () => {
     if (!tripId) return null;
     setError(null);
@@ -72,6 +76,9 @@ export function useTripWorkspace(tripId) {
         // instead of saying something stale.
         setFeasibility(null);
         setFeasibilityError(null);
+        // Same reasoning, same danger: a suggestion computed from the old order is a set of moves
+        // that no longer means what it says once the day has changed under it.
+        setRouteSuggestions({});
         return true;
       } catch (writeError) {
         setActionError(writeError);
@@ -110,6 +117,40 @@ export function useTripWorkspace(tripId) {
       setChecking(false);
     }
   }, [tripId, getIdToken]);
+
+  /**
+   * Ask whether one day could be ordered better (`FV-026`).
+   *
+   * The answer is stored, not acted on. `applyRouteSuggestion` is a separate, deliberate step,
+   * because the item's kill criteria stop at *"optimisation starts overriding what the user
+   * deliberately chose"* — and a suggestion that applies itself is exactly that.
+   */
+  const suggestRoute = useCallback(
+    async (dayId) => {
+      try {
+        const token = await getIdToken();
+        const suggestion = await tripService.getDayRouteSuggestion(tripId, dayId, token);
+        setRouteSuggestions((current) => ({ ...current, [dayId]: suggestion }));
+        return suggestion;
+      } catch (suggestError) {
+        setActionError(suggestError);
+        // Cleared rather than kept: a stale suggestion beside an error reads as "still valid".
+        setRouteSuggestions((current) => ({ ...current, [dayId]: null }));
+        return null;
+      }
+    },
+    [tripId, getIdToken]
+  );
+
+  /** Apply a suggestion the user has seen, through the reorder path that already exists. */
+  const applyRouteSuggestion = useCallback(
+    (dayId) => {
+      const suggestion = routeSuggestions[dayId];
+      if (!suggestion?.applicable) return Promise.resolve(false);
+      return run((token) => tripService.reorderItems(tripId, dayId, suggestion.item_ids, token));
+    },
+    [routeSuggestions, run, tripId]
+  );
 
   const addDay = useCallback(
     () => run((token) => tripService.addDay(tripId, token)),
@@ -200,6 +241,9 @@ export function useTripWorkspace(tripId) {
     checking,
     feasibilityError,
     checkFeasibility,
+    routeSuggestions,
+    suggestRoute,
+    applyRouteSuggestion,
     updateTrip,
     addDay,
     removeDay,

@@ -18,6 +18,7 @@ import { useTripWorkspace } from '../../hooks/useTripWorkspace';
 import { useWishlist } from '../../hooks/useWishlist';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FeasibilityPanel from '../../components/trips/FeasibilityPanel';
+import RouteSuggestion from '../../components/trips/RouteSuggestion';
 import { formatDate } from '../../utils/dateFormat';
 
 /**
@@ -130,6 +131,9 @@ export default function TripWorkspace() {
     checking,
     feasibilityError,
     checkFeasibility,
+    routeSuggestions,
+    suggestRoute,
+    applyRouteSuggestion,
     addDay,
     removeDay,
     addItem,
@@ -340,6 +344,15 @@ export default function TripWorkspace() {
                 )}
 
                 <AddItemForm dayId={day.id} savedPlaces={savedPlaces} busy={busy} onAdd={addItem} />
+
+                {/* Per day, because the order of a day is a property of that day. It sits below
+                    the items so the list it talks about is already on screen (`FV-026`). */}
+                <RouteSuggestion
+                  suggestion={routeSuggestions[day.id]}
+                  busy={busy}
+                  onSuggest={() => suggestRoute(day.id)}
+                  onApply={() => applyRouteSuggestion(day.id)}
+                />
               </section>
             ))}
           </div>

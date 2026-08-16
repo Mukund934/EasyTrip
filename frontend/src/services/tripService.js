@@ -50,6 +50,24 @@ const getTripFeasibility = async (tripId, token) => {
   }
 };
 
+/**
+ * A shorter order for one day, if there is one (`FV-026` stage a).
+ *
+ * Read-only. Applying a suggestion goes through `reorderItems`, which already exists and already
+ * validates — so a suggestion can never become a write this module invented.
+ */
+const getDayRouteSuggestion = async (tripId, dayId, token) => {
+  try {
+    const { data } = await apiClient.get(
+      `/auth/trips/${tripId}/days/${dayId}/route-suggestion`,
+      authed(token)
+    );
+    return data?.suggestion ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not check this day');
+  }
+};
+
 const createTrip = async (trip, token) => {
   try {
     const { data } = await apiClient.post('/auth/trips', trip, authed(token));
@@ -152,6 +170,7 @@ const tripService = {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getDayRouteSuggestion,
   createTrip,
   updateTrip,
   deleteTrip,
@@ -168,6 +187,7 @@ export {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getDayRouteSuggestion,
   createTrip,
   updateTrip,
   deleteTrip,
