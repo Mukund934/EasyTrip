@@ -38,6 +38,12 @@ test('the home page renders server-side and hydrates without errors', async ({ p
   await page.goto('/');
   await expect(page).toHaveTitle(/EasyTrip/i);
 
+  // The home page's own data, not just its shell (IMP-129). `/` is `getStaticProps`, and its error
+  // branch falls back to an empty catalogue with a 30s revalidate — so a run in which the API was
+  // not yet answering produced a page that rendered, hydrated, titled itself correctly and
+  // contained nothing. Every assertion above passed through that state. This one does not.
+  await expect(page.getByText(/Hampi/i).first()).toBeVisible();
+
   // A hydration mismatch surfaces as a console error and nothing else — the page still renders,
   // which is why BUG-046 shipped twice. Asserting on the console is the only way to see it.
   expect(consoleErrors.filter((text) => /hydrat|did not match/i.test(text))).toEqual([]);

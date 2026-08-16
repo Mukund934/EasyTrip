@@ -73,7 +73,16 @@ module.exports = defineConfig({
   webServer: {
     command: 'npm run dev',
     cwd: 'frontend',
-    url: BASE_URL,
+    // `/login`, not `/` (IMP-129). Playwright starts `webServer` **before** `globalSetup`, so the
+    // readiness probe was hitting the home page while the API it fetches from did not exist yet.
+    // `getStaticProps` caught the failure, fell back to an empty catalogue, and — because the error
+    // branch sets `revalidate: 30` — cached that emptiness for the first thirty seconds of the run.
+    // Every run logged `[getStaticProps] home: fetch failed`, nothing failed, and the home page's
+    // server data path went unexercised.
+    //
+    // `/login` renders from nothing, so it answers the question this probe is actually asking —
+    // "can Next render a page?" — without poisoning an ISR cache to do it.
+    url: `${BASE_URL}/login`,
     reuseExistingServer: false,
     timeout: 180_000,
     stdout: 'pipe',
