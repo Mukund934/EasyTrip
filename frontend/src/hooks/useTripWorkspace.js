@@ -24,6 +24,13 @@ export function useTripWorkspace(tripId) {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // The feasibility report (`FV-025`). Held separately from `trip` because it is *derived from* the
+  // trip rather than part of it, and because the invariant below only makes sense if the two can be
+  // out of step long enough to notice.
+  const [feasibility, setFeasibility] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [feasibilityError, setFeasibilityError] = useState(null);
+
   const refresh = useCallback(async () => {
     if (!tripId) return null;
     setError(null);
@@ -58,6 +65,13 @@ export function useTripWorkspace(tripId) {
         const token = await getIdToken();
         await operation(token);
         await refresh();
+        // A report describes the plan it was computed from. The moment that plan changes, a
+        // verdict still on screen is a claim about a trip that no longer exists — and the
+        // dangerous direction is the reassuring one: "everything checks out" sitting above a day
+        // the user has just broken. Cleared rather than recomputed, so the panel says nothing
+        // instead of saying something stale.
+        setFeasibility(null);
+        setFeasibilityError(null);
         return true;
       } catch (writeError) {
         setActionError(writeError);
@@ -68,6 +82,34 @@ export function useTripWorkspace(tripId) {
     },
     [getIdToken, refresh]
   );
+
+  /**
+   * Ask the server whether this plan can be executed (`FV-025`).
+   *
+   * On demand, not on every load. The engine is a **report, not a gate** — the item's own kill
+   * criteria warn against validation that makes editing feel broken — and the workspace already
+   * refetches the whole trip after every write, so checking automatically would put a second
+   * request on the critical path of every drag.
+   */
+  const checkFeasibility = useCallback(async () => {
+    if (!tripId) return null;
+    setChecking(true);
+    setFeasibilityError(null);
+    try {
+      const token = await getIdToken();
+      const report = await tripService.getTripFeasibility(tripId, token);
+      setFeasibility(report);
+      return report;
+    } catch (checkError) {
+      // The report is cleared, not kept: a failed check must not leave the previous verdict on
+      // screen beside an error message, which reads as "still fine, but also broken".
+      setFeasibility(null);
+      setFeasibilityError(checkError);
+      return null;
+    } finally {
+      setChecking(false);
+    }
+  }, [tripId, getIdToken]);
 
   const addDay = useCallback(
     () => run((token) => tripService.addDay(tripId, token)),
@@ -154,6 +196,10 @@ export function useTripWorkspace(tripId) {
     busy,
     ready: ready && !authLoading,
     refresh,
+    feasibility,
+    checking,
+    feasibilityError,
+    checkFeasibility,
     updateTrip,
     addDay,
     removeDay,

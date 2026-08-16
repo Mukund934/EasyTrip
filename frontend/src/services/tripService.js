@@ -33,6 +33,23 @@ const getTrip = async (tripId, token) => {
   }
 };
 
+/**
+ * The deterministic feasibility report for a trip (`FV-025`).
+ *
+ * A separate call rather than a field on `getTrip`, and that is the design rather than an
+ * accident: the workspace reloads the whole trip after every write (see `useTripWorkspace`), and
+ * making every add, edit and reorder also recompute a report the user may not be looking at would
+ * put work on the critical path of a drag. The check is asked for when it is wanted.
+ */
+const getTripFeasibility = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/feasibility`, authed(token));
+    return data?.feasibility ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not check this trip');
+  }
+};
+
 const createTrip = async (trip, token) => {
   try {
     const { data } = await apiClient.post('/auth/trips', trip, authed(token));
@@ -134,6 +151,7 @@ const reorderItems = async (tripId, dayId, itemIds, token) => {
 const tripService = {
   listTrips,
   getTrip,
+  getTripFeasibility,
   createTrip,
   updateTrip,
   deleteTrip,
@@ -149,6 +167,7 @@ export default tripService;
 export {
   listTrips,
   getTrip,
+  getTripFeasibility,
   createTrip,
   updateTrip,
   deleteTrip,
