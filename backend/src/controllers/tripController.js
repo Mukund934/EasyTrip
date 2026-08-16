@@ -1,5 +1,6 @@
 const tripModel = require('../models/tripModel');
 const feasibilityService = require('../services/feasibilityService');
+const routeOrderService = require('../services/routeOrderService');
 const logger = require('../utils/logger');
 
 /**
@@ -66,6 +67,31 @@ const getTripFeasibility = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Error checking trip feasibility');
     res.status(500).json({ message: 'Error checking this trip' });
+  }
+};
+
+/**
+ * GET /api/auth/trips/:tripId/days/:dayId/route-suggestion
+ *
+ * What a better order for this day would be, and by how much (`FV-026` stage a).
+ *
+ * **A proposal, not a write.** The item's kill criteria say to stop if *"optimisation starts
+ * overriding what the user deliberately chose"*, so applying a suggestion goes through the reorder
+ * endpoint that already exists — same authorisation, same validation, and the user's decision in
+ * between. It also means this route adds no new way to change a trip.
+ */
+const getDayRouteSuggestion = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
+    if (!trip) return notFound(res);
+
+    const day = trip.days.find((candidate) => candidate.id === Number(req.params.dayId));
+    if (!day) return notFound(res);
+
+    res.status(200).json({ suggestion: routeOrderService.suggestDayOrder(day) });
+  } catch (error) {
+    logger.error({ err: error }, 'Error suggesting a day order');
+    res.status(500).json({ message: 'Error checking this day' });
   }
 };
 
@@ -227,6 +253,7 @@ module.exports = {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getDayRouteSuggestion,
   createTrip,
   updateTrip,
   deleteTrip,

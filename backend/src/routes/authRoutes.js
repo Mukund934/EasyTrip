@@ -175,6 +175,13 @@ router.get(
   handleValidationErrors,
   tripController.getTripFeasibility
 );
+router.get(
+  '/trips/:tripId/days/:dayId/route-suggestion',
+  isAuthenticated,
+  [idParam('tripId'), idParam('dayId')],
+  handleValidationErrors,
+  tripController.getDayRouteSuggestion
+);
 router.put(
   '/trips/:tripId',
   isAuthenticated,
