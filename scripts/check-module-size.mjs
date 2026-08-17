@@ -24,20 +24,18 @@ const LIMIT = 500;
 const TREES = ['frontend/src', 'backend/src'];
 
 /**
- * The one accepted overrun, and why.
+ * Accepted overruns, and why. **Currently empty, and that is a result rather than a default.**
  *
- * `mapStyles.js` is a single exported template literal of Leaflet CSS. `IMP-121` recorded that it
- * cannot be split without changing what renders, and `IMP-124` is the open question of whether a
- * stylesheet should count against a criterion written for code. Until that is decided it is a
- * waiver with a name on it rather than an unexplained red build.
+ * The only entry was `mapStyles.js`, waived at 1,013 lines because `IMP-121` recorded that it
+ * "cannot be split without changing what renders" — three rules were believed to be declared twice
+ * and merging through the cascade. `IMP-132` measured that instead of restating it: the sidebar's
+ * and the controls' rules were scoped to `ExploreMap` and reached **no elements at all**, so there
+ * was no cascade to preserve. Splitting the sheet into the three components that own the markup
+ * took it to 352 lines and closed the last overrun, which is also `IMP-124`'s criterion met.
+ *
+ * A waiver added here needs the same standard: a measurement, not an assumption.
  */
-const WAIVERS = [
-  {
-    file: 'frontend/src/components/map/mapStyles.js',
-    reason: 'one exported CSS template literal; unsplittable without changing render output',
-    ref: 'IMP-121, open question in IMP-124'
-  }
-];
+const WAIVERS = [];
 
 const walk = (dir, found = []) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

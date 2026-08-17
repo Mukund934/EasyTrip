@@ -26,6 +26,7 @@ import {
 } from 'react-icons/fi';
 
 import { TILE_LAYERS } from './tileLayers';
+import { controlsStyles } from './controlsStyles';
 
 const MapControls = ({
   mapLoaded,
@@ -49,6 +50,7 @@ const MapControls = ({
   onLocate
 }) => (
   <>
+    <style jsx>{controlsStyles}</style>
     {/* Map controls */}
     {mapLoaded && (
       <>

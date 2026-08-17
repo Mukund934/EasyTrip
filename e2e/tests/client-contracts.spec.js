@@ -170,4 +170,35 @@ test.describe('the map stylesheet is scoped where it must be and global where it
     expect(scoped.length).toBeGreaterThan(0);
     expect(global.length).toBeGreaterThan(0);
   });
+
+  /**
+   * `IMP-132` — the panels' rules must reach the panels' elements.
+   *
+   * Scoping is not one property but two, and the suite only had the first: a rule can carry a
+   * `jsx-` class **and still match nothing**, if the element it addresses is rendered by a
+   * different component. That is precisely what was wrong here — `MapControls` and `MapSidebar`
+   * are separate components, their rules lived in `ExploreMap`'s sheet, and of 785 elements on the
+   * page exactly **2** carried the scoping class. The stylesheet was present, correct, and inert.
+   *
+   * So this asserts the pairing rather than the rule: the element carries a scoping class, **and**
+   * the declaration written for it actually computes.
+   */
+  test('the control panel’s own rules reach its own elements', async ({ page }) => {
+    await openMap(page);
+
+    const button = page.locator('.control-button').first();
+    await expect(button).toBeVisible();
+
+    const applied = await button.evaluate((el) => ({
+      scoped: /jsx-/.test(el.className.baseVal ?? el.className ?? ''),
+      // `window.` prefixed deliberately: the root ESLint config declares two browser globals for
+      // spec files and no more, so that a typo'd identifier stays an error (`TD-021`).
+      display: window.getComputedStyle(el).display
+    }));
+
+    expect(applied.scoped).toBe(true);
+    // `display: flex` is `.control-button`'s own declaration. Before the split it computed
+    // `inline-block` — the browser default for a button — because the rule never matched.
+    expect(applied.display).toBe('flex');
+  });
 });

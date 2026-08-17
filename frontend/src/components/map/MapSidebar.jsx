@@ -22,6 +22,7 @@ import {
   getRatingCount,
   hasRating as placeHasRating
 } from '../../utils/rating';
+import { sidebarStyles } from './sidebarStyles';
 
 const MapSidebar = ({
   showSidebar,
@@ -37,6 +38,7 @@ const MapSidebar = ({
   onSelectPlace
 }) => (
   <>
+    <style jsx>{sidebarStyles}</style>
     {/* Sidebar with place list */}
     <AnimatePresence>
       {showSidebar && mapLoaded && (
