@@ -2,9 +2,9 @@
 
 > Discover Your Next Adventure – A modern travel destination platform built with Next.js, Node.js, and PostgreSQL (A Full Stack Project)
 
-[![Next.js](https://img.shields.io/badge/Next.js-13.4-black?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-13.5-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-18.2-blue?logo=react)](https://reactjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18.0+-green?logo=node.js)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green?logo=node.js)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.18+-lightgrey?logo=express)](https://expressjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?logo=postgresql)](https://postgresql.org/)
 [![Firebase](https://img.shields.io/badge/Firebase-Auth-yellow?logo=firebase)](https://firebase.google.com/)
@@ -159,7 +159,7 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 
 ### 🎨 Frontend
 
-- **Next.js 13.4** - React framework, **Pages Router** (`frontend/src/pages`). Rendering is chosen per route rather than globally: the home page and `/places/[id]` are `getStaticProps` + ISR (`revalidate: 300`), `/browse` is `getServerSideProps` because its content is a function of eight filter dimensions crossed with free text and has no bounded set of paths to pre-render, and the four `/admin/*` pages are `getServerSideProps` for the auth gate
+- **Next.js 13.5** - React framework, **Pages Router** (`frontend/src/pages`). Rendering is chosen per route rather than globally: the home page and `/places/[id]` are `getStaticProps` + ISR (`revalidate: 300`), `/browse` is `getServerSideProps` because its content is a function of eight filter dimensions crossed with free text and has no bounded set of paths to pre-render, and the four `/admin/*` pages are `getServerSideProps` for the auth gate
 - **React 18.2** - Modern React with hooks and context
 - **Tailwind CSS** - Utility-first CSS framework
 - **Framer Motion** - Animation library for smooth interactions

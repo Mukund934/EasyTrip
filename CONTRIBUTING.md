@@ -10,12 +10,12 @@ The [README](README.md) is the tour. This is the working manual.
 
 ## 1. What you need before anything works
 
-|                                | Why                                                                                                 |
-| ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| **Node.js 18+**                | Both tiers                                                                                          |
-| **PostgreSQL 13+** _or_ Docker | The API talks to a real database, and so do its tests                                               |
-| **A Firebase project**         | Authentication. Email/password + Google sign-in on the client, Admin SDK verification on the server |
-| **A Cloudinary account**       | Image uploads                                                                                       |
+|                                    | Why                                                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Node.js 20+** (`.nvmrc` pins 22) | Both tiers                                                                                          |
+| **PostgreSQL 13+** _or_ Docker     | The API talks to a real database, and so do its tests                                               |
+| **A Firebase project**             | Authentication. Email/password + Google sign-in on the client, Admin SDK verification on the server |
+| **A Cloudinary account**           | Image uploads                                                                                       |
 
 **Firebase is not optional for running the API.** `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` and
 `FIREBASE_PRIVATE_KEY` are checked at boot and the process **exits** if any is missing, naming it.
@@ -121,6 +121,7 @@ npm run check:size       # no module over 500 lines outside the recorded waivers
 npm run check:secrets    # no credential-shaped names or values in tracked files
 npm run check:api-docs   # the README's route table matches the routers, both directions
 npm run check:env-docs   # every variable the code reads is in a .env.example, and vice versa
+npm run check:test-counts # the README's assertion total against its own three parts
 npx prettier --check .
 ```
 
