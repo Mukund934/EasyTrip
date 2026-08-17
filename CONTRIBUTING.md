@@ -122,7 +122,8 @@ npx prettier --check .
 That second direction matters: the table once drifted 23 routes behind, and a check that only looked
 one way would not have noticed.
 
-CI runs five jobs on every push — lint and build, frontend tests, migrations, API tests, end to end.
+CI runs six jobs on every push — lint and build, frontend tests, migrations, API tests, end to end,
+and a README test-count check.
 
 > **Branch protection is not yet configured**, so a red job is a signal rather than a gate. Treat it
 > as a gate anyway: do not merge on red. Turning it into a real one is a repository setting only a

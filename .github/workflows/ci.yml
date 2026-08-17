@@ -4,7 +4,7 @@
 # point-in-time — which is the same class of problem as `next lint` never having executed
 # (IMP-097): a quality gate everyone assumes exists and nothing enforces.
 #
-# Five jobs, deliberately separate so a failure names its own cause:
+# Six jobs, deliberately separate so a failure names its own cause:
 #   lint-and-build  — does the code pass lint (all three configs), formatting and the module-size
 #                     criterion, and does the frontend compile
 #   migrations      — does the schema actually build from nothing, and are the migrations
@@ -12,6 +12,8 @@
 #   api-tests       — the backend suite against a real Postgres service container (IMP-092)
 #   frontend-tests  — the component and unit suite in jsdom (IMP-093)
 #   e2e             — real-browser journeys against the real stack (IMP-094)
+#   test-counts     — the README's assertion totals against what the three suites actually ran
+#                     (IMP-128); runs last because it consumes the other three jobs' output
 #
 # The test jobs are split rather than merged because they need different things: the API and E2E
 # suites need a database, the frontend suite needs neither and runs in parallel. Merging them would
@@ -116,6 +118,12 @@ jobs:
       - name: Check the environment templates match the code
         run: npm run check:env-docs
 
+      # Only the free half of IMP-128 runs here: the README's headline total against its own three
+      # parts, which needs no test run. The parts themselves are checked by the `test-counts` job
+      # below, once the three suites have reported what they actually ran.
+      - name: Check the README's test-count arithmetic
+        run: npm run check:test-counts
+
       # Every NEXT_PUBLIC_* value is inlined into the bundle at build time, so the build needs them
       # present to compile. These are deliberately fake: the job proves the app compiles, it does
       # not talk to Firebase, and a real credential in a workflow file would be a leak. They are
@@ -156,8 +164,18 @@ jobs:
       # zone that is NOT UTC, so that deleting a `timeZone` option in dateFormat.js fails here
       # rather than shipping (BUG-046). A UTC runner would let that regression through.
       - name: Run component and unit tests
-        run: npm test
+        run: npm test -- --json --outputFile=test-count-component.json
         working-directory: frontend
+
+      # The count, not the report. `--outputFile` leaves the console reporter untouched, so a
+      # failure here still reads normally; the JSON exists only so `test-counts` can compare
+      # `numTotalTests` against the README (IMP-128).
+      - name: Upload the component test count
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-count-component
+          path: frontend/test-count-component.json
+          retention-days: 1
 
   migrations:
     name: Migrations against Postgres
@@ -286,8 +304,15 @@ jobs:
       # separate schema step — and a migration that breaks a fresh database fails here too, not
       # only in the job that exists to check migrations.
       - name: Run the API test suite
-        run: npm test
+        run: npm test -- --json --outputFile=test-count-api.json
         working-directory: backend
+
+      - name: Upload the API test count
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-count-api
+          path: backend/test-count-api.json
+          retention-days: 1
 
   e2e:
     name: End-to-end journeys
@@ -353,6 +378,15 @@ jobs:
       - name: Run end-to-end journeys
         run: npm run test:e2e
 
+      # Written by the CI-only `json` reporter in playwright.config.js. The spec tree, not `stats`:
+      # a journey that skipped because the Auth Emulator was unavailable is still a journey.
+      - name: Upload the journey count
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-count-e2e
+          path: test-count-e2e.json
+          retention-days: 1
+
       # The trace and screenshots are the only way to diagnose a browser failure after the fact;
       # without them a red E2E job is just a stack trace with no page behind it.
       - name: Upload Playwright report on failure
@@ -364,3 +398,40 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # The sixth job, and the only one that exists to check a sentence (IMP-128).
+  #
+  # It has to be separate and last, because the number it verifies is spread across three jobs that
+  # deliberately do not share a runner: the API suite needs Postgres, the component suite needs
+  # neither, and the journeys need a browser. Each reports what it ran; this compares the three
+  # against the README's claim.
+  #
+  # `needs` all three, so a red suite fails on its own terms rather than as a confusing count
+  # mismatch — and a suite that did not run cannot silently satisfy the check.
+  test-counts:
+    name: README test counts
+    runs-on: ubuntu-latest
+    needs: [api-tests, frontend-tests, e2e]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Distinct filenames, so merging three artifacts into one directory cannot collide.
+      - name: Download the three counts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-count-*
+          merge-multiple: true
+          path: test-counts
+
+      # No dependencies needed: the guard is one file using only node: built-ins.
+      - name: Check the README's test counts against the suites
+        run: |
+          node scripts/check-test-counts.mjs \
+            --api-json=test-counts/test-count-api.json \
+            --component-json=test-counts/test-count-component.json \
+            --e2e-json=test-counts/test-count-e2e.json

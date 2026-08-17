@@ -129,7 +129,7 @@
 - ✅ **1,009 assertions across three layers** – 563 API tests against a real PostgreSQL, 358 component tests, and 88 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 10.4 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
-- ⚙️ **CI on every push** – five jobs: lint and build, frontend tests, migrations, API tests, and end-to-end
+- ⚙️ **CI on every push** – six jobs: lint and build, frontend tests, migrations, API tests, end-to-end, and a job that checks the assertion counts above against what the suites actually ran
 - 🗄️ **Real migrations** – versioned, checksummed, and applied by a runner rather than at boot
 
 ---
@@ -745,6 +745,15 @@ A document nobody can fail is a document that drifts. So the falsifiable parts a
 CI — `npm run check:api-docs` compares this file's route table against the routers in both
 directions, and fails on an undocumented route _or_ a documented one that does not exist.
 
+The test count is checked the same way, and it took a second attempt to do honestly. Counting
+`test(`/`it(` in the source is the obvious approach and it is wrong — it reports 455/316/78 against
+the runners' actual 509/330/81, because `test.each` and generated cases produce more tests than
+there are call sites, and a guard that is reliably off by fifty teaches people to edit the README
+until it matches the wrong number. So `npm run check:test-counts` reads `numTotalTests` from the
+runners themselves: the three suites publish what they ran, and a sixth CI job compares all three
+against the sentence above. The headline total is also checked against its own three parts, which
+needs no test run and catches the likelier edit — updating one layer and forgetting the sum.
+
 ---
 
 ## 🧾 Commit & Branch Hygiene
@@ -765,7 +774,7 @@ Everything since adopts:
 
 ## 🚀 Deployment
 
-**Deployment** is manual. CI is not: every push runs five jobs (see [Engineering](#-engineering)), but nothing deploys automatically on green.
+**Deployment** is manual. CI is not: every push runs six jobs (see [Engineering](#-engineering)), but nothing deploys automatically on green.
 
 - **Frontend**: Vercel
 - **Backend**: Render
