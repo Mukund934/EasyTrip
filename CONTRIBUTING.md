@@ -77,10 +77,16 @@ cd backend/script && node make-admin.js you@example.com
 Three layers, each earning its place by catching something the others cannot.
 
 ```bash
-cd backend  && DATABASE_URL=... npm test     # 509 API assertions against a real Postgres
-cd frontend && npm test                      # 330 component assertions (Jest + RTL)
-npm run test:e2e                             # 81 browser journeys (Playwright)
+cd backend  && DATABASE_URL=... npm test     # API assertions against a real Postgres
+cd frontend && npm test                      # component assertions (Jest + RTL)
+npm run test:e2e                             # browser journeys (Playwright)
 ```
+
+The current totals live in [the README](README.md#-engineering) and nowhere else. They used to be
+repeated here too, and by the time anyone noticed, this copy said 509/330/81 against the suites'
+actual 563/358/88 — a number duplicated in two files is a number that will disagree with itself.
+The README's copy is CI-enforced (`npm run check:test-counts`, `IMP-128`); this one was not, which
+is the entire argument for having one.
 
 **The API suite needs a real database and refuses to start without `DATABASE_URL`** — it will not
 fall back to a default, because a default is how a test run truncates somebody's development data.
