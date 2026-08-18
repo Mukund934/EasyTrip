@@ -21,7 +21,7 @@
 import css from 'styled-jsx/css';
 
 export const sidebarStyles = css`
-  .map-sidebar {
+  :global(.map-sidebar) {
     position: absolute;
     top: 0;
     right: 0;
@@ -48,7 +48,7 @@ export const sidebarStyles = css`
     display: flex;
     align-items: center;
   }
-  .sidebar-icon {
+  .sidebar-header h3 :global(.sidebar-icon) {
     margin-right: 0.5rem;
     color: #4f46e5;
   }
@@ -90,7 +90,7 @@ export const sidebarStyles = css`
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
     background-color: white;
   }
-  .search-icon {
+  .sidebar-search :global(.search-icon) {
     position: absolute;
     left: 1.5rem;
     top: 50%;
@@ -151,12 +151,12 @@ export const sidebarStyles = css`
     text-align: center;
     color: #6b7280;
   }
-  .info-icon {
+  .no-places :global(.info-icon) {
     font-size: 1.5rem;
     color: #9ca3af;
     margin-bottom: 0.5rem;
   }
-  .place-item {
+  .sidebar-places :global(.place-item) {
     display: flex;
     align-items: center;
     padding: 0.75rem;
@@ -166,14 +166,14 @@ export const sidebarStyles = css`
     transition: background-color 0.2s;
     border: 1px solid transparent;
   }
-  .place-item:hover {
+  .sidebar-places :global(.place-item:hover) {
     background-color: #f3f4f6;
   }
-  .place-item.selected {
+  .sidebar-places :global(.place-item.selected) {
     background-color: #eef2ff;
     border-color: #c7d2fe;
   }
-  .place-item.not-visible {
+  .sidebar-places :global(.place-item.not-visible) {
     opacity: 0.6;
   }
   .place-icon {
@@ -186,16 +186,16 @@ export const sidebarStyles = css`
     border-radius: 50%;
     margin-right: 0.75rem;
   }
-  .place-item.selected .place-icon {
+  .sidebar-places :global(.place-item.selected) .place-icon {
     background-color: #4f46e5;
     color: white;
   }
-  .visible-icon,
-  .pin-icon {
+  .place-icon :global(.visible-icon),
+  .place-icon :global(.pin-icon) {
     color: #4b5563;
   }
-  .place-item.selected .visible-icon,
-  .place-item.selected .pin-icon {
+  .sidebar-places :global(.place-item.selected) .place-icon :global(.visible-icon),
+  .sidebar-places :global(.place-item.selected) .place-icon :global(.pin-icon) {
     color: white;
   }
   .place-info {
@@ -222,7 +222,7 @@ export const sidebarStyles = css`
     color: #1f2937;
     margin-top: 0.25rem;
   }
-  .star-icon {
+  .place-rating :global(.star-icon) {
     color: #fbbf24;
     margin-right: 0.25rem;
   }
@@ -234,12 +234,12 @@ export const sidebarStyles = css`
     display: flex;
     align-items: center;
   }
-  .arrow-icon,
-  .check-icon {
+  .place-actions :global(.arrow-icon),
+  .place-actions :global(.check-icon) {
     color: #6b7280;
   }
-  .place-item.selected .arrow-icon,
-  .place-item.selected .check-icon {
+  .sidebar-places :global(.place-item.selected) .place-actions :global(.arrow-icon),
+  .sidebar-places :global(.place-item.selected) .place-actions :global(.check-icon) {
     color: #4f46e5;
   }
   .sidebar-footer {
@@ -256,7 +256,7 @@ export const sidebarStyles = css`
     display: flex;
     align-items: center;
   }
-  .info-icon-small {
+  .sidebar-footer p :global(.info-icon-small) {
     margin-right: 0.25rem;
     font-size: 0.875rem;
   }
@@ -267,7 +267,7 @@ export const sidebarStyles = css`
     font-size: 0.7rem;
   }
   @media (max-width: 768px) {
-    .map-sidebar {
+    :global(.map-sidebar) {
       width: 100%;
     }
   }

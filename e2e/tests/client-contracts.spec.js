@@ -201,4 +201,39 @@ test.describe('the map stylesheet is scoped where it must be and global where it
     // `inline-block` — the browser default for a button — because the rule never matched.
     expect(applied.display).toBe('flex');
   });
+
+  /**
+   * `IMP-133` — the rules addressed to elements styled-jsx *cannot* scope.
+   *
+   * styled-jsx stamps its class onto bare lowercase DOM tags only, so **`motion.div` and
+   * `react-icons` components never receive it**. `IMP-132` moved each sheet into the component that
+   * renders its markup, which fixed everything rendered as a plain tag — and left the panel's own
+   * root (`motion.div.map-sidebar`), every list row (`motion.button.place-item`) and the icons
+   * still matching nothing. They are now anchored with `:global()` under a parent that was
+   * *measured* to be scoped.
+   *
+   * The values below are each declared in exactly one rule, so a regression cannot satisfy them by
+   * accident: before the fix they computed the browser's defaults.
+   */
+  test('the sidebar’s root and rows are styled, though styled-jsx cannot scope either', async ({
+    page
+  }) => {
+    await openMap(page);
+    await page.click('.control-button.sidebar-toggle');
+
+    const sidebar = page.locator('.map-sidebar');
+    await expect(sidebar).toBeVisible();
+
+    // `.map-sidebar` is the component's own root, so nothing scoped sits above it and its rule is
+    // the one deliberate bare `:global()` in the sheet. This assertion is what keeps that honest.
+    await expect(sidebar).toHaveCSS('width', '320px');
+
+    // `.place-item` is a `motion.button`; `flex` is its own declaration and `inline-block` is what
+    // a button computes without it.
+    const row = page.locator('.place-item').first();
+    await expect(row).toHaveCSS('display', 'flex');
+
+    // An icon component, anchored under `.place-rating`.
+    await expect(page.locator('.star-icon').first()).toHaveCSS('color', 'rgb(251, 191, 36)');
+  });
 });

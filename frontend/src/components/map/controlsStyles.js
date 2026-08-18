@@ -11,7 +11,7 @@
 import css from 'styled-jsx/css';
 
 export const controlsStyles = css`
-  .search-icon {
+  .search-container :global(.search-icon) {
     position: absolute;
     left: 1.5rem;
     top: 50%;
@@ -152,7 +152,7 @@ export const controlsStyles = css`
   .map-style-switcher {
     position: relative;
   }
-  .map-style-dropdown {
+  .map-style-switcher :global(.map-style-dropdown) {
     position: absolute;
     top: calc(100% + 0.5rem);
     right: 0;
@@ -190,7 +190,7 @@ export const controlsStyles = css`
     margin-right: 0.75rem;
     font-size: 1.125rem;
   }
-  .check-icon {
+  .style-option :global(.check-icon) {
     margin-left: auto;
     color: #4f46e5;
   }
@@ -253,7 +253,7 @@ export const controlsStyles = css`
     align-items: center;
     font-weight: 500;
   }
-  .stat-icon {
+  .stat :global(.stat-icon) {
     margin-right: 0.25rem;
     font-size: 0.875rem;
   }
