@@ -817,9 +817,12 @@ commit-hygiene section two headings below it. Corrected 2026-08-16.)_
 
 ## 📄 License
 
-No license file has been added to this repository yet. The `package.json` manifests declare
-`ISC`; a matching `LICENSE` file still needs to be committed before that declaration means anything.
-Until then, treat the code as all-rights-reserved.
+**MIT** — see [`LICENSE`](LICENSE).
+
+All three `package.json` manifests declare `MIT` and the `LICENSE` file is present, so the
+declaration and the file finally agree. They did not until now: the manifests said `ISC`, there was
+no licence file at all, and an earlier version of this README claimed MIT — three different answers
+to one question, which in practice meant nobody could reuse the code with confidence.
 
 ---
 

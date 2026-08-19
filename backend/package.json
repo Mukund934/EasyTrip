@@ -21,7 +21,7 @@
     "firebase"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "cloudinary": "^1.41.3",
     "compression": "^1.8.1",
