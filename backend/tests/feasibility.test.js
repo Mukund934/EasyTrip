@@ -532,3 +532,115 @@ describe('the engine reads what the database really returns', () => {
     expect(minutesOfDay(row.rows[0].start_time)).toBe(480);
   });
 });
+
+describe('FV-031 — an outdoor stop scheduled in the dark', () => {
+  /**
+   * Hampi, 15.335N. The sun sets around 18:05 in mid-December and around 18:50 in mid-June, so a
+   * 19:30 finish is after dark in both — the honest seasonal boundary is the *start*: an 06:30
+   * start is before a 06:42 December sunrise and after a 05:55 June one.
+   *
+   * Both figures come from the provider for that coordinate; the engine never computes them.
+   */
+  const dayWith = (sunrise, sunset, items) => ({
+    day_number: 1,
+    sunrise,
+    sunset,
+    items
+  });
+
+  const outdoorItem = (overrides) => ({
+    id: 1,
+    title: 'Sunrise at Matanga Hill',
+    place_setting: 'outdoor',
+    position: 0,
+    ...overrides
+  });
+
+  const codes = (trip) => checkTrip(trip).findings.map((f) => f.code);
+
+  test('the same 06:30 start is flagged in December and clean in June', () => {
+    const december = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [
+        dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+          outdoorItem({ start_time: '06:30', end_time: '08:00' })
+        ])
+      ]
+    };
+    const june = {
+      start_date: '2026-06-14',
+      end_date: '2026-06-14',
+      days: [
+        dayWith('2026-06-14T05:55', '2026-06-14T18:50', [
+          outdoorItem({ start_time: '06:30', end_time: '08:00' })
+        ])
+      ]
+    };
+
+    // Identical plan, identical coordinates, opposite verdicts — decided by the day's own sunrise.
+    expect(codes(december)).toContain('outdoor_item_in_darkness');
+    expect(codes(june)).not.toContain('outdoor_item_in_darkness');
+  });
+
+  test('an outdoor visit that runs past sunset is flagged on its end, not its start', () => {
+    const trip = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [
+        dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+          outdoorItem({ title: 'Sunset point', start_time: '17:00', end_time: '19:30' })
+        ])
+      ]
+    };
+    const finding = checkTrip(trip).findings.find((f) => f.code === 'outdoor_item_in_darkness');
+
+    expect(finding).toBeTruthy();
+    expect(finding.message).toMatch(/after sunset/);
+    // A warning, not an error: a night market is a thing people want.
+    expect(finding.severity).toBe('warning');
+    expect(checkTrip(trip).feasible).toBe(true);
+  });
+
+  test('unknown and mixed produce nothing, because neither is evidence', () => {
+    // `unknown` is the default for the whole catalogue until somebody classifies it, and `mixed` is
+    // a fort with a museum in it. Warning about either would be a guess with a validator's
+    // authority — the defect `IMP-027` exists for.
+    for (const setting of ['unknown', 'mixed', 'indoor', null, undefined]) {
+      const trip = {
+        start_date: '2026-12-14',
+        end_date: '2026-12-14',
+        days: [
+          dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+            outdoorItem({ place_setting: setting, start_time: '05:00', end_time: '05:30' })
+          ])
+        ]
+      };
+      expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+    }
+  });
+
+  test('no sunrise/sunset means no finding, rather than an assumed one', () => {
+    // Beyond the provider's seven-day horizon there is no reading. An absent reading has to produce
+    // an absent finding — the same rule the weather panel follows when it states an absence.
+    const trip = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [dayWith(null, null, [outdoorItem({ start_time: '03:00', end_time: '04:00' })])]
+    };
+    expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+  });
+
+  test('an item with no time cannot be in the dark', () => {
+    const trip = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [
+        dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+          outdoorItem({ start_time: null, end_time: null })
+        ])
+      ]
+    };
+    expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+  });
+});

@@ -80,7 +80,8 @@ const getTripWorkspace = async (userId, tripId) => {
             trip_items.position,
             places.name AS place_name, places.location AS place_location,
             places.primary_image_url AS place_image_url,
-            places.latitude AS place_latitude, places.longitude AS place_longitude
+            places.latitude AS place_latitude, places.longitude AS place_longitude,
+            places.setting AS place_setting
      FROM trip_items
      JOIN trip_days ON trip_days.id = trip_items.trip_day_id
      JOIN trips ON trips.id = trip_days.trip_id

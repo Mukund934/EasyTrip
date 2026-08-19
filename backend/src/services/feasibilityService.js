@@ -114,6 +114,20 @@ const minutesOfDay = (time) => {
   return hours * 60 + minutes;
 };
 
+/**
+ * `'2026-12-14T06:42'` -> `402`. `null` for anything unparseable.
+ *
+ * The provider returns sunrise and sunset as **local-time** ISO strings under `timezone=auto`, in
+ * the same frame as `trip_items.start_time` — so comparing the wall-clock minutes of the two is
+ * comparing like with like, and no zone database is needed. That is what keeps this file free of a
+ * clock: it never asks what time it is, only what the data says.
+ */
+const minutesOfLocalIso = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = /T(\d{2}):(\d{2})/.exec(value);
+  return match ? minutesOfDay(`${match[1]}:${match[2]}`) : null;
+};
+
 const coordinatesOf = (item) =>
   item?.place_latitude != null && item?.place_longitude != null
     ? { latitude: item.place_latitude, longitude: item.place_longitude }
@@ -305,6 +319,56 @@ const checkClustering = (day, orderedItems) => {
   ];
 };
 
+/**
+ * `FV-031` — an outdoor stop scheduled in the dark.
+ *
+ * **Only `outdoor` counts.** `places.setting` defaults to `unknown` and most of the catalogue will
+ * sit there until somebody classifies it; `mixed` is a fort with a museum in it. Warning about
+ * either would be a guess wearing a validator's authority, which is the one thing this engine
+ * exists not to do — so both produce nothing at all. `ADR-041` is the same rule for travel time.
+ *
+ * **It also does nothing without the day's own sunrise and sunset.** Those arrive as data on the
+ * day (the controller attaches them from the forecast); beyond the provider's horizon there is no
+ * reading, and an absent reading produces an absent finding rather than an assumed one.
+ *
+ * A warning rather than an error: a sunrise hike and a night market are both things a traveller can
+ * legitimately want. `feasible` stays a statement about what is *possible*.
+ */
+const checkDaylight = (day, timedItems) => {
+  const sunrise = minutesOfLocalIso(day.sunrise);
+  const sunset = minutesOfLocalIso(day.sunset);
+  if (sunrise === null || sunset === null) return [];
+
+  const findings = [];
+  for (const entry of timedItems) {
+    if (entry.item.place_setting !== 'outdoor') continue;
+
+    // The end of the visit is what matters for sunset — an item that starts at 17:00 and runs to
+    // 19:30 is outdoors in the dark even though it began in daylight.
+    const finish = entry.end ?? entry.start;
+    const beforeSunrise = entry.start < sunrise;
+    const afterSunset = finish > sunset;
+    if (!beforeSunrise && !afterSunset) continue;
+
+    findings.push(
+      finding(
+        'outdoor_item_in_darkness',
+        'warning',
+        beforeSunrise
+          ? `"${entry.item.title}" is outdoors and starts at ${entry.item.start_time?.slice(0, 5)}, before sunrise at ${day.sunrise.slice(11, 16)}.`
+          : `"${entry.item.title}" is outdoors and runs to ${(entry.item.end_time || entry.item.start_time)?.slice(0, 5)}, after sunset at ${day.sunset.slice(11, 16)}.`,
+        {
+          day_number: day.day_number,
+          item_ids: [entry.item.id],
+          sunrise: day.sunrise,
+          sunset: day.sunset
+        }
+      )
+    );
+  }
+  return findings;
+};
+
 /** Stage (a) — the same place twice in one day. */
 const checkDuplicates = (day, orderedItems) => {
   const seen = new Map();
@@ -360,6 +424,7 @@ const checkTrip = (trip) => {
       ...checkOverlaps(day, timedItems),
       ...checkOrdering(day, timedItems),
       ...checkTravelTime(day, timedItems),
+      ...checkDaylight(day, timedItems),
       ...checkClustering(day, orderedItems),
       ...checkDuplicates(day, orderedItems)
     );
@@ -383,6 +448,7 @@ module.exports = {
   haversineKm,
   travelMinutesForKm,
   minutesOfDay,
+  minutesOfLocalIso,
   inclusiveDayCount,
   ASSUMPTIONS
 };
