@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../app');
 const { createSchema, resetData, closeDb, resetRateLimits, pool } = require('./helpers/testDb');
 const { authHeader } = require('./helpers/firebaseMock');
+const { SORT_KEYS } = require('../src/models/placeModel');
 
 /** Places: read, search, write, and the validation boundary (IMP-092). */
 
@@ -153,13 +154,24 @@ describe('GET /api/places — sort ordering (m1)', () => {
     // The validator's `isIn` list and the model's `SORT_ORDERS` map are two separate declarations
     // of the same set. Accepting a value the map lacks is the silent-fallback bug; rejecting one
     // it has makes a working ordering unreachable.
-    const advertised = ['newest', 'oldest', 'rating', 'popular', 'name'];
+    //
+    // Enumerated from the model rather than restated, so a sort added there is covered here
+    // automatically. The hardcoded list this replaced went stale the moment `relevance` landed
+    // (IMP-112): it kept passing while silently testing four fifths of the surface.
+    const advertised = SORT_KEYS;
+    expect(advertised).toContain('relevance');
     for (const sort of advertised) {
       expect((await request(app).get(`/api/places?sort=${sort}`)).status).toBe(200);
     }
-    // And the orders are genuinely distinct, not five names for two behaviours.
+    // And the orders are genuinely distinct, not five names for two behaviours. `relevance` is
+    // excluded from the distinctness count on purpose: with no search term it resolves to `newest`
+    // by design, so counting it here would assert the opposite of what the fallback intends.
     const orders = new Set(
-      await Promise.all(advertised.map(async (s) => (await namesSortedBy(s)).join(',')))
+      await Promise.all(
+        advertised
+          .filter((s) => s !== 'relevance')
+          .map(async (s) => (await namesSortedBy(s)).join(','))
+      )
     );
     expect(orders.size).toBeGreaterThanOrEqual(4);
   });

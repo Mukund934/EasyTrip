@@ -5,6 +5,10 @@ const placeController = require('../controllers/placeController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
+const { getPlaceWeather } = require('../controllers/weatherController');
+const { geocodeAddress } = require('../controllers/geocodeController');
+const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
+const { SUPPORTED_GEOCODERS } = require('../controllers/helpers/coordinateSource');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
@@ -97,6 +101,14 @@ const placeBodyRules = (required) => [
     .optional({ values: 'falsy' })
     .isFloat({ min: -180, max: 180 })
     .withMessage('Longitude must be between -180 and 180'),
+  // Which geocoder produced those coordinates, when one did (IMP-127). Rejected rather than
+  // silently dropped: this field decides whether an attribution notice appears, so a typo that
+  // quietly removed one would be invisible in exactly the way a licence obligation must not be.
+  // The allowlist is `SUPPORTED_GEOCODERS`, which the 010 migration's CHECK constraint mirrors.
+  body('coordinates_source')
+    .optional({ values: 'falsy' })
+    .isIn(SUPPORTED_GEOCODERS)
+    .withMessage(`coordinates_source must be one of: ${SUPPORTED_GEOCODERS.join(', ')}`),
   optionalUrl('primary_image_url'),
   optionalUrl('image_url'),
   body('themes')
@@ -168,10 +180,12 @@ const listRules = [
     .optional({ values: 'falsy' })
     .isInt({ min: 0 })
     .withMessage('offset must be zero or greater'),
+  // Enumerated from the model rather than restated, so adding a sort cannot leave the validator
+  // rejecting a value the model supports (or accepting one it does not).
   query('sort')
     .optional({ values: 'falsy' })
-    .isIn(['newest', 'oldest', 'rating', 'popular', 'name'])
-    .withMessage('sort must be one of: newest, oldest, rating, popular, name'),
+    .isIn(SORT_KEYS)
+    .withMessage(`sort must be one of: ${SORT_KEYS.join(', ')}`),
   query('projection')
     .optional({ values: 'falsy' })
     .isIn(['list', 'map'])
@@ -180,6 +194,23 @@ const listRules = [
     .optional({ values: 'falsy' })
     .isIn(['true', '1', 'false', '0'])
     .withMessage('withStats must be a boolean')
+];
+
+// Typeahead (IMP-112). `q` is deliberately NOT `notEmpty()`: the browser sends an empty one the
+// instant the box is cleared, and that is an empty result, not a client error. The length cap
+// matches `searchTerm`'s so the two search surfaces cannot disagree about what is too long.
+const suggestRules = [
+  query('q')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('q must be at most 200 characters'),
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: SUGGEST_MAX_LIMIT })
+    .withMessage(`limit must be between 1 and ${SUGGEST_MAX_LIMIT}`)
 ];
 
 const reviewRules = [
@@ -244,6 +275,11 @@ router.get(
   handleValidationErrors,
   placeController.listPlaces
 );
+// Typeahead (IMP-112). Must be declared before `/places/:id`, like every other literal segment
+// here — Express matches in declaration order, so a `:id` route above this would swallow
+// `/places/suggest` and hand "suggest" to a handler expecting an integer (`BUG C2`, guarded by
+// `routeShadowing.test.js`).
+router.get('/places/suggest', suggestRules, handleValidationErrors, placeController.suggestPlaces);
 router.get('/places/locations', placeController.getAllLocations);
 router.get('/places/districts', placeController.getDistricts);
 router.get('/places/states', placeController.getStates);
@@ -251,6 +287,10 @@ router.get('/places/tags', placeController.getTags);
 router.get('/places/:id', placeController.getPlaceById);
 router.get('/places/:id/image', placeController.getPlaceImage);
 router.get('/places/:id/images', placeController.getPlaceImages);
+// Real weather (`IMP-110`), keyed on the place's own coordinates. Public: the forecast at a
+// tourist site is not private, and the page is server-rendered for crawlers. Deliberately NOT
+// `?lat=&lon=` — that would be an open proxy to a third party at our rate limit, from our IP.
+router.get('/places/:id/weather', placeIdParam, handleValidationErrors, getPlaceWeather);
 router.get('/places/:id/images/:imageId', placeController.getPlaceImage);
 // Public, but soft-authenticated: the response never exposes a uid, so ownership of a
 // review has to be marked server-side (`is_own`) for the edit UI to be able to find it.
@@ -281,6 +321,23 @@ router.post(
   reportRules,
   handleValidationErrors,
   placeController.reportPlaceReview
+);
+
+// Forward geocoding for the admin place forms (IMP-116). Admin-gated because it forwards
+// caller-supplied text to a third party at our IP and inside a 1 req/s budget — see the
+// controller for why that is still not SSRF.
+router.get(
+  '/admin/geocode',
+  isAdmin,
+  query('q')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('q must be at most 200 characters'),
+  handleValidationErrors,
+  geocodeAddress
 );
 
 // Admin routes - the only registration for these URLs. `/api` is mounted before

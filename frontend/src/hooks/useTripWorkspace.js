@@ -24,6 +24,17 @@ export function useTripWorkspace(tripId) {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // The feasibility report (`FV-025`). Held separately from `trip` because it is *derived from* the
+  // trip rather than part of it, and because the invariant below only makes sense if the two can be
+  // out of step long enough to notice.
+  const [feasibility, setFeasibility] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [feasibilityError, setFeasibilityError] = useState(null);
+
+  // Route suggestions, keyed by day id (`FV-026`). A map rather than one value because each day is
+  // asked about separately, and a second day's answer must not replace the first's.
+  const [routeSuggestions, setRouteSuggestions] = useState({});
+
   const refresh = useCallback(async () => {
     if (!tripId) return null;
     setError(null);
@@ -58,6 +69,16 @@ export function useTripWorkspace(tripId) {
         const token = await getIdToken();
         await operation(token);
         await refresh();
+        // A report describes the plan it was computed from. The moment that plan changes, a
+        // verdict still on screen is a claim about a trip that no longer exists — and the
+        // dangerous direction is the reassuring one: "everything checks out" sitting above a day
+        // the user has just broken. Cleared rather than recomputed, so the panel says nothing
+        // instead of saying something stale.
+        setFeasibility(null);
+        setFeasibilityError(null);
+        // Same reasoning, same danger: a suggestion computed from the old order is a set of moves
+        // that no longer means what it says once the day has changed under it.
+        setRouteSuggestions({});
         return true;
       } catch (writeError) {
         setActionError(writeError);
@@ -67,6 +88,68 @@ export function useTripWorkspace(tripId) {
       }
     },
     [getIdToken, refresh]
+  );
+
+  /**
+   * Ask the server whether this plan can be executed (`FV-025`).
+   *
+   * On demand, not on every load. The engine is a **report, not a gate** — the item's own kill
+   * criteria warn against validation that makes editing feel broken — and the workspace already
+   * refetches the whole trip after every write, so checking automatically would put a second
+   * request on the critical path of every drag.
+   */
+  const checkFeasibility = useCallback(async () => {
+    if (!tripId) return null;
+    setChecking(true);
+    setFeasibilityError(null);
+    try {
+      const token = await getIdToken();
+      const report = await tripService.getTripFeasibility(tripId, token);
+      setFeasibility(report);
+      return report;
+    } catch (checkError) {
+      // The report is cleared, not kept: a failed check must not leave the previous verdict on
+      // screen beside an error message, which reads as "still fine, but also broken".
+      setFeasibility(null);
+      setFeasibilityError(checkError);
+      return null;
+    } finally {
+      setChecking(false);
+    }
+  }, [tripId, getIdToken]);
+
+  /**
+   * Ask whether one day could be ordered better (`FV-026`).
+   *
+   * The answer is stored, not acted on. `applyRouteSuggestion` is a separate, deliberate step,
+   * because the item's kill criteria stop at *"optimisation starts overriding what the user
+   * deliberately chose"* — and a suggestion that applies itself is exactly that.
+   */
+  const suggestRoute = useCallback(
+    async (dayId) => {
+      try {
+        const token = await getIdToken();
+        const suggestion = await tripService.getDayRouteSuggestion(tripId, dayId, token);
+        setRouteSuggestions((current) => ({ ...current, [dayId]: suggestion }));
+        return suggestion;
+      } catch (suggestError) {
+        setActionError(suggestError);
+        // Cleared rather than kept: a stale suggestion beside an error reads as "still valid".
+        setRouteSuggestions((current) => ({ ...current, [dayId]: null }));
+        return null;
+      }
+    },
+    [tripId, getIdToken]
+  );
+
+  /** Apply a suggestion the user has seen, through the reorder path that already exists. */
+  const applyRouteSuggestion = useCallback(
+    (dayId) => {
+      const suggestion = routeSuggestions[dayId];
+      if (!suggestion?.applicable) return Promise.resolve(false);
+      return run((token) => tripService.reorderItems(tripId, dayId, suggestion.item_ids, token));
+    },
+    [routeSuggestions, run, tripId]
   );
 
   const addDay = useCallback(
@@ -154,6 +237,13 @@ export function useTripWorkspace(tripId) {
     busy,
     ready: ready && !authLoading,
     refresh,
+    feasibility,
+    checking,
+    feasibilityError,
+    checkFeasibility,
+    routeSuggestions,
+    suggestRoute,
+    applyRouteSuggestion,
     updateTrip,
     addDay,
     removeDay,

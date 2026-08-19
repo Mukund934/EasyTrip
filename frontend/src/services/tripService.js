@@ -33,6 +33,41 @@ const getTrip = async (tripId, token) => {
   }
 };
 
+/**
+ * The deterministic feasibility report for a trip (`FV-025`).
+ *
+ * A separate call rather than a field on `getTrip`, and that is the design rather than an
+ * accident: the workspace reloads the whole trip after every write (see `useTripWorkspace`), and
+ * making every add, edit and reorder also recompute a report the user may not be looking at would
+ * put work on the critical path of a drag. The check is asked for when it is wanted.
+ */
+const getTripFeasibility = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/feasibility`, authed(token));
+    return data?.feasibility ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not check this trip');
+  }
+};
+
+/**
+ * A shorter order for one day, if there is one (`FV-026` stage a).
+ *
+ * Read-only. Applying a suggestion goes through `reorderItems`, which already exists and already
+ * validates — so a suggestion can never become a write this module invented.
+ */
+const getDayRouteSuggestion = async (tripId, dayId, token) => {
+  try {
+    const { data } = await apiClient.get(
+      `/auth/trips/${tripId}/days/${dayId}/route-suggestion`,
+      authed(token)
+    );
+    return data?.suggestion ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not check this day');
+  }
+};
+
 const createTrip = async (trip, token) => {
   try {
     const { data } = await apiClient.post('/auth/trips', trip, authed(token));
@@ -134,6 +169,8 @@ const reorderItems = async (tripId, dayId, itemIds, token) => {
 const tripService = {
   listTrips,
   getTrip,
+  getTripFeasibility,
+  getDayRouteSuggestion,
   createTrip,
   updateTrip,
   deleteTrip,
@@ -149,6 +186,8 @@ export default tripService;
 export {
   listTrips,
   getTrip,
+  getTripFeasibility,
+  getDayRouteSuggestion,
   createTrip,
   updateTrip,
   deleteTrip,

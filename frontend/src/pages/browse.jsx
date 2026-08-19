@@ -9,6 +9,7 @@ import { useBrowseFilters } from '../hooks/useBrowseFilters';
 import { useBrowsePlaces } from '../hooks/useBrowsePlaces';
 import { useBrowseFacets, useBrowseMapPlaces } from '../hooks/useBrowseFacets';
 import { useRecentSearches } from '../hooks/useRecentSearches';
+import { usePlaceSuggestions } from '../hooks/usePlaceSuggestions';
 import BrowseHero from '../components/browse/BrowseHero';
 import BrowseMobileFilters from '../components/browse/BrowseMobileFilters';
 import BrowseToolbar from '../components/browse/BrowseToolbar';
@@ -83,7 +84,19 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
   // and they deliberately do not appear in the URL.
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', or 'map'
-  const [sortOrder, setSortOrder] = useState('newest');
+  // What the user picked, which is not always what runs (IMP-112).
+  //
+  // The default is `relevance`, so a visitor who types a search gets ranked results without having
+  // to discover a dropdown. But "Best Match" over an unsearched catalogue is not a real ordering —
+  // every row would rank identically — so the server resolves that case back to `newest`
+  // (`placeModel.listPlaces`), and `sortOrder` below applies the *same* rule locally rather than
+  // labelling the control with an order the query did not use.
+  //
+  // The rule is duplicated deliberately, and only this far: the server owns the decision, and this
+  // is the label agreeing with it. Sending `relevance` and rendering whatever `pagination.sort`
+  // came back would be one source of truth, but the dropdown would then change under the user
+  // one request later, after the results had already painted.
+  const [sortPreference, setSortPreference] = useState('relevance');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
@@ -95,6 +108,12 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     date: false,
     tags: false
   });
+
+  // Relevance needs something to be relevant *to*. See `sortPreference` above.
+  const canSortByRelevance = Boolean(filters.searchTerm);
+  const sortOrder =
+    sortPreference === 'relevance' && !canSortByRelevance ? 'newest' : sortPreference;
+  const setSortOrder = setSortPreference;
 
   // Infinite scroll sentinel
   const { ref: loadMoreRef, inView } = useInView({
@@ -178,6 +197,10 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     resetFilters();
   }, [resetFilters]);
 
+  // Typeahead (IMP-112). Keyed on the already-debounced filter value, not on raw keystrokes —
+  // `debouncedSearch` above is the only timer in this path.
+  const suggestions = usePlaceSuggestions(filters.searchTerm);
+
   // Everything the hero's search box needs, in one prop rather than nine.
   const search = useMemo(
     () => ({
@@ -186,6 +209,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
       setSearchActive,
       searchInputRef,
       recentSearches,
+      suggestions,
       handleSearchFocus: () => {
         setSearchActive(true);
         searchInputRef.current?.focus();
@@ -206,7 +230,16 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
         clearAll();
       }
     }),
-    [debouncedSearch, searchActive, recentSearches, setters, remember, removeSearch, clearAll]
+    [
+      debouncedSearch,
+      searchActive,
+      recentSearches,
+      suggestions,
+      setters,
+      remember,
+      removeSearch,
+      clearAll
+    ]
   );
 
   return (
@@ -306,6 +339,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
               setViewMode={setViewMode}
               sortOrder={sortOrder}
               setSortOrder={setSortOrder}
+              canSortByRelevance={canSortByRelevance}
               showSortMenu={showSortMenu}
               setShowSortMenu={setShowSortMenu}
               mapFullscreen={mapFullscreen}

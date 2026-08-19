@@ -89,6 +89,86 @@ test.describe('filtering in the browser', () => {
   });
 });
 
+test.describe('ranked search through the whole stack (IMP-112)', () => {
+  test('the sort the client sends for a search is one the server accepts', async ({ page }) => {
+    // The failure this exists for: `relevance` is a new value in three separate declarations —
+    // `sortOptions` in the browser, `SORT_KEYS` in the model, and the route's `isIn` validator. Each
+    // has its own test that passes in isolation. If the validator did not learn the new value, the
+    // request would 400 and the grid would empty out — with the browse page's own error handling
+    // making it look like a search that found nothing, which is the quietest possible failure.
+    const failed = [];
+    page.on('response', (r) => {
+      if (r.url().includes('/api/places') && r.status() >= 400)
+        failed.push(`${r.status()} ${r.url()}`);
+    });
+
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('temples');
+
+    // Stemming, proven through the browser: neither place has the singular in the column matched.
+    await expect(cards(page)).toHaveCount(2);
+    expect(failed).toEqual([]);
+  });
+
+  test('a name match is ordered above a description-only match', async ({ page }) => {
+    // Gokarna's description mentions Goa; nothing is *named* Goa in the seed, so the ordering here
+    // is asserted on the pair the fixtures do provide: searching the exact name puts it first.
+    await page.goto('/browse?q=Gokarna');
+    await expect(cards(page).first()).toContainText('Gokarna');
+  });
+
+  test('"Best Match" appears only once there is something to match', async ({ page }) => {
+    await page.goto('/browse');
+    // Desktop viewport: the results header's sort control, not the mobile toolbar's.
+    await page.getByRole('button', { name: /^Sort:/ }).click();
+    await expect(page.getByRole('button', { name: 'Best Match' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Sort: Newest First/ })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Search destinations').fill('temples');
+    await expect(page.getByRole('button', { name: /^Sort: Best Match/ })).toBeVisible();
+  });
+});
+
+test.describe('the typeahead (IMP-112)', () => {
+  test('typing offers matching places, and choosing one applies it', async ({ page }) => {
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('gok');
+
+    const suggestion = page.getByRole('button', { name: /Gokarna/ });
+    await expect(suggestion).toBeVisible();
+
+    await suggestion.click();
+    await expect(cards(page)).toHaveCount(1);
+    await expect(cards(page).first()).toContainText('Gokarna');
+  });
+
+  test('a suggestion is disambiguated by where it is', async ({ page }) => {
+    // A bare list of place names is ambiguous the moment two states share one — the row has to
+    // carry the district and state to be choosable.
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('gok');
+    await expect(page.getByRole('button', { name: /Gokarna.*Karnataka/ })).toBeVisible();
+  });
+
+  test('the suggest request is one the server answers', async ({ page }) => {
+    // Same class of failure as the sort enum above: `/api/places/suggest` is declared before
+    // `/places/:id`, and if that order were ever reversed the request would 404 or 400 rather than
+    // erroring visibly — the dropdown would simply never appear.
+    const statuses = [];
+    page.on('response', (r) => {
+      if (r.url().includes('/api/places/suggest')) statuses.push(r.status());
+    });
+
+    await page.goto('/browse');
+    await page.getByLabel('Search destinations').fill('hamp');
+    await expect(page.getByRole('button', { name: /Hampi/ }).first()).toBeVisible();
+
+    expect(statuses.length).toBeGreaterThan(0);
+    expect(statuses.filter((s) => s !== 200)).toEqual([]);
+  });
+});
+
 test.describe('browse to detail', () => {
   test('clicking a place opens its detail page', async ({ page }) => {
     await page.goto('/browse?q=Hampi');

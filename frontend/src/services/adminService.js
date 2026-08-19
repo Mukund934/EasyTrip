@@ -50,8 +50,72 @@ const removeAdmin = async (token, email) => {
   return response.data;
 };
 
+/**
+ * Look up coordinates for a free-text address (`IMP-116`).
+ *
+ * Returns `{ results, status }` where `status` is `exact` · `ambiguous` · `no_match`. The server
+ * derives that rather than the caller counting `results.length`, so the three cases cannot be
+ * classified differently by two clients.
+ */
+const geocode = async (token, query) => {
+  const response = await apiClient.get(`/admin/geocode?q=${encodeURIComponent(query)}`, {
+    authToken: token,
+    requireAuth: true
+  });
+  return response.data;
+};
+
+/**
+ * The moderation queue (`IMP-111`).
+ *
+ * Returns `{ data, pagination, counts }`. `pagination.status` is the status that was **applied**,
+ * not the one requested — the server decides, so a client cannot render a filter that did not run.
+ */
+const getReports = async (token, { status = 'open', limit, offset } = {}) => {
+  const params = new URLSearchParams({ status });
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (offset !== undefined) params.set('offset', String(offset));
+
+  const response = await apiClient.get(`/admin/reports?${params.toString()}`, {
+    authToken: token,
+    requireAuth: true
+  });
+  return response.data;
+};
+
+/**
+ * Resolve every open report against one review.
+ *
+ * Keyed on the review rather than a report id, because that is the unit a moderator acts on. A 409
+ * means somebody else already handled it — which the caller must surface rather than swallow, or
+ * two moderators quietly overwrite each other's judgement.
+ */
+const resolveReports = async (token, reviewId, resolution) => {
+  const response = await apiClient.patch(
+    `/admin/reports/reviews/${reviewId}`,
+    { resolution },
+    { authToken: token, requireAuth: true }
+  );
+  return response.data;
+};
+
+/**
+ * Admin analytics (`IMP-111`). Returns `{ catalogue, ratings, activity, needsAttention }`.
+ */
+const getAnalytics = async (token) => {
+  const response = await apiClient.get('/admin/analytics', {
+    authToken: token,
+    requireAuth: true
+  });
+  return response.data;
+};
+
 export const adminService = {
   addAdmin,
   removeAdmin,
-  getAllAdmins
+  getAllAdmins,
+  geocode,
+  getReports,
+  resolveReports,
+  getAnalytics
 };

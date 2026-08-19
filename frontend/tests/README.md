@@ -62,6 +62,7 @@ files are independent and parallelism is free.
 | `savedPage.test.jsx`        | `IMP-108`/`IMP-031` — empty, loading and failed-to-load are three distinct states; "nothing saved yet" never renders over an error |
 | `myReviews.test.jsx`        | `IMP-117` — a failed _delete_ keeps the list on screen; a failed _load_ replaces it. Two errors, two treatments                    |
 | `trips.test.jsx`            | `IMP-109` — the three states, a non-optimistic delete, and the end-before-start guard that fires while typing                      |
+| `placeWeather.test.jsx`     | `IMP-110` — the negative assertions: no degree sign appears anywhere in the unavailable state                                      |
 
 The component tests are deliberately weighted toward **contracts between modules**, because that is
 where this codebase's worst bugs lived: every helper was correct and the callers each reimplemented

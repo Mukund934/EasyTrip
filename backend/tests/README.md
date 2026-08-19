@@ -76,27 +76,34 @@ how many requests the earlier ones happened to send.
 
 ## What is covered
 
-| Suite                       | Locks in                                                                                                                                   |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auth.test.js`              | `IMP-001/002/003` — no client-supplied identity, no forged admin claim, DB is the authority                                                |
-| `places.test.js`            | CRUD, pagination, filters (`IMP-011`), the validation boundary (`IMP-057`)                                                                 |
-| `reviews.test.js`           | `IMP-019/021/023` — author privacy, upsert-not-duplicate, real reports, trigger-maintained aggregates, and the deliberate 403-vs-404 split |
-| `platform.test.js`          | health, profile scoping, newsletter, helmet headers, JSON error shapes                                                                     |
-| `rateLimit.test.js`         | the buckets, **and** what they deliberately do not block                                                                                   |
-| `env.test.js`               | the boot refusal — the server must not start on a half-configured environment                                                              |
-| `imageUpload.test.js`       | `IMP-014` — the multipart path with multer running for real; only the network call is stubbed                                              |
-| `routeShadowing.test.js`    | `BUG C2` — no `(method, path)` declared by two routers, and every rate limiter attached to a route that exists                             |
-| `adminManagement.test.js`   | Granting and revoking admin — the column and the Firebase claim move together, and unrelated claims survive                                |
-| `dbTls.test.js`             | `TD-001` — production verifies the Postgres certificate, and the opt-out says so on every boot                                             |
-| `profile.test.js`           | `IMP-008` — a profile edit persists what it was sent, and reading one provisions a row                                                     |
-| `placeImages.test.js`       | `SECURITY_AUDIT` M1 — the placeholder SVG never reflects request input; plus the image resolution ladder and the place-scoped delete       |
-| `updatePlace.test.js`       | The admin edit path: partial updates, orphan cleanup on image replacement, and `BUG-048` pinned                                            |
-| `uploadImage.test.js`       | `IMP-024` — the staged temp file is removed on every path, including a rejected upload                                                     |
-| `cloudinaryCleanup.test.js` | Deletion never throws — an outage at the image host must not fail a user's delete                                                          |
-| `publicIdFromUrl.test.js`   | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                    |
-| `savedPlaces.test.js`       | `IMP-108` — a wishlist is private, and the privacy comes from the SQL predicate rather than a check somebody remembered; plus idempotency  |
-| `myReviews.test.js`         | `IMP-117` — the endpoint that deliberately performs the correlation `IMP-021` prevents, for the one person entitled to it                  |
-| `trips.test.js`             | `IMP-109` — **transitive** ownership: days and items carry no uid, so every one of eleven endpoints must join up to `trips` to prove it    |
+| Suite                           | Locks in                                                                                                                                                                                                         |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.test.js`                  | `IMP-001/002/003` — no client-supplied identity, no forged admin claim, DB is the authority                                                                                                                      |
+| `places.test.js`                | CRUD, pagination, filters (`IMP-011`), the validation boundary (`IMP-057`)                                                                                                                                       |
+| `reviews.test.js`               | `IMP-019/021/023` — author privacy, upsert-not-duplicate, real reports, trigger-maintained aggregates, and the deliberate 403-vs-404 split                                                                       |
+| `platform.test.js`              | health, profile scoping, newsletter, helmet headers, JSON error shapes                                                                                                                                           |
+| `rateLimit.test.js`             | the buckets, **and** what they deliberately do not block                                                                                                                                                         |
+| `env.test.js`                   | the boot refusal — the server must not start on a half-configured environment                                                                                                                                    |
+| `imageUpload.test.js`           | `IMP-014` — the multipart path with multer running for real; only the network call is stubbed                                                                                                                    |
+| `routeShadowing.test.js`        | `BUG C2` — no `(method, path)` declared by two routers, and every rate limiter attached to a route that exists                                                                                                   |
+| `adminManagement.test.js`       | Granting and revoking admin — the column and the Firebase claim move together, and unrelated claims survive                                                                                                      |
+| `dbTls.test.js`                 | `TD-001` — production verifies the Postgres certificate, and the opt-out says so on every boot                                                                                                                   |
+| `profile.test.js`               | `IMP-008` — a profile edit persists what it was sent, and reading one provisions a row                                                                                                                           |
+| `placeImages.test.js`           | `SECURITY_AUDIT` M1 — the placeholder SVG never reflects request input; plus the image resolution ladder and the place-scoped delete                                                                             |
+| `updatePlace.test.js`           | The admin edit path: partial updates, orphan cleanup on image replacement, and `BUG-048` pinned                                                                                                                  |
+| `uploadImage.test.js`           | `IMP-024` — the staged temp file is removed on every path, including a rejected upload                                                                                                                           |
+| `cloudinaryCleanup.test.js`     | Deletion never throws — an outage at the image host must not fail a user's delete                                                                                                                                |
+| `publicIdFromUrl.test.js`       | The Cloudinary id recovered from a stored URL is the one that was uploaded — the input to an irreversible remote delete                                                                                          |
+| `savedPlaces.test.js`           | `IMP-108` — a wishlist is private, and the privacy comes from the SQL predicate rather than a check somebody remembered; plus idempotency                                                                        |
+| `myReviews.test.js`             | `IMP-117` — the endpoint that deliberately performs the correlation `IMP-021` prevents, for the one person entitled to it                                                                                        |
+| `trips.test.js`                 | `IMP-109` — **transitive** ownership: days and items carry no uid, so every one of eleven endpoints must join up to `trips` to prove it                                                                          |
+| `weather.test.js`               | `IMP-110` — nothing is ever invented: outage, unknown shape and missing coordinates each report absence rather than a number                                                                                     |
+| `suggest.test.js`               | `IMP-112` / `ADR-033` — the typeahead: tiering, the cap, and `q` treated as text rather than a LIKE pattern (a lone `%` must not return the catalogue)                                                           |
+| `analytics.test.js`             | `IMP-111` / `ADR-037` — the dashboard figures are the fixture's exactly, an unrated catalogue has no average rather than one of zero, and a half-pinned place counts as uncoordinated                            |
+| `moderation.test.js`            | `IMP-111` / `ADR-036` — the queue groups by review not report, reporter identity never leaves the database, and the one delete path now admits admins without widening for anyone else                           |
+| `geocode.test.js`               | `IMP-116` / `ADR-035` — the admin gate, the outcome classification, and the two properties no response reveals: the identifying `User-Agent` and the 1 req/s pacing                                              |
+| `search.test.js`                | `IMP-112` — every assertion pins a property `ILIKE` did **not** have (stemming, prefix, weighting, breadth, query-syntax safety), plus the two regressions from it that are deliberate                           |
+| `searchVectorFreshness.test.js` | `TD-022` — the stored `search_vector` values still agree with the expression that generates them. `CREATE OR REPLACE` on `easytrip_text_words` does **not** recompute stored rows, and nothing else would notice |
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
 the mounted route table** rather than the behaviour of a request. That is deliberate, because the

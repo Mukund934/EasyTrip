@@ -1,3 +1,4 @@
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Inter, Playfair_Display } from 'next/font/google';
 import { MotionConfig } from 'framer-motion';
@@ -6,6 +7,7 @@ import { AuthProvider } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ErrorBoundary from '../components/ErrorBoundary';
+import ServiceWorkerRegistration from '../components/ServiceWorkerRegistration';
 import 'react-toastify/dist/ReactToastify.css';
 import '../styles/globals.css';
 
@@ -49,6 +51,25 @@ function MyApp({ Component, pageProps }) {
        Transforms and opacity fades are suppressed while layout animations still settle instantly,
        which is the behaviour vestibular-disorder guidance actually asks for. */
     <MotionConfig reducedMotion="user">
+      {/* Installability (IMP-115). These live here rather than in a `_document` because there is
+          no `_document` in this project, and adding one to hold four tags would be a new file whose
+          only job is to hold four tags. Page-level `<Head>` blocks still override anything here. */}
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        {/* Matches the manifest's theme_color, which is `primary-600` — the value IMP-084 measured
+            at 4.88:1 for WCAG AA. Two declarations of one colour, unavoidable: the manifest is
+            JSON that cannot import a token. */}
+        <meta name="theme-color" content="#0277b4" />
+        {/* iOS ignores the manifest's icon list entirely and reads this instead. */}
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="EasyTrip" />
+      </Head>
+
+      {/* Registers the offline worker in production only (IMP-115). Renders nothing; outside
+          AuthProvider because it needs no identity and must not wait for one. */}
+      <ServiceWorkerRegistration />
       <AuthProvider>
         {/* The variables have to land on an element that wraps everything, including portalled
             toasts, so every `font-sans` / `font-serif` in the tree can resolve them. */}

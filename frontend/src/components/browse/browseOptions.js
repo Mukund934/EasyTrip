@@ -28,7 +28,8 @@ import {
   FiMap,
   FiStar,
   FiInfo,
-  FiActivity
+  FiActivity,
+  FiSearch
 } from 'react-icons/fi';
 import { THEMES, SEASONS } from '../../constants/themes';
 
@@ -79,8 +80,14 @@ export const viewModes = [
   { id: 'map', label: 'Map', icon: <FiMap />, description: 'Interactive map' }
 ];
 
-// Sort options
+// Sort options.
+//
+// `relevance` is first because it is the default once a search term exists (IMP-112), and it is
+// deliberately not offered when there is none: with nothing to rank, the server resolves it back to
+// `newest`, so a "Best Match" label on an unsearched catalogue would name an order that is not
+// running. `BrowseResults` filters it out via `canSortByRelevance`.
 export const sortOptions = [
+  { id: 'relevance', label: 'Best Match', icon: <FiSearch /> },
   { id: 'newest', label: 'Newest First', icon: <FiClock /> },
   { id: 'rating', label: 'Highest Rated', icon: <FiStar /> },
   { id: 'name', label: 'Alphabetical', icon: <FiInfo /> },

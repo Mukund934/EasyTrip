@@ -10,6 +10,11 @@ CREATE TABLE IF NOT EXISTS places (
   pin_code VARCHAR(20),
   latitude DECIMAL(10,8),
   longitude DECIMAL(11,8),
+  -- `coordinates_source` is deliberately NOT here. It is added by `010_coordinate_provenance.sql`,
+  -- with the two CHECK constraints that make it mean something — and a column declared here and
+  -- constrained there would give a fresh database a window in which the constraints do not exist.
+  -- Same reasoning as `search_vector` (009). Every path that builds a database runs this file and
+  -- then the migrations, so neither is optional. See migrations/README.md.
   primary_image_url TEXT,
   themes TEXT[] DEFAULT '{}',
   tags TEXT[] DEFAULT '{}',

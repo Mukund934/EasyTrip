@@ -9,6 +9,7 @@ const placeModel = require('../models/placeModel');
 const logger = require('../utils/logger');
 const { getCurrentUser } = require('./helpers/currentUser');
 const { criteriaFromQuery } = require('./helpers/placeQuery');
+const { sameCoordinate, resolveCoordinateSource } = require('./helpers/coordinateSource');
 const fs = require('fs');
 const {
   uploadImage,
@@ -48,7 +49,11 @@ const listPlacesHandler = async (req, res) => {
         limit: result.limit,
         offset: result.offset,
         hasMore: result.offset + data.length < result.total,
-        sort: placeModel.SORT_ORDERS[sort] ? sort : 'newest'
+        // The sort that actually ran, from the model, not a second guess at it here. A search with
+        // no explicit `sort` resolves to `relevance` (IMP-112) and `relevance` with no search term
+        // resolves back to `newest`; re-deriving that rule in the controller is how the response
+        // ends up claiming an order the query did not use.
+        sort: result.sort
       }
     };
 
@@ -132,6 +137,7 @@ const createPlace = async (req, res) => {
       pin_code,
       latitude,
       longitude,
+      coordinates_source,
       themes,
       tags,
       custom_keys
@@ -146,6 +152,12 @@ const createPlace = async (req, res) => {
       });
     }
 
+    // A falsy coordinate means "no coordinate" throughout this controller, and the validator skips
+    // `toFloat()` so a sanitized 0 cannot read as absent. Parsed once here because the provenance
+    // decision below needs to know whether a pair actually survived (IMP-127).
+    const nextLatitude = latitude ? parseFloat(latitude) : null;
+    const nextLongitude = longitude ? parseFloat(longitude) : null;
+
     // Create place data without image initially
     const placeData = {
       name: name.trim(),
@@ -155,8 +167,15 @@ const createPlace = async (req, res) => {
       state: state?.trim() || null,
       locality: locality?.trim() || null,
       pin_code: pin_code?.trim() || null,
-      latitude: latitude ? parseFloat(latitude) : null,
-      longitude: longitude ? parseFloat(longitude) : null,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+      // Every create sets its coordinates, so `coordinatesChanged` is unconditionally true — the
+      // same rule as an update, with no prior claim to inherit.
+      coordinates_source: resolveCoordinateSource({
+        requested: coordinates_source,
+        hasCoordinates: nextLatitude !== null && nextLongitude !== null,
+        coordinatesChanged: true
+      }),
       primary_image_url: null, // Will be updated after upload
       themes: parseJsonField(themes, []),
       tags: parseJsonField(tags, []),
@@ -251,6 +270,7 @@ const updatePlace = async (req, res) => {
       pin_code,
       latitude,
       longitude,
+      coordinates_source,
       themes,
       tags,
       custom_keys
@@ -292,6 +312,19 @@ const updatePlace = async (req, res) => {
       }
     }
 
+    const nextLatitude =
+      latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : currentPlace.latitude;
+    const nextLongitude =
+      longitude !== undefined ? (longitude ? parseFloat(longitude) : null) : currentPlace.longitude;
+
+    // Compared by value, not by whether the field was sent (IMP-127). The edit form posts every
+    // field on every save, so "was latitude in the body?" is true even when the admin only touched
+    // the description — and treating that as a coordinate change would revoke OSM attribution on
+    // an unrelated edit. What matters is whether the pin actually moved.
+    const coordinatesChanged =
+      !sameCoordinate(nextLatitude, currentPlace.latitude) ||
+      !sameCoordinate(nextLongitude, currentPlace.longitude);
+
     const placeData = {
       name: name || currentPlace.name,
       description: description !== undefined ? description : currentPlace.description,
@@ -300,14 +333,14 @@ const updatePlace = async (req, res) => {
       state: state !== undefined ? state : currentPlace.state,
       locality: locality !== undefined ? locality : currentPlace.locality,
       pin_code: pin_code !== undefined ? pin_code : currentPlace.pin_code,
-      latitude:
-        latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : currentPlace.latitude,
-      longitude:
-        longitude !== undefined
-          ? longitude
-            ? parseFloat(longitude)
-            : null
-          : currentPlace.longitude,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+      coordinates_source: resolveCoordinateSource({
+        requested: coordinates_source,
+        hasCoordinates: nextLatitude !== null && nextLongitude !== null,
+        coordinatesChanged,
+        current: currentPlace.coordinates_source
+      }),
       primary_image_url: imageUrl,
       themes: parseJsonField(themes, currentPlace.themes || []),
       tags: parseJsonField(tags, currentPlace.tags || []),
@@ -403,8 +436,37 @@ const deletePlace = async (req, res) => {
   }
 };
 
+/**
+ * Search suggestions (`IMP-112` / `ADR-033`).
+ *
+ * Public and unauthenticated, like every other place read. Returns a bare array rather than the
+ * `{ data, pagination }` envelope the list endpoints use: there is no pagination here by
+ * construction — the cap is the point — and an envelope would invite a client to ask for page two
+ * of a typeahead.
+ *
+ * An empty or whitespace-only `q` is `[]` with a 200, not a 400. The browser sends one the moment
+ * the box is cleared, and a 400 there is an error the client has to special-case to ignore.
+ */
+const suggestPlaces = async (req, res) => {
+  try {
+    const suggestions = await placeModel.suggestPlaces({
+      term: req.query.q,
+      limit: req.query.limit
+    });
+    res.status(200).json({ data: suggestions });
+  } catch (error) {
+    logger.error({ err: error }, 'Error building search suggestions');
+    res.status(500).json({
+      message: 'Error getting suggestions',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 module.exports = {
   listPlaces: listPlacesHandler,
+  suggestPlaces,
   getPlaceById,
   createPlace,
   updatePlace,

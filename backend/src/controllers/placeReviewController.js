@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const logger = require('../utils/logger');
 const { getCurrentUserName } = require('./helpers/currentUser');
 const { toPublicReview } = require('./helpers/reviewPrivacy');
+const { resolveAdminStatus } = require('../utils/authMiddleware');
 
 const getPlaceReviews = async (req, res) => {
   try {
@@ -109,12 +110,27 @@ const deletePlaceReview = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // The security boundary is this single statement: the DELETE is scoped to the caller's uid,
-    // so a non-owner cannot remove a row no matter what happens concurrently. Checking ownership
-    // in a separate query first and then deleting would leave a window between the two.
+    // Moderation (`IMP-111`, `ADR-036`): an admin may remove any review, an author only their own.
+    //
+    // **Extended here rather than given its own admin route.** `IMP-117` recorded the rule — there
+    // is no second delete path, because ownership is enforced in one place or it drifts — and a
+    // parallel `DELETE /admin/reviews/:id` is exactly the drift it warned about: two statements
+    // that must agree about cascade behaviour, the rating trigger and report cleanup forever.
+    //
+    // `resolveAdminStatus` is the single definition of "is this caller an admin" (`authMiddleware`),
+    // the same one the `isAdmin` gate uses. Deriving it here from `req.dbUser.is_admin` would be a
+    // second answer to that question, and the two would disagree the first time the claim and the
+    // column drifted — which is the case `resolveAdminStatus` exists to detect.
+    const { isAdmin: callerIsAdmin } = await resolveAdminStatus(req.decodedToken);
+
+    // Still a single statement, so the security boundary is unchanged: a non-owner who is not an
+    // admin cannot remove a row no matter what happens concurrently. Checking permission in a
+    // separate query first and then deleting would leave a window between the two.
     const deleted = await pool.query(
-      'DELETE FROM place_reviews WHERE id = $1 AND place_id = $2 AND user_id = $3 RETURNING id',
-      [reviewId, id, userId]
+      `DELETE FROM place_reviews
+       WHERE id = $1 AND place_id = $2 AND (user_id = $3 OR $4 = TRUE)
+       RETURNING id`,
+      [reviewId, id, userId, callerIsAdmin]
     );
 
     if (deleted.rowCount === 0) {
@@ -130,6 +146,10 @@ const deletePlaceReview = async (req, res) => {
       }
       return res.status(403).json({ message: 'You can only delete your own review' });
     }
+
+    // `review_reports.review_id` is `ON DELETE CASCADE`, so removing a review takes its reports
+    // with it and the moderation queue needs no cleanup here. Asserted rather than assumed: a
+    // removed review that left its reports behind would resurface in the queue pointing at nothing.
 
     // update_place_rating_trigger fires AFTER DELETE and recomputes rating_sum/rating_count from
     // the remaining rows, so the place aggregate needs no work here.

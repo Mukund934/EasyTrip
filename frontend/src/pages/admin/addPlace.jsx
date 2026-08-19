@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { createPlace } from '../../services/placeService';
 import { requireAdminPage } from '../../services/adminGate';
+import { adminService } from '../../services/adminService';
 import { usePlaceForm } from '../../hooks/usePlaceForm';
 import { FormProgress } from '../../components/admin/placeForm/FormProgress';
 import { SubmittingSummary } from '../../components/admin/placeForm/SubmittingSummary';
@@ -33,6 +34,7 @@ export default function AddPlace() {
   const form = usePlaceForm({
     getIdToken,
     createPlace,
+    geocode: adminService.geocode,
     onCreated: (response) => router.push(`/places/${response.id}`)
   });
 

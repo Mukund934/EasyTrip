@@ -17,6 +17,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTripWorkspace } from '../../hooks/useTripWorkspace';
 import { useWishlist } from '../../hooks/useWishlist';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import FeasibilityPanel from '../../components/trips/FeasibilityPanel';
+import RouteSuggestion from '../../components/trips/RouteSuggestion';
 import { formatDate } from '../../utils/dateFormat';
 
 /**
@@ -125,6 +127,13 @@ export default function TripWorkspace() {
     busy,
     ready,
     refresh,
+    feasibility,
+    checking,
+    feasibilityError,
+    checkFeasibility,
+    routeSuggestions,
+    suggestRoute,
+    applyRouteSuggestion,
     addDay,
     removeDay,
     addItem,
@@ -220,6 +229,18 @@ export default function TripWorkspace() {
               <span>{actionError.message}</span>
             </div>
           )}
+
+          {/* Above the days, not below them: the report is about the plan as a whole, and a
+              verdict a reader has to scroll past four days to find is a verdict they will not
+              look for. It shows nothing until asked (`FV-025`). */}
+          <div className="mb-6">
+            <FeasibilityPanel
+              report={feasibility}
+              checking={checking}
+              error={feasibilityError}
+              onCheck={checkFeasibility}
+            />
+          </div>
 
           <div className="space-y-6">
             {trip.days.map((day) => (
@@ -323,6 +344,15 @@ export default function TripWorkspace() {
                 )}
 
                 <AddItemForm dayId={day.id} savedPlaces={savedPlaces} busy={busy} onAdd={addItem} />
+
+                {/* Per day, because the order of a day is a property of that day. It sits below
+                    the items so the list it talks about is already on screen (`FV-026`). */}
+                <RouteSuggestion
+                  suggestion={routeSuggestions[day.id]}
+                  busy={busy}
+                  onSuggest={() => suggestRoute(day.id)}
+                  onApply={() => applyRouteSuggestion(day.id)}
+                />
               </section>
             ))}
           </div>

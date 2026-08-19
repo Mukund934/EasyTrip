@@ -54,7 +54,13 @@ module.exports = defineConfig({
   timeout: 30_000,
   expect: { timeout: 10_000 },
 
-  reporter: process.env.CI ? [['github'], ['list']] : [['list']],
+  // The `json` reporter is CI-only and is not a report anybody reads: it is the input to
+  // `scripts/check-test-counts.mjs`, which asserts that the README's "88 browser journeys" is still
+  // true (`IMP-128`). It is added alongside `list` rather than replacing it, because a reporter
+  // swap that hid the console output would trade a drifting number for an unreadable failure.
+  reporter: process.env.CI
+    ? [['github'], ['list'], ['json', { outputFile: 'test-count-e2e.json' }]]
+    : [['list']],
 
   use: {
     baseURL: BASE_URL,
@@ -73,7 +79,16 @@ module.exports = defineConfig({
   webServer: {
     command: 'npm run dev',
     cwd: 'frontend',
-    url: BASE_URL,
+    // `/login`, not `/` (IMP-129). Playwright starts `webServer` **before** `globalSetup`, so the
+    // readiness probe was hitting the home page while the API it fetches from did not exist yet.
+    // `getStaticProps` caught the failure, fell back to an empty catalogue, and — because the error
+    // branch sets `revalidate: 30` — cached that emptiness for the first thirty seconds of the run.
+    // Every run logged `[getStaticProps] home: fetch failed`, nothing failed, and the home page's
+    // server data path went unexercised.
+    //
+    // `/login` renders from nothing, so it answers the question this probe is actually asking —
+    // "can Next render a page?" — without poisoning an ISR cache to do it.
+    url: `${BASE_URL}/login`,
     reuseExistingServer: false,
     timeout: 180_000,
     stdout: 'pipe',

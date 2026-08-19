@@ -2,7 +2,17 @@ import { FiAlertCircle, FiArrowLeft, FiInfo, FiMapPin, FiNavigation } from 'reac
 import { motion } from 'framer-motion';
 
 export const StepBasicInfo = ({ form }) => {
-  const { formData, errors, handleChange, handleLocationLookup, goToStep } = form;
+  const {
+    formData,
+    errors,
+    handleChange,
+    handleLocationLookup,
+    isLookingUp,
+    geocodeResults,
+    applyGeocodeResult,
+    clearGeocodeResults,
+    goToStep
+  } = form;
 
   return (
     <motion.div
@@ -69,13 +79,79 @@ export const StepBasicInfo = ({ form }) => {
             <button
               type="button"
               onClick={handleLocationLookup}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary-500 hover:text-primary-700 p-1"
+              disabled={isLookingUp}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary-500 hover:text-primary-700 p-1 disabled:opacity-50"
               title="Auto-fill coordinates"
               aria-label="Auto-fill coordinates from the address"
             >
-              <FiNavigation className="w-4 h-4" />
+              <FiNavigation className={`w-4 h-4 ${isLookingUp ? 'animate-spin' : ''}`} />
             </button>
           </div>
+
+          {/* Attribution for the geocoder, shown whether or not a lookup has run yet (IMP-127).
+              ODbL 4.3 requires crediting OpenStreetMap for geocoding output, and an exact match
+              applies itself without ever rendering the candidate list below — so a notice attached
+              only to that list would be absent in the common case. It doubles as the answer to
+              "where do these coordinates come from?", which the button alone does not say. */}
+          <p className="mt-2 text-xs text-gray-500">
+            The lookup fills coordinates from{' '}
+            <a
+              href="https://nominatim.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              Nominatim
+            </a>
+            . Data ©{' '}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              OpenStreetMap
+            </a>{' '}
+            contributors, ODbL.
+          </p>
+
+          {/* Ambiguous lookups only (IMP-116). A single match fills the form directly — this list
+              exists so that several matches are never resolved by guessing the first one, which is
+              how the wrong pin ends up on a public map. */}
+          {geocodeResults.length > 0 && (
+            <div className="mt-3 rounded-xl border-2 border-primary-200 bg-primary-50 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-800">
+                  {geocodeResults.length} matches — pick the right one
+                </p>
+                <button
+                  type="button"
+                  onClick={clearGeocodeResults}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Dismiss
+                </button>
+              </div>
+              <ul className="mt-2 space-y-1">
+                {geocodeResults.map((result) => (
+                  <li key={`${result.latitude},${result.longitude}`}>
+                    <button
+                      type="button"
+                      onClick={() => applyGeocodeResult(result)}
+                      className="w-full rounded-lg px-2 py-2 text-left text-sm text-gray-700 hover:bg-white"
+                    >
+                      <span className="block">{result.label}</span>
+                      {/* The coordinates are shown, not hidden behind the label: two candidates can
+                          read almost identically, and the number is what actually gets saved. */}
+                      <span className="block text-xs text-gray-500">
+                        {result.latitude.toFixed(4)}, {result.longitude.toFixed(4)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {errors.location && (
             <motion.p
               initial={{ opacity: 0, y: -10 }}

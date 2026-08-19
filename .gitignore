@@ -54,6 +54,12 @@ Desktop.ini
 # Local-only planning knowledge base
 docs/
 
+# Test-count reports (IMP-128). Written by `jest --json` and Playwright's json reporter in CI, read
+# once by scripts/check-test-counts.mjs, and meaningless afterwards — they are a measurement of a
+# particular run, not source. Committing one would also make the guard checkable against a stale
+# file instead of a live suite.
+test-count-*.json
+
 # Playwright (IMP-094): traces, screenshots and the HTML report are per-run diagnostics, not source.
 /test-results/
 /playwright-report/
