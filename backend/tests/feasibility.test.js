@@ -491,6 +491,32 @@ describe('GET /api/auth/trips/:tripId/feasibility', () => {
     expect(res.body.feasibility.findings.map((f) => f.code)).toContain('insufficient_travel_time');
   });
 
+  test('a day past the trip’s own dates is reported — which it never used to be', async () => {
+    // `BUG-051`, and the reason it hid for so long: `checkDayBounds` is proved several times over
+    // by the pure tests above, which hand it `'2026-03-01'`. The database hands it a JavaScript
+    // `Date`, `inclusiveDayCount` returned `null` for that, and the whole check quietly did
+    // nothing — **this finding had never once been emitted by the API**.
+    //
+    // A test at this level is the only one that could have caught it, because the defect is not in
+    // the rule, it is in the shape of what the rule is fed. `tripModel` now reads the dates as
+    // text; this asserts the consequence rather than the query.
+    const created = await seedTrip(); // 2026-03-01 to 2026-03-02 — two days
+
+    await request(app).post(`/api/auth/trips/${created.id}/days`).set(asUser).expect(201);
+
+    const res = await request(app)
+      .get(`/api/auth/trips/${created.id}/feasibility`)
+      .set(asUser)
+      .expect(200);
+
+    const bounds = res.body.feasibility.findings.find((f) => f.code === 'day_outside_trip_dates');
+    expect(bounds).toBeTruthy();
+    expect(bounds.day_number).toBe(3);
+    expect(bounds.trip_day_count).toBe(2);
+    // An error, not a warning: a day the trip does not have cannot be executed.
+    expect(res.body.feasibility.feasible).toBe(false);
+  });
+
   it('is a 404 for somebody else’s trip, not a 403', async () => {
     // The same rule the rest of the workspace follows: a trip you do not own does not exist.
     const created = await seedTrip();

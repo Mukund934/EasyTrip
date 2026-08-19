@@ -328,8 +328,9 @@ const checkClustering = (day, orderedItems) => {
  * exists not to do — so both produce nothing at all. `ADR-041` is the same rule for travel time.
  *
  * **It also does nothing without the day's own sunrise and sunset.** Those arrive as data on the
- * day (the controller attaches them from the forecast); beyond the provider's horizon there is no
- * reading, and an absent reading produces an absent finding rather than an assumed one.
+ * day — `tripDaylightService` puts them there from the forecast, which is what keeps the network
+ * out of this file; beyond the provider's seven-day horizon there is no reading, and an absent
+ * reading produces an absent finding rather than an assumed one.
  *
  * A warning rather than an error: a sunrise hike and a night market are both things a traveller can
  * legitimately want. `feasible` stays a statement about what is *possible*.
@@ -361,7 +362,12 @@ const checkDaylight = (day, timedItems) => {
           day_number: day.day_number,
           item_ids: [entry.item.id],
           sunrise: day.sunrise,
-          sunset: day.sunset
+          sunset: day.sunset,
+          // Whoever supplied the reading, carried to the finding rather than left on the day.
+          // Open-Meteo's licence is CC-BY, and a warning that travels as a screenshot has to take
+          // its attribution with it — the same reasoning that puts `estimated` on the finding
+          // instead of only in the panel footer. `null` when nothing attached one.
+          source: day.daylight_source ?? null
         }
       )
     );

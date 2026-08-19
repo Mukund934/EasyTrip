@@ -40,4 +40,32 @@ process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || 'test-key';
 process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || 'test-secret';
 process.env.CORS_ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3000';
 
+/**
+ * No test may reach a real network.
+ *
+ * `SESSION_PROTOCOL.md` §11.4b records what this costs when it is left to discipline: Sprint 7.8
+ * shipped a suite that called a free public geocoder on **every run** — the exact abuse that
+ * provider's policy names — and it passed either way, because a blocked lookup and an empty result
+ * are indistinguishable. `geocode.test.js` fixed that one with an injected `fetchImpl`; this makes
+ * the rule structural instead of remembered.
+ *
+ * It matters more since `FV-031`, because `GET /trips/:id/feasibility` now makes an outbound call
+ * for any day holding an **outdoor** item. No seeded place is classified today, so no existing
+ * suite triggers one — which is an accident, not a guarantee, and the day somebody classifies
+ * Hampi is the day several suites would quietly start calling Open-Meteo from CI.
+ *
+ * A suite that means to exercise a provider replaces this, as `weather.test.js` does: assigning
+ * `global.fetch` in the module body runs after `setupFiles` and wins.
+ */
+global.fetch = async (input) => {
+  const url = typeof input === 'string' ? input : input?.url || String(input);
+  throw new Error(
+    [
+      `A test tried to reach the network: ${url}`,
+      '  The API suite must not call a real provider. Stub `global.fetch`, or inject a',
+      '  `fetchImpl`, as `weather.test.js` and `geocode.test.js` do. See EXTERNAL_APIS.md.'
+    ].join('\n')
+  );
+};
+
 jest.mock('firebase-admin', () => require('../helpers/firebaseMock'));

@@ -51,6 +51,24 @@ const Finding = ({ finding }) => {
             Estimated from straight-line distance — not a routed journey.
           </p>
         )}
+        {finding.source && (
+          // The same reasoning, applied to somebody else's licence rather than to our own
+          // estimate. A daylight warning (`FV-031`) rests on Open-Meteo's sunrise and sunset,
+          // Open-Meteo is CC-BY, and attribution follows the data rather than the page it first
+          // appeared on — which is the gap `IMP-127` found for the geocoder. The provider is named
+          // by the finding, not hardcoded here, so a second source could never be mislabelled.
+          <p className="mt-1 text-xs opacity-75">
+            Sunrise and sunset from{' '}
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              {finding.source}
+            </a>
+          </p>
+        )}
       </div>
     </li>
   );

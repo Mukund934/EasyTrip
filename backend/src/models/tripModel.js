@@ -13,9 +13,26 @@ const pool = require('../config/db');
  * somebody else's itinerary, so the shape is never offered.
  */
 
-/** What a trip card in "My Trips" renders. */
+/**
+ * What a trip card in "My Trips" renders.
+ *
+ * **The dates are read as text on purpose, and this is a fix rather than a preference.** node-pg
+ * parses a `DATE` into a JavaScript `Date` at the *server's* local midnight, so a trip starting
+ * `2026-03-01` left this query as `Sun Mar 01 2026 00:00:00 GMT+0530` and reached the client, via
+ * `JSON.stringify`, as `"2026-02-28T18:30:00.000Z"` — **the day before**. It is the *server's* zone
+ * that decides this: east of UTC the local midnight lands on the previous UTC day, and both
+ * consumers then read it back in UTC, so once it happens it is wrong for **every** viewer, not only
+ * the ones sharing the server's zone. Two live defects came out of that one conversion
+ * (`BUG-050`, `BUG-051`), and
+ * both are the same mistake: a calendar date is not an instant, and giving it a time of day invents
+ * a timezone question that the column never had an answer to.
+ *
+ * `to_char` rather than `::text` so the format does not depend on the session's `DateStyle`.
+ */
 const TRIP_COLUMNS = `
-  trips.id, trips.title, trips.description, trips.start_date, trips.end_date,
+  trips.id, trips.title, trips.description,
+  to_char(trips.start_date, 'YYYY-MM-DD') AS start_date,
+  to_char(trips.end_date, 'YYYY-MM-DD') AS end_date,
   trips.status, trips.created_at, trips.updated_at`;
 
 /**

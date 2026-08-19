@@ -230,6 +230,35 @@ describe('creating a trip', () => {
     expect(ws.body.trip.days.map((d) => d.day_number)).toEqual([1, 2, 3, 4, 5]);
   });
 
+  test('the dates cross the wire as calendar dates, not as instants', async () => {
+    // `BUG-050`. node-pg parses a `DATE` into a JavaScript `Date` at the *server's* local
+    // midnight, so `2026-03-01` used to reach the client, through `JSON.stringify`, as
+    // `"2026-02-28T18:30:00.000Z"` — **the day before**, for every process east of UTC. The trip
+    // page then rendered the wrong start date and labelled every day heading one day early.
+    //
+    // A calendar date has no time of day. Giving it one invents a timezone question the column
+    // has no answer to, so the query returns text and this asserts the text.
+    const trip = await makeTrip(asUser, { start_date: '2026-03-01', end_date: '2026-03-05' });
+
+    // Three reads, because all three build their columns from the same `TRIP_COLUMNS` and the two
+    // writes reach it through a `RETURNING` clause rather than a `SELECT`.
+    expect(trip.start_date).toBe('2026-03-01');
+    expect(trip.end_date).toBe('2026-03-05');
+
+    const ws = await workspace(asUser, trip.id);
+    expect(ws.body.trip.start_date).toBe('2026-03-01');
+
+    const list = await request(app).get('/api/auth/trips').set(asUser).expect(200);
+    expect(list.body.trips.find((t) => t.id === trip.id).start_date).toBe('2026-03-01');
+
+    const patched = await request(app)
+      .put(`/api/auth/trips/${trip.id}`)
+      .set(asUser)
+      .send({ end_date: '2026-03-06' })
+      .expect(200);
+    expect(patched.body.trip.end_date).toBe('2026-03-06');
+  });
+
   test('a trip that ends before it starts is refused', async () => {
     const res = await request(app)
       .post('/api/auth/trips')

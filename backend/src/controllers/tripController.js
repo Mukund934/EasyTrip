@@ -1,6 +1,7 @@
 const tripModel = require('../models/tripModel');
 const feasibilityService = require('../services/feasibilityService');
 const routeOrderService = require('../services/routeOrderService');
+const tripDaylightService = require('../services/tripDaylightService');
 const logger = require('../utils/logger');
 
 /**
@@ -57,13 +58,21 @@ const getTrip = async (req, res) => {
  *
  * Ownership comes from the same `getTripWorkspace` every other trip read uses, so a trip that is
  * not yours is a 404 here for the same reason and by the same query.
+ *
+ * **The one thing here that is not pure arithmetic is daylight** (`FV-031`). The engine's rule
+ * needs each day's own sunrise and sunset, which are a fact about a coordinate on a date rather
+ * than anything the plan contains — so `tripDaylightService` fetches them and hands the engine
+ * plain data, and the engine stays a function of its argument. A day with no reading (no outdoor
+ * item, no coordinates, or a date past the provider's seven-day horizon) simply arrives without
+ * one, and produces no daylight finding rather than an assumed one.
  */
 const getTripFeasibility = async (req, res) => {
   try {
     const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
     if (!trip) return notFound(res);
 
-    res.status(200).json({ feasibility: feasibilityService.checkTrip(trip) });
+    const withDaylight = await tripDaylightService.attachDaylight(trip);
+    res.status(200).json({ feasibility: feasibilityService.checkTrip(withDaylight) });
   } catch (error) {
     logger.error({ err: error }, 'Error checking trip feasibility');
     res.status(500).json({ message: 'Error checking this trip' });

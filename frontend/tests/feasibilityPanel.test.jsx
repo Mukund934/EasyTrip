@@ -80,6 +80,16 @@ const DUPLICATE_WARNING = {
   message: '"Evening at the fort" visits the same place as "Morning at the fort" on day 1.'
 };
 
+/** `FV-031`. The `source` is what the engine passes through from whoever supplied the reading. */
+const DAYLIGHT_WARNING = {
+  code: 'outdoor_item_in_darkness',
+  severity: 'warning',
+  message: '"Sunset point" is outdoors and runs to 19:30, after sunset at 18:05.',
+  sunrise: '2026-03-01T06:42',
+  sunset: '2026-03-01T18:05',
+  source: 'Open-Meteo'
+};
+
 beforeEach(() => jest.clearAllMocks());
 
 describe('the panel says nothing until it is asked', () => {
@@ -160,6 +170,43 @@ describe('what a report looks like', () => {
 
     expect(screen.getByText('Cannot be done as planned:')).toBeInTheDocument();
     expect(screen.getByText('Worth a look:')).toBeInTheDocument();
+  });
+});
+
+describe('a warning carries the licence of the data underneath it', () => {
+  test('a daylight warning names its source and links to it', () => {
+    // Open-Meteo is CC-BY, so attribution is an obligation rather than a courtesy — and it follows
+    // the data, not the page it first appeared on. The forecast panel already attributes it;
+    // sunrise and sunset now travel as far as this report, so it has to say so here too. Skipping
+    // exactly this is what `IMP-127` found for the geocoder.
+    render(
+      <FeasibilityPanel
+        report={report([DAYLIGHT_WARNING])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    const link = screen.getByRole('link', { name: 'Open-Meteo' });
+    expect(link).toHaveAttribute('href', 'https://open-meteo.com/');
+    expect(screen.getByText(/Sunrise and sunset from/i)).toBeInTheDocument();
+  });
+
+  test('a finding with no source claims none', () => {
+    // The attribution is driven by the finding rather than by its code, so a check that rests on
+    // nothing but arithmetic must not borrow somebody else's name for authority.
+    render(
+      <FeasibilityPanel
+        report={report([BACKTRACK_WARNING])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Sunrise and sunset from/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open-Meteo' })).not.toBeInTheDocument();
   });
 });
 
