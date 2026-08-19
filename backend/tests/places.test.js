@@ -71,6 +71,53 @@ describe('GET /api/places', () => {
     expect(res.body.data.map((p) => p.name)).toEqual(['Coorg']);
   });
 
+  test('a place is unclassified until somebody says otherwise', async () => {
+    // `unknown` is the default and every consumer must read it as "assert nothing", not as a
+    // synonym for indoor. A daylight warning produced from a guess would be fabricated data with a
+    // scheduler's authority.
+    const res = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Unclassified', location: 'Nowhere' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.setting).toBe('unknown');
+  });
+
+  test('a setting is stored when given, and refused when it is not one of the four', async () => {
+    const ok = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Open Ruins', location: 'Hampi', setting: 'outdoor' });
+    expect(ok.status).toBe(201);
+    expect(ok.body.setting).toBe('outdoor');
+
+    const bad = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Bad', location: 'Nowhere', setting: 'outdoorsy' });
+    expect(bad.status).toBe(400);
+    expect(JSON.stringify(bad.body)).toMatch(/setting/);
+  });
+
+  test('an edit that does not mention setting leaves the classification alone', async () => {
+    // `updatePlace` keys on `column in placeData`, so an unconditional pass-through would send
+    // undefined -> NULL and the NOT NULL column would reject the edit. This is that guard.
+    const created = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Keeps Its Setting', location: 'Somewhere', setting: 'mixed' });
+    expect(created.status).toBe(201);
+
+    const edited = await request(app)
+      .put(`/api/admin/places/${created.body.id}`)
+      .set(asAdmin)
+      .send({ name: 'Renamed Only', location: 'Somewhere' });
+
+    expect(edited.status).toBe(200);
+    expect(edited.body.setting).toBe('mixed');
+  });
+
   test('an unknown theme is refused on write, though it is tolerated on a read', async () => {
     // The asymmetry is deliberate and this pins both halves. `themes` is a closed vocabulary shared
     // with the browse filter, so storing one nothing offers creates a place no filter can find --

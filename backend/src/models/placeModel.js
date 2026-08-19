@@ -1,3 +1,4 @@
+const { DEFAULT_PLACE_SETTING } = require('../constants/placeSetting');
 const pool = require('../config/db');
 const createPlace = async (placeData) => {
   const {
@@ -15,6 +16,7 @@ const createPlace = async (placeData) => {
     themes,
     tags,
     custom_keys,
+    setting,
     created_by,
     updated_by
   } = placeData;
@@ -23,8 +25,8 @@ const createPlace = async (placeData) => {
     `INSERT INTO places (
       name, description, location, district, state, locality, pin_code,
       latitude, longitude, coordinates_source, primary_image_url, themes, tags, custom_keys,
-      created_by, updated_by, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+      created_by, updated_by, setting, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
     RETURNING *`,
     [
       name,
@@ -45,7 +47,11 @@ const createPlace = async (placeData) => {
       tags || '{}',
       custom_keys || '{}',
       created_by,
-      updated_by
+      updated_by,
+      // Appended last so every existing placeholder keeps its number. `?? DEFAULT` rather than
+      // relying on the column default: an explicit create that omits the key should still say
+      // "unclassified" in the returned row rather than depending on what the DDL happens to say.
+      setting ?? DEFAULT_PLACE_SETTING
     ]
   );
   return result.rows[0];
@@ -120,6 +126,7 @@ const UPDATABLE_COLUMNS = [
   'themes',
   'tags',
   'custom_keys',
+  'setting',
   'updated_by'
 ];
 

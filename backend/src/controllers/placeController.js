@@ -138,6 +138,7 @@ const createPlace = async (req, res) => {
       latitude,
       longitude,
       coordinates_source,
+      setting,
       themes,
       tags,
       custom_keys
@@ -180,6 +181,7 @@ const createPlace = async (req, res) => {
       themes: parseJsonField(themes, []),
       tags: parseJsonField(tags, []),
       custom_keys: parseJsonField(custom_keys, {}),
+      setting,
       created_by: user,
       updated_by: user
     };
@@ -271,6 +273,7 @@ const updatePlace = async (req, res) => {
       latitude,
       longitude,
       coordinates_source,
+      setting,
       themes,
       tags,
       custom_keys
@@ -345,6 +348,11 @@ const updatePlace = async (req, res) => {
       themes: parseJsonField(themes, currentPlace.themes || []),
       tags: parseJsonField(tags, currentPlace.tags || []),
       custom_keys: parseJsonField(custom_keys, currentPlace.custom_keys || {}),
+      // Spread conditionally, because `updatePlace` keys on `column in placeData` rather than on
+      // the value. Writing `setting,` unconditionally would put the key there with `undefined`,
+      // node-pg would send NULL, and the NOT NULL column would reject the whole edit — the
+      // BUG-048 shape, one column over. Omitted means "leave the classification alone".
+      ...(setting === undefined ? {} : { setting }),
       updated_by: user
     };
 

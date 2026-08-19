@@ -10,6 +10,7 @@ const { geocodeAddress } = require('../controllers/geocodeController');
 const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
 const { SUPPORTED_GEOCODERS } = require('../controllers/helpers/coordinateSource');
 const { THEME_IDS } = require('../constants/themes');
+const { PLACE_SETTINGS } = require('../constants/placeSetting');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
@@ -126,6 +127,12 @@ const placeBodyRules = (required) => [
   body('themes')
     .optional({ values: 'falsy' })
     .custom(isStringArray('themes', 20, 60, THEME_IDS)),
+  // `values: 'falsy'` matches every other optional here: an omitted key and an empty string both
+  // mean "leave it alone", and the column default supplies `unknown`.
+  body('setting')
+    .optional({ values: 'falsy' })
+    .isIn(PLACE_SETTINGS)
+    .withMessage(`setting must be one of: ${PLACE_SETTINGS.join(', ')}`),
   body('tags')
     .optional({ values: 'falsy' })
     .custom(isStringArray('tags', 50, 60)),
