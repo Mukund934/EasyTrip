@@ -54,7 +54,7 @@ const PLACES = [
     // hand-typed coordinates is the bug the conditional exists to avoid.
     coordinates_source: 'nominatim',
     primary_image_url: 'https://res.cloudinary.com/demo/image/upload/v1/hampi.jpg',
-    themes: ['heritage', 'adventure'],
+    themes: ['historical', 'adventure'],
     tags: ['unesco', 'ruins', 'photography'],
     custom_keys: { 'Best Time to Visit': 'October to February', 'Entrance Fee': '₹40' }
   },
@@ -86,7 +86,7 @@ const PLACES = [
     latitude: 14.55,
     longitude: 74.32,
     primary_image_url: null,
-    themes: ['beach', 'spiritual'],
+    themes: ['beach', 'religious'],
     tags: ['temples', 'beaches'],
     custom_keys: { 'Opening Hours': '24 hours' }
   },
@@ -102,7 +102,7 @@ const PLACES = [
     latitude: 15.918,
     longitude: 75.68,
     primary_image_url: null,
-    themes: ['heritage'],
+    themes: ['historical'],
     tags: ['caves'],
     custom_keys: {}
   }

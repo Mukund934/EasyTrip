@@ -71,6 +71,34 @@ describe('GET /api/places', () => {
     expect(res.body.data.map((p) => p.name)).toEqual(['Coorg']);
   });
 
+  test('an unknown theme is refused on write, though it is tolerated on a read', async () => {
+    // The asymmetry is deliberate and this pins both halves. `themes` is a closed vocabulary shared
+    // with the browse filter, so storing one nothing offers creates a place no filter can find --
+    // which is how the seed came to carry `heritage` and `spiritual`. But a *query* for an unknown
+    // theme is a stale bookmark, and 200-with-nothing is friendlier there than a 400.
+    const res = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Nowhere', location: 'Nowhere', themes: JSON.stringify(['spiritual']) });
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toMatch(/spiritual/);
+
+    // the same value as a filter is not an error
+    const read = await request(app).get('/api/places?themes=%5B%22spiritual%22%5D');
+    expect(read.status).toBe(200);
+  });
+
+  test('a valid theme is accepted on write', async () => {
+    // Guarding the guard: if the validator rejected everything, the test above would still pass.
+    const res = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Somewhere', location: 'Somewhere', themes: JSON.stringify(['historical']) });
+
+    expect(res.status).toBe(201);
+  });
+
   test('an unmatched filter returns an empty list, not an error', async () => {
     const res = await request(app).get('/api/places?themes=%5B%22nonexistent-theme%22%5D');
     expect(res.status).toBe(200);

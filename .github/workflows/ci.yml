@@ -118,6 +118,13 @@ jobs:
       - name: Check the environment templates match the code
         run: npm run check:env-docs
 
+      # A theme id is stored in `places.themes` and is what the browse filter offers, so both tiers
+      # have to agree on the list. They cannot share a module (ESM in one package, CommonJS in the
+      # other), so it is duplicated -- and a duplicate without a check is exactly how the seed came
+      # to carry `heritage` and `spiritual`, neither of which is a theme.
+      - name: Check the theme vocabulary matches across tiers
+        run: npm run check:themes
+
       # Only the free half of IMP-128 runs here: the README's headline total against its own three
       # parts, which needs no test run. The parts themselves are checked by the `test-counts` job
       # below, once the three suites have reported what they actually ran.

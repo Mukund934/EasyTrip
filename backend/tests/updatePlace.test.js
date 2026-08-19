@@ -151,8 +151,10 @@ describe('a partial edit leaves untouched fields alone', () => {
   });
 
   test('json fields are replaced when sent', async () => {
-    await edit({ name: 'Coorg', themes: JSON.stringify(['hill', 'nature']) });
-    expect((await placeRow()).themes).toEqual(['hill', 'nature']);
+    // `mountain`, not `hill`: themes are a closed vocabulary and the write path now enforces it.
+    // The value was always incidental here — this test is about JSON fields being replaced.
+    await edit({ name: 'Coorg', themes: JSON.stringify(['mountain', 'nature']) });
+    expect((await placeRow()).themes).toEqual(['mountain', 'nature']);
   });
 });
 

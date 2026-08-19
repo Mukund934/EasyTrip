@@ -9,12 +9,13 @@ const { getPlaceWeather } = require('../controllers/weatherController');
 const { geocodeAddress } = require('../controllers/geocodeController');
 const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
 const { SUPPORTED_GEOCODERS } = require('../controllers/helpers/coordinateSource');
+const { THEME_IDS } = require('../constants/themes');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
 const parseJson = (value) => (typeof value === 'string' ? JSON.parse(value) : value);
 
-const isStringArray = (label, maxEntries, maxLength) => (value) => {
+const isStringArray = (label, maxEntries, maxLength, allowed) => (value) => {
   let parsed;
   try {
     parsed = parseJson(value);
@@ -29,6 +30,17 @@ const isStringArray = (label, maxEntries, maxLength) => (value) => {
   }
   if (parsed.some((entry) => typeof entry !== 'string' || entry.length > maxLength)) {
     throw new Error(`${label} entries must be strings of at most ${maxLength} characters`);
+  }
+  // Membership is opt-in, and only the WRITE paths ask for it. Applying it to a query filter would
+  // turn a stale bookmark into a 400; `places.test.js` pins the opposite ("an unmatched filter
+  // returns an empty list, not an error"), which is the friendlier contract for a read.
+  if (allowed) {
+    const unknown = [...new Set(parsed.filter((entry) => !allowed.includes(entry)))];
+    if (unknown.length > 0) {
+      throw new Error(
+        `${label} contains unknown ${label}: ${unknown.join(', ')}. Allowed: ${allowed.join(', ')}`
+      );
+    }
   }
   return true;
 };
@@ -113,7 +125,7 @@ const placeBodyRules = (required) => [
   optionalUrl('image_url'),
   body('themes')
     .optional({ values: 'falsy' })
-    .custom(isStringArray('themes', 20, 60)),
+    .custom(isStringArray('themes', 20, 60, THEME_IDS)),
   body('tags')
     .optional({ values: 'falsy' })
     .custom(isStringArray('tags', 50, 60)),
