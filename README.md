@@ -126,7 +126,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **1,059 assertions across three layers** – 589 API tests against a real PostgreSQL, 360 component tests, and 110 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 8.18 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,067 assertions across three layers** – 596 API tests against a real PostgreSQL, 361 component tests, and 110 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 8.19 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – six jobs: lint and build, frontend tests, migrations, API tests, end-to-end, and a job that checks the assertion counts above against what the suites actually ran
@@ -586,21 +586,21 @@ The table below is the complete set of Express routes the backend actually regis
 Days and items carry no owner of their own - every query joins up to `trips.user_id`. A second
 account cannot reach them even by addressing a victim's item through its own trip id.
 
-| Method | Endpoint                                           | Auth   | Description                                                                                                                                                                 |
-| ------ | -------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/auth/trips`                                      | Bearer | Your trips                                                                                                                                                                  |
-| POST   | `/auth/trips`                                      | Bearer | Create a trip                                                                                                                                                               |
-| GET    | `/auth/trips/:tripId`                              | Bearer | One trip, with its days and items                                                                                                                                           |
-| GET    | `/auth/trips/:tripId/feasibility`                  | Bearer | Deterministic check that the plan can be executed — day bounds, overlaps, ordering, estimated travel time, daylight, backtracking, duplicates. Reports; never blocks a save |
-| PUT    | `/auth/trips/:tripId`                              | Bearer | Update a trip                                                                                                                                                               |
-| DELETE | `/auth/trips/:tripId`                              | Bearer | Delete a trip                                                                                                                                                               |
-| GET    | `/auth/trips/:tripId/days/:dayId/route-suggestion` | Bearer | A shorter order for one day, with the distance saved. Proposes only — applying it goes through the reorder route                                                            |
-| POST   | `/auth/trips/:tripId/days`                         | Bearer | Add a day                                                                                                                                                                   |
-| DELETE | `/auth/trips/:tripId/days/:dayId`                  | Bearer | Remove a day                                                                                                                                                                |
-| POST   | `/auth/trips/:tripId/days/:dayId/items`            | Bearer | Add an item to a day                                                                                                                                                        |
-| PUT    | `/auth/trips/:tripId/days/:dayId/items/order`      | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied                                                                              |
-| PUT    | `/auth/trips/:tripId/items/:itemId`                | Bearer | Update an item                                                                                                                                                              |
-| DELETE | `/auth/trips/:tripId/items/:itemId`                | Bearer | Remove an item                                                                                                                                                              |
+| Method | Endpoint                                           | Auth   | Description                                                                                                                                                                                   |
+| ------ | -------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/auth/trips`                                      | Bearer | Your trips                                                                                                                                                                                    |
+| POST   | `/auth/trips`                                      | Bearer | Create a trip                                                                                                                                                                                 |
+| GET    | `/auth/trips/:tripId`                              | Bearer | One trip, with its days and items                                                                                                                                                             |
+| GET    | `/auth/trips/:tripId/feasibility`                  | Bearer | Deterministic check that the plan can be executed — day bounds, overlaps, ordering, estimated travel time, daylight, wet outdoor days, backtracking, duplicates. Reports; never blocks a save |
+| PUT    | `/auth/trips/:tripId`                              | Bearer | Update a trip                                                                                                                                                                                 |
+| DELETE | `/auth/trips/:tripId`                              | Bearer | Delete a trip                                                                                                                                                                                 |
+| GET    | `/auth/trips/:tripId/days/:dayId/route-suggestion` | Bearer | A shorter order for one day, with the distance saved. Proposes only — applying it goes through the reorder route                                                                              |
+| POST   | `/auth/trips/:tripId/days`                         | Bearer | Add a day                                                                                                                                                                                     |
+| DELETE | `/auth/trips/:tripId/days/:dayId`                  | Bearer | Remove a day                                                                                                                                                                                  |
+| POST   | `/auth/trips/:tripId/days/:dayId/items`            | Bearer | Add an item to a day                                                                                                                                                                          |
+| PUT    | `/auth/trips/:tripId/days/:dayId/items/order`      | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied                                                                                                |
+| PUT    | `/auth/trips/:tripId/items/:itemId`                | Bearer | Update an item                                                                                                                                                                                |
+| DELETE | `/auth/trips/:tripId/items/:itemId`                | Bearer | Remove an item                                                                                                                                                                                |
 
 ### Admin
 
@@ -851,6 +851,10 @@ longer-term and **not started**.
       sunset is flagged, from the day's own coordinates and date. It stays quiet about a place
       nobody has classified and about any date past the forecast's seven-day horizon — an absent
       reading produces an absent finding, never an assumed one
+- [x] **Weather-aware planning, the deterministic half** — shipped. A day the forecast says will be
+      wet, carrying stops that are outdoors, is flagged with the stops named. That is the evidence a
+      replanning proposal has to cite; proposing the move itself is the next stage, and it needs no
+      model either
 - [ ] **Route optimisation** — reorder a day's stops to cut the backtracking, and show what changed
 - [ ] **Collaborative trips** — invites, roles, and proposals rather than a shared password
 - [ ] **Budget and expense splitting** — minimal-transaction settlement

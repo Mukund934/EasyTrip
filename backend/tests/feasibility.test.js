@@ -3,9 +3,9 @@ const request = require('supertest');
 const app = require('../app');
 const { createSchema, resetData, closeDb, resetRateLimits, pool } = require('./helpers/testDb');
 const { authHeader } = require('./helpers/firebaseMock');
+const { haversineKm } = require('../src/services/geoDistance');
 const {
   checkTrip,
-  haversineKm,
   travelMinutesForKm,
   minutesOfDay,
   inclusiveDayCount,
@@ -668,5 +668,59 @@ describe('FV-031 — an outdoor stop scheduled in the dark', () => {
       ]
     };
     expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+  });
+});
+
+describe('FV-027 stage (a) — the refusals, as pure functions', () => {
+  const RAIN = { is_wet: true, condition: 'Rain', precipitation_mm: 12.4 };
+
+  // No default for `weather`: a default parameter treats an explicitly-passed `undefined` as
+  // absent, so the "no reading" case below would have been handed rain and passed for the wrong
+  // reason. It did, on the first run — which is why it is spelled out rather than tidied away.
+  const dayWith = (weather, items) => ({
+    start_date: '2026-03-01',
+    end_date: '2026-03-01',
+    days: [{ day_number: 1, weather, items }]
+  });
+
+  const outdoorStop = (over = {}) => ({
+    id: 1,
+    title: 'Boulders',
+    place_setting: 'outdoor',
+    position: 0,
+    start_time: null,
+    end_time: null,
+    ...over
+  });
+
+  const codes = (trip) => checkTrip(trip).findings.map((f) => f.code);
+
+  test('unknown, mixed and indoor are not evidence of anything', () => {
+    // `unknown` is the catalogue's default until somebody classifies it, and `mixed` is a fort with
+    // a museum in it. Warning about either would be a guess with a validator's authority — which is
+    // the defect `IMP-027` exists for, and the same refusal `checkDaylight` makes.
+    for (const setting of ['unknown', 'mixed', 'indoor', null, undefined]) {
+      expect(codes(dayWith(RAIN, [outdoorStop({ place_setting: setting })]))).not.toContain(
+        'outdoor_day_likely_wet'
+      );
+    }
+  });
+
+  test('no reading means no finding, rather than an assumed one', () => {
+    // Past the provider's seven-day horizon there is no forecast entry, so no `weather` is
+    // attached. Silence is the only honest answer, and it must not be mistaken for a dry day.
+    for (const weather of [undefined, null, {}, { is_wet: false, condition: 'Clear sky' }]) {
+      expect(codes(dayWith(weather, [outdoorStop()]))).not.toContain('outdoor_day_likely_wet');
+    }
+  });
+
+  test('a wet day is a warning, so the trip stays possible', () => {
+    const report = checkTrip(dayWith(RAIN, [outdoorStop()]));
+    const found = report.findings.find((f) => f.code === 'outdoor_day_likely_wet');
+
+    expect(found.severity).toBe('warning');
+    expect(report.feasible).toBe(true);
+    // Nothing attached a source here, and the finding says so rather than borrowing one.
+    expect(found.source).toBeNull();
   });
 });

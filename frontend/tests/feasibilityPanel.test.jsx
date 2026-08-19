@@ -80,6 +80,16 @@ const DUPLICATE_WARNING = {
   message: '"Evening at the fort" visits the same place as "Morning at the fort" on day 1.'
 };
 
+/** `FV-027` stage (a). Same reading, same attribution, a different rule reading it. */
+const WET_DAY_WARNING = {
+  code: 'outdoor_day_likely_wet',
+  severity: 'warning',
+  message: 'Day 2 is forecast rain (12.4 mm), and 2 stops are outdoors.',
+  condition: 'Rain',
+  precipitation_mm: 12.4,
+  source: 'Open-Meteo'
+};
+
 /** `FV-031`. The `source` is what the engine passes through from whoever supplied the reading. */
 const DAYLIGHT_WARNING = {
   code: 'outdoor_item_in_darkness',
@@ -190,7 +200,23 @@ describe('a warning carries the licence of the data underneath it', () => {
 
     const link = screen.getByRole('link', { name: 'Open-Meteo' });
     expect(link).toHaveAttribute('href', 'https://open-meteo.com/');
-    expect(screen.getByText(/Sunrise and sunset from/i)).toBeInTheDocument();
+    expect(screen.getByText(/Forecast from/i)).toBeInTheDocument();
+  });
+
+  test('a rain warning attributes the same forecast, without citing a sunrise', () => {
+    // Two rules rest on one reading. Wording the attribution after only the first would have made
+    // this finding claim it consulted a sunrise it never looked at.
+    render(
+      <FeasibilityPanel
+        report={report([WET_DAY_WARNING])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'Open-Meteo' })).toBeInTheDocument();
+    expect(screen.queryByText(/sunrise/i)).not.toBeInTheDocument();
   });
 
   test('a finding with no source claims none', () => {
@@ -205,7 +231,7 @@ describe('a warning carries the licence of the data underneath it', () => {
       />
     );
 
-    expect(screen.queryByText(/Sunrise and sunset from/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Forecast from/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open-Meteo' })).not.toBeInTheDocument();
   });
 });

@@ -2,22 +2,31 @@ const weatherService = require('./weatherService');
 const logger = require('../utils/logger');
 
 /**
- * The data half of `FV-031` — where each day's sunrise and sunset come from.
+ * The data half of `FV-031` and `FV-027` — where each day's forecast reaches the feasibility engine.
  *
- * `feasibilityService.checkDaylight` is a pure function that reads `day.sunrise` and `day.sunset`
- * and refuses to do anything without them. **This is the only thing that puts them there**, and it
- * lives outside the engine for the reason the engine's own header gives: the moment a network call
- * is inside the validator, the validator stops being something you can prove. So the impure part is
- * here, it is small, and it hands the engine plain data.
+ * Two pure checks read what this attaches and refuse to do anything without it: `checkDaylight`
+ * needs `day.sunrise`/`day.sunset` (`FV-031`), and `checkWetOutdoor` needs `day.weather`
+ * (`FV-027` stage a). **This is the only thing that puts either there**, and it lives outside the
+ * engine for the reason the engine's own header gives: the moment a network call is inside the
+ * validator, the validator stops being something you can prove. So the impure part is here, it is
+ * small, and it hands the engine plain data.
+ *
+ * Both readings come from the **same forecast entry**, so a day costs one lookup no matter how many
+ * rules end up consulting it.
  *
  * ---------------------------------------------------------------------------
  * Four decisions, each of which could have gone the lazy way
  * ---------------------------------------------------------------------------
  *
- * **1. A day that cannot produce a finding is never looked up.** The rule only fires for an
- * `outdoor` item with a start time, so a day of museums and meals asks the provider nothing. That
- * is not only politeness toward somebody else's free tier — it means the common case (a catalogue
- * that is almost entirely `unknown`, because nobody has classified it yet) costs zero requests.
+ * **1. A day that cannot produce a finding is never looked up.** Both rules need an `outdoor` item,
+ * so a day of museums and meals asks the provider nothing. That is not only politeness toward
+ * somebody else's free tier — it means the common case (a catalogue that is almost entirely
+ * `unknown`, because nobody has classified it yet) costs zero requests.
+ *
+ * Note what the gate does **not** require: a start time. Daylight needs one, rain does not — being
+ * outdoors in the rain at no particular hour is still being outdoors in the rain. Narrowing the gate
+ * to timed items would have made `checkWetOutdoor` silently inapplicable to every untimed plan,
+ * which is most half-built ones.
  *
  * **2. One coordinate per day: the day's first item that has any.** Sunrise moves about four
  * minutes per degree of longitude, so within a day's realistic travel the error is a few minutes on
@@ -56,9 +65,8 @@ const addDays = (isoDate, days) => {
   return new Date(base + days * MS_PER_DAY).toISOString().slice(0, 10);
 };
 
-/** Whether any item on this day could possibly produce a daylight finding. */
-const couldBeInTheDark = (day) =>
-  (day?.items || []).some((item) => item.place_setting === 'outdoor' && item.start_time);
+/** Whether any item on this day could possibly produce a weather finding. */
+const hasOutdoorItem = (day) => (day?.items || []).some((item) => item.place_setting === 'outdoor');
 
 /**
  * The day's first item with coordinates, in the order the plan puts them.
@@ -83,15 +91,15 @@ const dayCoordinates = (day) => {
  * change.
  *
  * @param {Object} trip - a `tripModel.getTripWorkspace` result
- * @returns {Promise<Object>} the same trip, with `sunrise`/`sunset`/`daylight_source` on any day
- *   that has a reading. A day with no reading is returned exactly as it arrived.
+ * @returns {Promise<Object>} the same trip, with `sunrise`/`sunset`/`weather`/`forecast_source` on
+ *   any day that has a reading. A day with no reading is returned exactly as it arrived.
  */
-const attachDaylight = async (trip) => {
+const attachForecast = async (trip) => {
   const days = trip?.days || [];
   if (!trip?.start_date || days.length === 0) return trip;
 
   const lookups = days.map(async (day) => {
-    if (!couldBeInTheDark(day)) return day;
+    if (!hasOutdoorItem(day)) return day;
 
     const date = addDays(trip.start_date, day.day_number - 1);
     const at = dayCoordinates(day);
@@ -102,16 +110,27 @@ const attachDaylight = async (trip) => {
     // allows 600 calls/minute (`EXTERNAL_APIS.md` §3), which no single trip can approach.
     const weather = await weatherService.getWeather(at.latitude, at.longitude);
     const entry = weather?.forecast?.find((forecast) => forecast.date === date);
-    if (!entry?.sunrise || !entry?.sunset) return day;
+    if (!entry) return day;
 
     return {
       ...day,
-      sunrise: entry.sunrise,
-      sunset: entry.sunset,
+      // Each field is attached only if the provider actually supplied it. A day can legitimately
+      // arrive with weather and no sun times, or the reverse, and each rule then runs or does not
+      // on its own evidence rather than on the other's.
+      ...(entry.sunrise && entry.sunset ? { sunrise: entry.sunrise, sunset: entry.sunset } : {}),
+      ...(typeof entry.is_wet === 'boolean'
+        ? {
+            weather: {
+              is_wet: entry.is_wet,
+              condition: entry.condition,
+              precipitation_mm: entry.precipitation_mm
+            }
+          }
+        : {}),
       // Carried through to the finding so a warning can attribute the data it rests on.
       // Open-Meteo is CC-BY 4.0, and attribution follows the data rather than the page it first
       // appeared on (`EXTERNAL_APIS.md` §3, and `IMP-127` for what skipping it costs).
-      daylight_source: weather.source
+      forecast_source: weather.source
     };
   });
 
@@ -120,13 +139,13 @@ const attachDaylight = async (trip) => {
   } catch (error) {
     // Decision 4. The report is worth more than the enrichment, so this is a warn and a plain trip
     // rather than a 500 on a check that needs no weather to be useful.
-    logger.warn({ name: error.name }, 'Daylight lookup failed; reporting without it');
+    logger.warn({ name: error.name }, 'Forecast lookup failed; reporting without it');
     return trip;
   }
 };
 
-// Only `attachDaylight` is exported. The three helpers are deliberately private: they are proved
+// Only `attachForecast` is exported. The three helpers are deliberately private: they are proved
 // through the endpoint, where an off-by-one in the date or the wrong coordinate is observable as a
 // wrong finding, and exporting them would invite a unit test that agrees with them in isolation
-// while the wiring stays broken — which is exactly the state this sprint found `FV-031` in.
-module.exports = { attachDaylight };
+// while the wiring stays broken — which is exactly the state Sprint 8.18 found `FV-031` in.
+module.exports = { attachForecast };

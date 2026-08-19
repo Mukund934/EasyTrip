@@ -13,7 +13,7 @@ const { authHeader } = require('./helpers/firebaseMock');
 const weatherService = require('../src/services/weatherService');
 
 /**
- * `FV-031` end to end — from `places.setting` to a warning in the feasibility report.
+ * `FV-031` and `FV-027` stage (a) end to end — from `places.setting` to a warning in the report.
  *
  * **What this suite is for, and why it is separate from `feasibility.test.js`.** That file proves
  * the *rule*: given a day carrying a sunrise, which items are in the dark. It is a pure function
@@ -37,6 +37,10 @@ const asUser = { Authorization: authHeader({ uid: 'seed-user-uid' }) };
 const HAMPI = 1;
 const COORG = 2;
 const GOKARNA = 3;
+// ~85 km from Hampi, so a morning stop and an afternoon one are comfortably reachable. Gokarna is
+// 250 km away and would trip `insufficient_travel_time` — a real finding, and noise in a fixture
+// that is about rain.
+const BADAMI = 4;
 
 /**
  * An Open-Meteo payload carrying sunrise and sunset for named dates.
@@ -54,10 +58,11 @@ const forecastOf = (days) => ({
   },
   daily: {
     time: days.map((d) => d.date),
-    weather_code: days.map(() => 2),
+    // 2 is "Partly cloudy" and dry; a day can override with a wet code (63 is rain).
+    weather_code: days.map((d) => d.code ?? 2),
     temperature_2m_max: days.map(() => 31),
     temperature_2m_min: days.map(() => 19),
-    precipitation_sum: days.map(() => 0),
+    precipitation_sum: days.map((d) => d.mm ?? 0),
     sunrise: days.map((d) => `${d.date}T${d.sunrise}`),
     sunset: days.map((d) => `${d.date}T${d.sunset}`)
   }
@@ -109,6 +114,8 @@ const feasibilityOf = async (tripId) => {
 
 const darknessFindings = (report) =>
   report.findings.filter((f) => f.code === 'outdoor_item_in_darkness');
+
+const wetFindings = (report) => report.findings.filter((f) => f.code === 'outdoor_day_likely_wet');
 
 beforeAll(async () => {
   await createSchema();
@@ -225,7 +232,9 @@ describe('what the wiring refuses to do', () => {
     const report = await feasibilityOf(trip.id);
 
     expect(mockFetch).toHaveBeenCalled();
+    // Neither rule speaks, because neither has a reading — not because the plan is fine.
     expect(darknessFindings(report)).toEqual([]);
+    expect(wetFindings(report)).toEqual([]);
   });
 
   test('a day with nothing outdoor on it never asks the provider', async () => {
@@ -246,8 +255,12 @@ describe('what the wiring refuses to do', () => {
     expect(darknessFindings(report)).toEqual([]);
   });
 
-  test('an outdoor item with no time is not looked up either', async () => {
+  test('an outdoor item with no time is still looked up, and still cannot be in the dark', async () => {
+    // The gate widened for `FV-027`: rain does not need a clock. Daylight still does, so this asks
+    // the provider and produces no *darkness* finding — the two rules read the same lookup and
+    // disagree about it independently.
     await classify(HAMPI, 'outdoor');
+    respondWith(forecastOf([{ date: '2026-03-01', sunrise: '06:42', sunset: '18:05' }]));
 
     const trip = await makeTrip({ start_date: '2026-03-01', end_date: '2026-03-01' });
     await addItem(trip.id, trip.days[0].id, {
@@ -256,8 +269,10 @@ describe('what the wiring refuses to do', () => {
       position: 0
     });
 
-    await feasibilityOf(trip.id);
-    expect(mockFetch).not.toHaveBeenCalled();
+    const report = await feasibilityOf(trip.id);
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(darknessFindings(report)).toEqual([]);
   });
 
   test('the provider going down leaves the rest of the report standing', async () => {
@@ -292,7 +307,7 @@ describe('what the wiring refuses to do', () => {
 
   test('even the weather service breaking its own contract is survivable', async () => {
     // The test above proves `getWeather`'s promise never to throw — a rejected `fetch` is caught
-    // inside it and becomes `null`. It therefore never reaches the guard in `attachDaylight`, and
+    // inside it and becomes `null`. It therefore never reaches the guard in `attachForecast`, and
     // an untested guard is indistinguishable from a decorative one. This makes the service itself
     // throw, which is the only way to execute that path: a docstring saying "never throws" is not
     // a mechanism, and the cost of being wrong about it is a 500 on a report that needs no
@@ -367,5 +382,111 @@ describe('which coordinates the day is judged against', () => {
 
     await feasibilityOf(trip.id);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('FV-027 stage (a) — an outdoor day the forecast says will be wet', () => {
+  const RAIN = { code: 63, mm: 12.4 };
+
+  test('a wet day with outdoor stops is warned about once, not once per stop', async () => {
+    // Three soaked stops on one day are one problem with one answer. Three warnings saying the
+    // same thing is how a panel teaches people to skim it.
+    await classify(HAMPI, 'outdoor');
+    await classify(BADAMI, 'outdoor');
+    respondWith(forecastOf([{ date: '2026-03-01', sunrise: '06:42', sunset: '18:05', ...RAIN }]));
+
+    const trip = await makeTrip({ start_date: '2026-03-01', end_date: '2026-03-01' });
+    await addItem(trip.id, trip.days[0].id, {
+      place_id: HAMPI,
+      title: 'Boulders',
+      start_time: '09:00',
+      end_time: '11:00',
+      position: 0
+    });
+    await addItem(trip.id, trip.days[0].id, {
+      place_id: BADAMI,
+      title: 'Cave temples',
+      start_time: '15:00',
+      end_time: '17:00',
+      position: 1
+    });
+
+    const report = await feasibilityOf(trip.id);
+    const found = wetFindings(report);
+
+    expect(found).toHaveLength(1);
+    expect(found[0].item_ids).toHaveLength(2);
+    expect(found[0].condition).toBe('Rain');
+    expect(found[0].precipitation_mm).toBe(12.4);
+    expect(found[0].message).toMatch(/2 stops are outdoors/);
+    // Rain is a reason to rethink a day, not a reason it cannot happen.
+    expect(found[0].severity).toBe('warning');
+    expect(report.feasible).toBe(true);
+    expect(found[0].source).toBe('Open-Meteo');
+  });
+
+  test('a dry day says nothing at all', async () => {
+    await classify(HAMPI, 'outdoor');
+    respondWith(forecastOf([{ date: '2026-03-01', sunrise: '06:42', sunset: '18:05' }]));
+
+    const trip = await makeTrip({ start_date: '2026-03-01', end_date: '2026-03-01' });
+    await addItem(trip.id, trip.days[0].id, {
+      place_id: HAMPI,
+      title: 'Boulders',
+      start_time: '09:00',
+      end_time: '11:00',
+      position: 0
+    });
+
+    expect(wetFindings(await feasibilityOf(trip.id))).toEqual([]);
+  });
+
+  test('only the outdoor stops are named, though the whole day is wet', async () => {
+    // The rain falls on the museum too. It is not evidence of a problem there, and listing it
+    // would make the finding's own item list untrustworthy.
+    await classify(HAMPI, 'outdoor');
+    await classify(BADAMI, 'indoor');
+    respondWith(forecastOf([{ date: '2026-03-01', sunrise: '06:42', sunset: '18:05', ...RAIN }]));
+
+    const trip = await makeTrip({ start_date: '2026-03-01', end_date: '2026-03-01' });
+    const outdoor = await addItem(trip.id, trip.days[0].id, {
+      place_id: HAMPI,
+      title: 'Boulders',
+      start_time: '09:00',
+      end_time: '11:00',
+      position: 0
+    });
+    await addItem(trip.id, trip.days[0].id, {
+      place_id: BADAMI,
+      title: 'Museum',
+      start_time: '15:00',
+      end_time: '17:00',
+      position: 1
+    });
+
+    const [found] = wetFindings(await feasibilityOf(trip.id));
+
+    expect(found.item_ids).toEqual([outdoor.body.item.id]);
+    expect(found.message).toMatch(/one stop is outdoors/);
+  });
+
+  test('rain does not need a clock', async () => {
+    // The difference from `FV-031` that decided the lookup gate. An untimed outdoor stop cannot be
+    // in the dark — there is no hour to compare — but it is still outdoors in the rain, and most
+    // of a half-built plan is untimed.
+    await classify(HAMPI, 'outdoor');
+    respondWith(forecastOf([{ date: '2026-03-01', sunrise: '06:42', sunset: '18:05', ...RAIN }]));
+
+    const trip = await makeTrip({ start_date: '2026-03-01', end_date: '2026-03-01' });
+    await addItem(trip.id, trip.days[0].id, {
+      place_id: HAMPI,
+      title: 'Boulders, sometime',
+      position: 0
+    });
+
+    const report = await feasibilityOf(trip.id);
+
+    expect(wetFindings(report)).toHaveLength(1);
+    expect(darknessFindings(report)).toEqual([]);
   });
 });

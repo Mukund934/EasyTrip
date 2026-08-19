@@ -53,12 +53,15 @@ const Finding = ({ finding }) => {
         )}
         {finding.source && (
           // The same reasoning, applied to somebody else's licence rather than to our own
-          // estimate. A daylight warning (`FV-031`) rests on Open-Meteo's sunrise and sunset,
-          // Open-Meteo is CC-BY, and attribution follows the data rather than the page it first
-          // appeared on — which is the gap `IMP-127` found for the geocoder. The provider is named
-          // by the finding, not hardcoded here, so a second source could never be mislabelled.
+          // estimate. Open-Meteo is CC-BY, and attribution follows the data rather than the page it
+          // first appeared on — which is the gap `IMP-127` found for the geocoder. The provider is
+          // named by the finding, not hardcoded here, so a second source could never be mislabelled.
+          //
+          // The wording is "forecast", not "sunrise and sunset", because two rules now rest on the
+          // same reading: daylight (`FV-031`) and rain (`FV-027`). Naming only one of them would
+          // have made a rain warning cite the sunrise it never consulted.
           <p className="mt-1 text-xs opacity-75">
-            Sunrise and sunset from{' '}
+            Forecast from{' '}
             <a
               href="https://open-meteo.com/"
               target="_blank"

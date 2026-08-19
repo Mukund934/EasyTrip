@@ -42,7 +42,8 @@
  * There is no routing provider yet; stage (b) is gated on one, and every number here is labelled
  * `estimated` for the reason Article III gives.
  */
-const { haversineKm, travelMinutesForKm, ASSUMPTIONS } = require('./feasibilityService');
+const { haversineKm } = require('./geoDistance');
+const { travelMinutesForKm, ASSUMPTIONS } = require('./feasibilityService');
 
 /** Below this, a reorder is noise — the difference is inside the error bars of the estimate. */
 const WORTH_SUGGESTING_KM = 5;

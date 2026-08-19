@@ -105,13 +105,13 @@ how many requests the earlier ones happened to send.
 | `search.test.js`                | `IMP-112` — every assertion pins a property `ILIKE` did **not** have (stemming, prefix, weighting, breadth, query-syntax safety), plus the two regressions from it that are deliberate                           |
 | `searchVectorFreshness.test.js` | `TD-022` — the stored `search_vector` values still agree with the expression that generates them. `CREATE OR REPLACE` on `easytrip_text_words` does **not** recompute stored rows, and nothing else would notice |
 | `feasibility.test.js`           | `FV-025` — the engine as a table of hand-built trips and the verdict each must produce; plus the endpoint's ownership, mounting and the shape a client receives                                                  |
-| `tripDaylight.test.js`          | `FV-031` — the _plumbing_, not the rule: every assertion drives `GET /feasibility` with only Open-Meteo faked, because the rule was correct and inert for a sprint                                               |
+| `tripForecast.test.js`          | `FV-031` + `FV-027`(a) — the _plumbing_, not the rules: every assertion drives `GET /feasibility` with only Open-Meteo faked, because the daylight rule was correct and inert for a whole sprint                 |
 
 **No suite may reach the network.** `setup/env.js` replaces `global.fetch` with one that throws, so
 an un-stubbed outbound call fails loudly instead of quietly calling somebody's free service on every
 run — the abuse `SESSION_PROTOCOL.md` §11.4b names, and which a geocoding suite committed in Sprint
 7.8. A suite that means to exercise a provider assigns its own `global.fetch` in the module body,
-which runs after `setupFiles` and wins (`weather.test.js`, `tripDaylight.test.js`), or injects a
+which runs after `setupFiles` and wins (`weather.test.js`, `tripForecast.test.js`), or injects a
 `fetchImpl` (`geocode.test.js`). This became load-bearing with `FV-031`: `GET /feasibility` makes an
 outbound call for any day holding an **outdoor** item, and the only reason no other suite triggers
 one today is that nothing in the seed is classified.
