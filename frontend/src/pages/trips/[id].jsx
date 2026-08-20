@@ -18,6 +18,7 @@ import { useTripWorkspace } from '../../hooks/useTripWorkspace';
 import { useWishlist } from '../../hooks/useWishlist';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FeasibilityPanel from '../../components/trips/FeasibilityPanel';
+import ReplanPanel from '../../components/trips/ReplanPanel';
 import RouteSuggestion from '../../components/trips/RouteSuggestion';
 import { formatDate } from '../../utils/dateFormat';
 
@@ -130,6 +131,10 @@ export default function TripWorkspace() {
     feasibility,
     checking,
     feasibilityError,
+    replan,
+    replanning,
+    replanError,
+    suggestReplan,
     checkFeasibility,
     routeSuggestions,
     suggestRoute,
@@ -138,7 +143,10 @@ export default function TripWorkspace() {
     removeDay,
     addItem,
     removeItem,
-    moveItem
+    moveItem,
+    // Applying a replan proposal is an ordinary item edit — the same call the workspace makes for
+    // every other change, which is what keeps `FV-027` from having a write path of its own.
+    updateItem
   } = useTripWorkspace(id);
   const { places: savedPlaces } = useWishlist();
 
@@ -239,6 +247,24 @@ export default function TripWorkspace() {
               checking={checking}
               error={feasibilityError}
               onCheck={checkFeasibility}
+            />
+          </div>
+
+          {/* Directly beneath the report, because the two are read in that order: *can this be
+              done* and then *what would you change*. `FV-027` stage (b). */}
+          <div className="mb-6">
+            <ReplanPanel
+              replan={replan}
+              replanning={replanning}
+              error={replanError}
+              busy={busy}
+              onSuggest={suggestReplan}
+              // Applying is `updateItem` with a day — the same call dragging the stop yourself
+              // would make. The hook clears the replan afterwards, so the remaining proposals do
+              // not outlive the plan they were computed from.
+              onApply={(proposal) =>
+                updateItem(proposal.item_id, { trip_day_id: proposal.to_day_id })
+              }
             />
           </div>
 

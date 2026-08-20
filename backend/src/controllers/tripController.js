@@ -1,4 +1,7 @@
 const tripModel = require('../models/tripModel');
+// Items live in their own model: they are the only rows reached through two joins, and that rule
+// is easier to keep true in one file (Sprint 8.26).
+const tripItemModel = require('../models/tripItemModel');
 const feasibilityService = require('../services/feasibilityService');
 const routeOrderService = require('../services/routeOrderService');
 const tripForecastService = require('../services/tripForecastService');
@@ -241,7 +244,7 @@ const deleteDay = async (req, res) => {
 /** POST /api/auth/trips/:tripId/days/:dayId/items */
 const addItem = async (req, res) => {
   try {
-    const item = await tripModel.addItem(
+    const item = await tripItemModel.addItem(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.dayId),
@@ -264,7 +267,7 @@ const addItem = async (req, res) => {
 /** PUT /api/auth/trips/:tripId/items/:itemId */
 const updateItem = async (req, res) => {
   try {
-    const item = await tripModel.updateItem(
+    const item = await tripItemModel.updateItem(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.itemId),
@@ -282,7 +285,7 @@ const updateItem = async (req, res) => {
 /** DELETE /api/auth/trips/:tripId/items/:itemId */
 const deleteItem = async (req, res) => {
   try {
-    const removed = await tripModel.deleteItem(
+    const removed = await tripItemModel.deleteItem(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.itemId)
@@ -305,7 +308,7 @@ const deleteItem = async (req, res) => {
  */
 const reorderItems = async (req, res) => {
   try {
-    const ok = await tripModel.reorderItems(
+    const ok = await tripItemModel.reorderItems(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.dayId),

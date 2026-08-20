@@ -56,6 +56,21 @@ const getTripFeasibility = async (tripId, token) => {
  * Read-only. Applying a suggestion goes through `reorderItems`, which already exists and already
  * validates — so a suggestion can never become a write this module invented.
  */
+/**
+ * What to change when the forecast disagrees with the plan (`FV-027` stage b).
+ *
+ * A read. Applying a proposal is `updateItem` with a `trip_day_id`, which is the same endpoint the
+ * workspace already uses for every other edit — so the replan has no privileged write path.
+ */
+const getTripReplanSuggestion = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/replan-suggestion`, authed(token));
+    return data.replan;
+  } catch (error) {
+    throw withFallback(error, 'Could not work out what to change');
+  }
+};
+
 const getDayRouteSuggestion = async (tripId, dayId, token) => {
   try {
     const { data } = await apiClient.get(
@@ -170,6 +185,7 @@ const tripService = {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getTripReplanSuggestion,
   getDayRouteSuggestion,
   createTrip,
   updateTrip,
@@ -187,6 +203,7 @@ export {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getTripReplanSuggestion,
   getDayRouteSuggestion,
   createTrip,
   updateTrip,

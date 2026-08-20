@@ -207,6 +207,10 @@ const suggestReplan = (trip) => {
         title: item.title,
         from_day_number: day.day_number,
         to_day_number: workable.day_number,
+        // The id as well as the ordinal, so the proposal is appliable on its own. A client that
+        // had to map "day 3" back to a row id would be re-deriving something this function already
+        // holds, and would get it wrong the first time a day was deleted between the two requests.
+        to_day_id: workable.id,
         // The citation. A proposal that cannot say why is a proposal nobody should accept.
         because: {
           from_condition: here.condition,

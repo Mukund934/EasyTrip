@@ -34,7 +34,6 @@ const asOther = { Authorization: authHeader({ uid: 'seed-other-uid' }) };
 
 const HAMPI = 1;
 const GOKARNA = 3; // 250 km from Hampi — far enough to break a day
-const BADAMI = 4; // 105.7 km from Hampi
 
 const WET = { code: 63, condition: 'Rain' };
 const DRY = { code: 2, condition: 'Partly cloudy' };
@@ -128,6 +127,9 @@ describe('it proposes, with the evidence attached', () => {
     expect(proposals).toHaveLength(1);
     expect(proposals[0].item_id).toBe(added.body.item.id);
     expect(proposals[0].from_day_number).toBe(1);
+    // The row id travels with the ordinal, so the client can apply the move without mapping one
+    // back to the other.
+    expect(proposals[0].to_day_id).toBe(trip.days[1].id);
     // Day 2 and day 3 are both dry; the nearer one wins, because moving a stop three days is a
     // bigger change to a plan somebody reasoned about than moving it one.
     expect(proposals[0].to_day_number).toBe(2);
