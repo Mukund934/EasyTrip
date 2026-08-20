@@ -3,6 +3,7 @@ const feasibilityService = require('../services/feasibilityService');
 const routeOrderService = require('../services/routeOrderService');
 const tripForecastService = require('../services/tripForecastService');
 const tripRoutingService = require('../services/tripRoutingService');
+const replanService = require('../services/replanService');
 const logger = require('../utils/logger');
 
 /**
@@ -22,6 +23,27 @@ const logger = require('../utils/logger');
 const FOREIGN_KEY_VIOLATION = '23503';
 
 const notFound = (res) => res.status(404).json({ message: 'Trip not found' });
+
+/**
+ * Fold the road legs into the forecast-enriched trip.
+ *
+ * The two enrichments run concurrently and each returns its **own copy**, so they are merged by day
+ * rather than chained. Chaining would mean whichever ran second silently discarded the other's
+ * fields — and the symptom would be daylight warnings vanishing whenever a routing key was
+ * configured, which is a bug nobody would connect to its cause.
+ */
+const mergeEnrichments = (withForecast, roads) => ({
+  ...withForecast,
+  days: withForecast.days.map((day, index) => ({
+    ...day,
+    ...(roads.days?.[index]?.road_legs
+      ? {
+          road_legs: roads.days[index].road_legs,
+          routing_source: roads.days[index].routing_source
+        }
+      : {})
+  }))
+});
 
 /** GET /api/auth/trips */
 const listTrips = async (req, res) => {
@@ -78,24 +100,48 @@ const getTripFeasibility = async (req, res) => {
       tripForecastService.attachForecast(trip),
       tripRoutingService.attachRoadLegs(trip)
     ]);
-    // `attachRoadLegs` returns its own copy, so the two are merged by day rather than chained —
-    // chaining would mean whichever ran second silently discarded the first one's fields.
-    const enriched = {
-      ...withForecast,
-      days: withForecast.days.map((day, index) => ({
-        ...day,
-        ...(roads.days?.[index]?.road_legs
-          ? {
-              road_legs: roads.days[index].road_legs,
-              routing_source: roads.days[index].routing_source
-            }
-          : {})
-      }))
-    };
-
-    res.status(200).json({ feasibility: feasibilityService.checkTrip(enriched) });
+    res
+      .status(200)
+      .json({ feasibility: feasibilityService.checkTrip(mergeEnrichments(withForecast, roads)) });
   } catch (error) {
     logger.error({ err: error }, 'Error checking trip feasibility');
+    res.status(500).json({ message: 'Error checking this trip' });
+  }
+};
+
+/**
+ * GET /api/auth/trips/:tripId/replan-suggestion
+ *
+ * What to change when the weather disagrees with the plan (`FV-027` stage b).
+ *
+ * **A proposal, never a write** — the same rule `getDayRouteSuggestion` follows and for the same
+ * reason: the item's kill criteria say to stop if the replan cannot be shown as a reviewable diff,
+ * because silently rewriting somebody's trip is worse than not having the feature. Applying a
+ * proposal goes through `PUT /trips/:tripId/items/:itemId`, which already exists, so **this adds no
+ * new way to change a trip**.
+ *
+ * It reads the same enriched workspace the feasibility report does, because a proposal is only as
+ * good as the evidence under it: forecast for *why*, and road legs — when a routing key is
+ * configured — for whether the move it suggests is physically possible.
+ */
+const getTripReplanSuggestion = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
+    if (!trip) return notFound(res);
+
+    // A different question from the feasibility report's, so a different attach: the forecast at
+    // each outdoor stop's own place across the whole horizon, because a move changes when and not
+    // where. Road legs come along so `FV-025` can judge the proposed day against real driving.
+    const [withContext, roads] = await Promise.all([
+      tripForecastService.attachReplanContext(trip),
+      tripRoutingService.attachRoadLegs(trip)
+    ]);
+
+    res
+      .status(200)
+      .json({ replan: replanService.suggestReplan(mergeEnrichments(withContext, roads)) });
+  } catch (error) {
+    logger.error({ err: error }, 'Error suggesting a replan');
     res.status(500).json({ message: 'Error checking this trip' });
   }
 };
@@ -283,6 +329,7 @@ module.exports = {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getTripReplanSuggestion,
   getDayRouteSuggestion,
   createTrip,
   updateTrip,

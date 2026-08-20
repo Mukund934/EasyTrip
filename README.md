@@ -126,7 +126,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **1,109 assertions across three layers** – 612 API tests against a real PostgreSQL, 387 component tests, and 110 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 8.23 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,122 assertions across three layers** – 625 API tests against a real PostgreSQL, 387 component tests, and 110 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 8.24 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – six jobs: lint and build, frontend tests, migrations, API tests, end-to-end, and a job that checks the assertion counts above against what the suites actually ran
@@ -595,6 +595,7 @@ account cannot reach them even by addressing a victim's item through its own tri
 | GET    | `/auth/trips/:tripId/feasibility`                  | Bearer | Deterministic check that the plan can be executed — day bounds, overlaps, ordering, travel time (real road distance when a routing key is configured, otherwise a labelled estimate), daylight, wet outdoor days, backtracking, duplicates. Reports; never blocks a save |
 | PUT    | `/auth/trips/:tripId`                              | Bearer | Update a trip                                                                                                                                                                                                                                                            |
 | DELETE | `/auth/trips/:tripId`                              | Bearer | Delete a trip                                                                                                                                                                                                                                                            |
+| GET    | `/auth/trips/:tripId/replan-suggestion`            | Bearer | What to change when the forecast disagrees with the plan — which outdoor stops to move off a wet day, to which drier day, and why. Every proposal is validated against the whole trip first. Proposes only; applying goes through the item endpoint                      |
 | GET    | `/auth/trips/:tripId/days/:dayId/route-suggestion` | Bearer | A shorter order for one day, with the distance saved. Proposes only — applying it goes through the reorder route                                                                                                                                                         |
 | POST   | `/auth/trips/:tripId/days`                         | Bearer | Add a day                                                                                                                                                                                                                                                                |
 | DELETE | `/auth/trips/:tripId/days/:dayId`                  | Bearer | Remove a day                                                                                                                                                                                                                                                             |
@@ -859,6 +860,9 @@ longer-term and **not started**.
 - [x] **Real road distances** — shipped, and optional. With an OpenRouteService key the travel-time
       check reports a measured road distance instead of a straight line inflated by a guess, and
       stops calling itself an estimate. Without one, nothing changes and nothing is requested
+- [x] **Weather replanning** — shipped, as a proposal. When the forecast says a day will be wet and
+      stops on it are outdoors, the app says which to move and to when, with the forecast either
+      side. It proposes and never applies, and it says why it left things alone
 - [ ] **Route optimisation** — reorder a day's stops to cut the backtracking, and show what changed
 - [ ] **Collaborative trips** — invites, roles, and proposals rather than a shared password
 - [ ] **Budget and expense splitting** — minimal-transaction settlement

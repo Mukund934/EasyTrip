@@ -176,6 +176,13 @@ router.get(
   tripController.getTripFeasibility
 );
 router.get(
+  '/trips/:tripId/replan-suggestion',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.getTripReplanSuggestion
+);
+router.get(
   '/trips/:tripId/days/:dayId/route-suggestion',
   isAuthenticated,
   [idParam('tripId'), idParam('dayId')],

@@ -148,4 +148,71 @@ const attachForecast = async (trip) => {
 // through the endpoint, where an off-by-one in the date or the wrong coordinate is observable as a
 // wrong finding, and exporting them would invite a unit test that agrees with them in isolation
 // while the wiring stays broken — which is exactly the state Sprint 8.18 found `FV-031` in.
-module.exports = { attachForecast };
+/**
+ * The forecast a **replan** needs, which is a different question from the one a report needs
+ * (`FV-027` stage b).
+ *
+ * `attachForecast` above answers *"what is the weather on this day?"*, using the day's first stop as
+ * its location. That is right for a report, and wrong for a move — twice over:
+ *
+ * 1. **An empty day has no coordinates**, so it can never have a reading. "Move it to the free day
+ *    on Thursday" is the single most obvious thing a replanner should suggest, and a day-shaped
+ *    model can never evaluate it.
+ * 2. **A move does not change where the stop is, only when.** The question is not *"is Thursday
+ *    dry?"* but *"will it be raining at Matanga Hill on Thursday?"* — same place, different date.
+ *
+ * So this looks up the forecast **per outdoor stop**, at that stop's own coordinates, and keeps the
+ * whole horizon rather than one date. One lookup answers every candidate date at once, and
+ * `weatherService` caches on coordinates rounded to ~1 km, so stops in the same town share it.
+ *
+ * @returns {Promise<Object>} the trip, plus `day_dates` (`day_number` -> `YYYY-MM-DD`) and
+ *   `item_forecasts` (`item_id` -> `date` -> `{ is_wet, condition, precipitation_mm }`).
+ */
+const attachReplanContext = async (trip) => {
+  const days = trip?.days || [];
+  if (!trip?.start_date || days.length === 0) return trip;
+
+  const day_dates = {};
+  for (const day of days) {
+    const date = addDays(trip.start_date, day.day_number - 1);
+    if (date) day_dates[day.day_number] = date;
+  }
+
+  const outdoor = days.flatMap((day) =>
+    (day.items || []).filter(
+      (item) =>
+        item.place_setting === 'outdoor' &&
+        item.place_latitude != null &&
+        item.place_longitude != null
+    )
+  );
+
+  const item_forecasts = {};
+  try {
+    await Promise.all(
+      outdoor.map(async (item) => {
+        const weather = await weatherService.getWeather(item.place_latitude, item.place_longitude);
+        if (!weather?.forecast) return;
+
+        const byDate = {};
+        for (const entry of weather.forecast) {
+          if (typeof entry.is_wet !== 'boolean') continue;
+          byDate[entry.date] = {
+            is_wet: entry.is_wet,
+            condition: entry.condition,
+            precipitation_mm: entry.precipitation_mm ?? null,
+            source: weather.source
+          };
+        }
+        item_forecasts[item.id] = byDate;
+      })
+    );
+  } catch (error) {
+    logger.warn({ name: error.name }, 'Replan forecast lookup failed; proposing nothing');
+    return { ...trip, day_dates, item_forecasts: {} };
+  }
+
+  return { ...trip, day_dates, item_forecasts };
+};
+
+module.exports = { attachForecast, attachReplanContext };
