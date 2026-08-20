@@ -360,26 +360,70 @@ const addItem = async (userId, tripId, dayId, item) => {
 
 const UPDATABLE_ITEM_COLUMNS = ['title', 'notes', 'start_time', 'end_time', 'item_type'];
 
-/** Patch an item, scoped through its day to its trip to its owner. */
+/**
+ * Patch an item, scoped through its day to its trip to its owner.
+ *
+ * **`trip_day_id` is handled separately from the other columns, and the reason is a security one.**
+ * Every column in `UPDATABLE_ITEM_COLUMNS` is inert data — a title, a note, a time. `trip_day_id` is
+ * a *reference*, and the `WHERE` clause below proves that the item's **current** day belongs to this
+ * trip, which says nothing whatever about the day it is being moved to. Listing it alongside the
+ * others would have let a caller move their own item into a stranger's trip by naming that trip's
+ * day id: authorised on the way out, unauthorised on the way in.
+ *
+ * So the destination is joined and constrained — `destination.trip_id = trips.id` — against the trip
+ * this caller has already been proven to own. A day id from anywhere else matches nothing, zero rows
+ * update, and the caller gets the same 404 they would get for an item that does not exist.
+ *
+ * **Position is recomputed, not carried.** An item keeps its own position number when its day
+ * changes, which would drop it into the middle of the destination day's order at whatever rank it
+ * happened to hold. It is appended instead — the only placement that cannot displace something the
+ * user put where they wanted it, and the same placement `replanService` *simulates* when it asks
+ * `checkTrip` whether a proposed move is feasible. If the two disagreed, the validation would have
+ * been answering a question about a different plan.
+ *
+ * Added Sprint 8.26. Before it, **nothing could move an item between days** — not the workspace UI,
+ * not the API — which made `FV-027`'s proposals unappliable and this file's own claim that they went
+ * through "the endpoint that already exists" untrue.
+ */
 const updateItem = async (userId, tripId, itemId, patch) => {
+  const movingDay = 'trip_day_id' in patch;
   const columns = UPDATABLE_ITEM_COLUMNS.filter((column) => column in patch);
-  if (columns.length === 0) return null;
+  if (columns.length === 0 && !movingDay) return null;
 
   const values = columns.map((column) => patch[column]);
   const assignments = columns.map((column, i) => `${column} = $${i + 1}`);
 
+  if (movingDay) {
+    assignments.push(
+      'trip_day_id = destination.id',
+      // The pre-update snapshot, so the item being moved is still counted on its old day and
+      // cannot inflate the destination's maximum by one.
+      `position = (SELECT COALESCE(MAX(existing.position), -1) + 1
+                     FROM trip_items AS existing
+                    WHERE existing.trip_day_id = destination.id)`
+    );
+  }
+
   const result = await pool.query(
     `UPDATE trip_items SET ${assignments.join(', ')}
-     FROM trip_days, trips
+     FROM trip_days, trips${movingDay ? ', trip_days AS destination' : ''}
      WHERE trip_items.id = $${values.length + 1}
        AND trip_items.trip_day_id = trip_days.id
        AND trip_days.trip_id = trips.id
        AND trips.id = $${values.length + 2}
        AND trips.user_id = $${values.length + 3}
+       ${
+         movingDay
+           ? `AND destination.id = $${values.length + 4}
+       AND destination.trip_id = trips.id`
+           : ''
+       }
      RETURNING trip_items.id, trip_items.trip_day_id, trip_items.place_id, trip_items.item_type,
                trip_items.title, trip_items.notes, trip_items.start_time, trip_items.end_time,
                trip_items.position`,
-    [...values, itemId, tripId, userId]
+    movingDay
+      ? [...values, itemId, tripId, userId, patch.trip_day_id]
+      : [...values, itemId, tripId, userId]
   );
 
   return result.rows[0] || null;

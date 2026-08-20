@@ -127,8 +127,25 @@ const tripBodyRules = (required) => [
   })
 ];
 
-const itemBodyRules = [
+/**
+ * Validation for a trip item.
+ *
+ * **Takes `required` for the same reason `tripBodyRules` does, and it is a fix rather than
+ * symmetry** (`BUG-052`). The last rule — *an item needs a title, or a place to take one from* — is
+ * true when an item is **created** and false when one is **patched**: an item that already has a
+ * title does not have to resend it to change its start time. Shared as a flat array, it made
+ * `PUT /items/:id` with `{ start_time: '10:00' }` a 400 complaining about a title the item already
+ * had.
+ *
+ * Nothing caught it because every existing update test happens to send a title. It surfaced when
+ * `FV-027`'s proposals needed to move an item by day alone.
+ */
+const itemBodyRules = (required) => [
   body('place_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
+  // Moving an item to another day of the same trip (Sprint 8.26). Shape only — that the day belongs
+  // to this trip is enforced in the query, because a validator cannot know and a check here would
+  // be a second source of truth about authorisation.
+  body('trip_day_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
   body('item_type')
     .optional({ values: 'falsy' })
     .isIn(['place', 'transport', 'meal', 'activity', 'note'])
@@ -142,13 +159,18 @@ const itemBodyRules = [
   body('end_time')
     .optional({ values: 'falsy' })
     .matches(/^\d{2}:\d{2}(:\d{2})?$/),
-  // An item with neither a place nor a title has nothing to render.
-  body().custom((value) => {
-    if (!value.place_id && !String(value.title || '').trim()) {
-      throw new Error('An item needs a title, or a place to take one from');
-    }
-    return true;
-  })
+  // An item with neither a place nor a title has nothing to render — on creation. A patch is
+  // allowed to touch one field and leave the rest of the row alone.
+  ...(required
+    ? [
+        body().custom((value) => {
+          if (!value.place_id && !String(value.title || '').trim()) {
+            throw new Error('An item needs a title, or a place to take one from');
+          }
+          return true;
+        })
+      ]
+    : [])
 ];
 
 router.get('/trips', isAuthenticated, tripController.listTrips);
@@ -222,7 +244,7 @@ router.delete(
 router.post(
   '/trips/:tripId/days/:dayId/items',
   isAuthenticated,
-  [idParam('tripId'), idParam('dayId'), ...itemBodyRules],
+  [idParam('tripId'), idParam('dayId'), ...itemBodyRules(true)],
   handleValidationErrors,
   tripController.addItem
 );
@@ -241,7 +263,7 @@ router.put(
 router.put(
   '/trips/:tripId/items/:itemId',
   isAuthenticated,
-  [idParam('tripId'), idParam('itemId'), ...itemBodyRules],
+  [idParam('tripId'), idParam('itemId'), ...itemBodyRules(false)],
   handleValidationErrors,
   tripController.updateItem
 );

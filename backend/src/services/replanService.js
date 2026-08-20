@@ -12,9 +12,17 @@ const { checkTrip } = require('./feasibilityService');
  * **It computes a proposal and never applies one.** The item's own kill criteria say to stop if the
  * replan cannot be presented as a reviewable diff, because *"silently rewriting somebody's trip is
  * worse than having no feature at all"*. So this is a pure function reached by a `GET`, and applying
- * a proposal goes through `PUT /trips/:id/items/:itemId` — the endpoint that already exists, with
- * the authorisation and validation it already has. **This adds no new way to change a trip**, which
- * is the same discipline `routeOrderService` follows for reordering.
+ * a proposal goes through `PUT /trips/:id/items/:itemId`, with the authorisation and validation that
+ * endpoint already has. **This adds no new way to change a trip**, which is the same discipline
+ * `routeOrderService` follows for reordering.
+ *
+ * > **Correction, Sprint 8.26.** When stage (b) shipped, this paragraph said applying went through
+ * > "the endpoint that already exists" — and that endpoint **could not move an item between days**.
+ * > `trip_day_id` was neither a validated field nor an updatable column, so every proposal here was
+ * > unappliable and the claim was false. The gap was real and older than this feature: the workspace
+ * > had no way to move an item between days at all. `updateItem` now accepts `trip_day_id`,
+ * > constrained to a day of the same trip, and appends at the destination — the same placement this
+ * > file *simulates* when it validates a move.
  *
  * ---------------------------------------------------------------------------
  * Why no model, and why that is not a compromise

@@ -20,7 +20,9 @@ const { suggestReplan } = require('../src/services/replanService');
  * Two invariants carry the most weight:
  *
  * - **It never writes.** The endpoint is a `GET`, and the trip is re-read afterwards to prove it.
- *   Applying a proposal goes through the item endpoint that already exists.
+ *   Applying a proposal goes through `PUT /items/:itemId`, which gained the ability to move an item
+ *   between days in Sprint 8.26 — until then these proposals could not be applied at all, and this
+ *   file said otherwise (`trips.test.js` now covers the move, including its authorisation).
  * - **`FV-025` validates every candidate move** against the whole trip before it is offered. Today
  *   that filter never rejects anything, and the suite says so rather than implying otherwise: every
  *   item-level error needs a `start_time`, and only untimed items are ever moved. The service header

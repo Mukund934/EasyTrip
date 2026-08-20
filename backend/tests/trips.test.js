@@ -593,3 +593,177 @@ describe('reordering — the drag-and-drop write', () => {
     expect(theirs.body.trip.days[0].items[0].title).toBe('Foreign');
   });
 });
+
+describe('BUG-052 — a patch does not have to resend what it is not changing', () => {
+  test('an item can be retimed without resending its title', async () => {
+    // `itemBodyRules` was one flat array shared by create and update, so the create-time rule
+    // "an item needs a title, or a place to take one from" applied to patches too. Changing a start
+    // time meant a 400 complaining about a title the item already had.
+    //
+    // Invisible until now because every other update test happens to send a title. It surfaced
+    // when `FV-027`'s proposals needed to move an item by day alone.
+    const trip = await makeTrip(asUser);
+    const { res: created } = await addItem(asUser, trip);
+
+    const patched = await request(app)
+      .put(`/api/auth/trips/${trip.id}/items/${created.body.item.id}`)
+      .set(asUser)
+      .send({ start_time: '10:00' })
+      .expect(200);
+
+    expect(patched.body.item.start_time).toBe('10:00:00');
+    // The title it did not send is the title it had.
+    expect(patched.body.item.title).toBe(created.body.item.title);
+  });
+
+  test('but creating one still needs a title or a place', async () => {
+    // The rule is right on the way in, and must not have been deleted along with its misuse.
+    const trip = await makeTrip(asUser);
+    const ws = await workspace(asUser, trip.id);
+
+    await request(app)
+      .post(`/api/auth/trips/${trip.id}/days/${ws.body.trip.days[0].id}/items`)
+      .set(asUser)
+      .send({ notes: 'no title, no place' })
+      .expect(400);
+  });
+});
+
+describe('moving an item to another day (Sprint 8.26)', () => {
+  /**
+   * Until this shipped, **nothing could move an item between days** — not the API, not the
+   * workspace UI. `FV-027` proposed moves that could not be applied, and both the service header
+   * and the docs claimed they went through "the endpoint that already exists". They did not.
+   *
+   * The assertion that carries the weight is the third one. Every other column this endpoint
+   * accepts is inert data; `trip_day_id` is a **reference**, and the query's `WHERE` clause proves
+   * only that the item's *current* day belongs to the caller. The destination has to be constrained
+   * separately or an authorised write on the way out becomes an unauthorised one on the way in.
+   */
+
+  /** A trip with two days, and an item on the first. */
+  const twoDayTripWithItem = async (headers = asUser) => {
+    const trip = await makeTrip(headers, { start_date: '2026-03-01', end_date: '2026-03-02' });
+    const ws = await workspace(headers, trip.id);
+    const days = ws.body.trip.days;
+
+    const created = await request(app)
+      .post(`/api/auth/trips/${trip.id}/days/${days[0].id}/items`)
+      .set(headers)
+      .send({ place_id: PLACE, title: 'Boulders', position: 0 })
+      .expect(201);
+
+    return { trip, days, item: created.body.item };
+  };
+
+  test('an item moves to another day of the same trip', async () => {
+    const { trip, days, item } = await twoDayTripWithItem();
+
+    const moved = await request(app)
+      .put(`/api/auth/trips/${trip.id}/items/${item.id}`)
+      .set(asUser)
+      .send({ trip_day_id: days[1].id })
+      .expect(200);
+
+    expect(moved.body.item.trip_day_id).toBe(days[1].id);
+
+    // And the workspace agrees, which is the only view the user ever sees.
+    const ws = await workspace(asUser, trip.id);
+    expect(ws.body.trip.days[0].items).toHaveLength(0);
+    expect(ws.body.trip.days[1].items.map((i) => i.id)).toEqual([item.id]);
+  });
+
+  test('it lands at the end of the destination day, not at its old rank', async () => {
+    // An item keeps its own position number when its day changes, which would drop it into the
+    // middle of the destination's order. Appending is also what `replanService` *simulates* when it
+    // asks whether a move is feasible — if the two disagreed, that validation would have been
+    // answering a question about a different plan.
+    const { trip, days, item } = await twoDayTripWithItem();
+
+    for (const title of ['First', 'Second']) {
+      await request(app)
+        .post(`/api/auth/trips/${trip.id}/days/${days[1].id}/items`)
+        .set(asUser)
+        .send({ place_id: PLACE, title, position: 0 })
+        .expect(201);
+    }
+
+    const moved = await request(app)
+      .put(`/api/auth/trips/${trip.id}/items/${item.id}`)
+      .set(asUser)
+      .send({ trip_day_id: days[1].id })
+      .expect(200);
+
+    const ws = await workspace(asUser, trip.id);
+    const destination = ws.body.trip.days[1].items;
+
+    expect(destination[destination.length - 1].id).toBe(item.id);
+    expect(moved.body.item.position).toBeGreaterThan(
+      Math.max(...destination.filter((i) => i.id !== item.id).map((i) => i.position))
+    );
+  });
+
+  test('🔒 a day belonging to somebody else’s trip cannot receive the item', async () => {
+    // The whole reason `trip_day_id` is not in `UPDATABLE_ITEM_COLUMNS`. Both halves are asserted:
+    // the request is refused, **and** the item is still where it was — a 404 with the write already
+    // applied would be the worst of both.
+    const mine = await twoDayTripWithItem(asUser);
+    const theirs = await twoDayTripWithItem(asOther);
+
+    await request(app)
+      .put(`/api/auth/trips/${mine.trip.id}/items/${mine.item.id}`)
+      .set(asUser)
+      .send({ trip_day_id: theirs.days[0].id })
+      .expect(404);
+
+    const ws = await workspace(asUser, mine.trip.id);
+    expect(ws.body.trip.days[0].items.map((i) => i.id)).toEqual([mine.item.id]);
+
+    // And nothing appeared in the other account's trip.
+    const other = await workspace(asOther, theirs.trip.id);
+    expect(other.body.trip.days.flatMap((d) => d.items).map((i) => i.id)).toEqual([theirs.item.id]);
+  });
+
+  test('🔒 even another trip of your own is refused — it must be this trip', async () => {
+    // Ownership is not the only constraint. An item belongs to a trip, and moving it out of that
+    // trip through a *day* reference would be a quieter way of doing something the API offers no
+    // way to do directly.
+    const first = await twoDayTripWithItem(asUser);
+    const second = await twoDayTripWithItem(asUser);
+
+    await request(app)
+      .put(`/api/auth/trips/${first.trip.id}/items/${first.item.id}`)
+      .set(asUser)
+      .send({ trip_day_id: second.days[0].id })
+      .expect(404);
+
+    const ws = await workspace(asUser, first.trip.id);
+    expect(ws.body.trip.days[0].items.map((i) => i.id)).toEqual([first.item.id]);
+  });
+
+  test('a day that does not exist is a 404, not a 500', async () => {
+    const { trip, item } = await twoDayTripWithItem();
+
+    await request(app)
+      .put(`/api/auth/trips/${trip.id}/items/${item.id}`)
+      .set(asUser)
+      .send({ trip_day_id: 999999 })
+      .expect(404);
+  });
+
+  test('a move can carry other edits with it', async () => {
+    // The columns are patched in the same statement, so a caller retiming an item as they move it
+    // cannot end up with one applied and not the other.
+    const { trip, days, item } = await twoDayTripWithItem();
+
+    const moved = await request(app)
+      .put(`/api/auth/trips/${trip.id}/items/${item.id}`)
+      .set(asUser)
+      .send({ trip_day_id: days[1].id, title: 'Boulders, moved', start_time: '09:00' })
+      .expect(200);
+
+    expect(moved.body.item.trip_day_id).toBe(days[1].id);
+    expect(moved.body.item.title).toBe('Boulders, moved');
+    expect(moved.body.item.start_time).toBe('09:00:00');
+  });
+});
