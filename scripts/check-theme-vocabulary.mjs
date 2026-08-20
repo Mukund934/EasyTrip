@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * Assert the frontend and backend theme vocabularies are the same list.
+ * Assert the frontend and backend **controlled vocabularies** are the same lists.
+ *
+ * Two of them now: `themes` (14 ids) and `places.setting` (4). The filename still says "theme"
+ * because renaming it would churn `package.json`, the CI workflow and four documents to rename a
+ * check that already does the job — the header is the accurate description.
  *
  * **Why this exists.** A theme id is stored in `places.themes` and is what the browse filter offers,
  * so it is a contract both tiers have to agree on. They cannot share a module — the frontend is ESM
@@ -34,8 +38,48 @@ const backendIds = () => {
   return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
 };
 
+/** The frontend's `PLACE_SETTINGS`, in order (`TD-023`). */
+const frontendSettings = () => {
+  const source = readFileSync(join(ROOT, 'frontend/src/constants/placeSetting.js'), 'utf8');
+  const block = /export const PLACE_SETTINGS = \[([\s\S]*?)\];/.exec(source);
+  if (!block) throw new Error('frontend placeSetting.js: could not find PLACE_SETTINGS');
+  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+};
+
+/** The backend's `PLACE_SETTINGS` — the authority, and what the column's CHECK constraint mirrors. */
+const backendSettings = () => {
+  const source = readFileSync(join(ROOT, 'backend/src/constants/placeSetting.js'), 'utf8');
+  const block = /const PLACE_SETTINGS = \[([\s\S]*?)\];/.exec(source);
+  if (!block) throw new Error('backend placeSetting.js: could not find PLACE_SETTINGS');
+  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+};
+
 const frontend = frontendIds();
 const backend = backendIds();
+
+/**
+ * The setting vocabulary is checked first and exits on its own failure.
+ *
+ * It has a third reader the themes do not: a `CHECK` constraint on the column. So a frontend value
+ * the backend does not know is not a rejected request, it is a **500 from the database** — the UI
+ * offers "outside", the validator has no opinion because the list it checks against is the one that
+ * drifted, and Postgres refuses the row.
+ */
+const feSettings = frontendSettings();
+const beSettings = backendSettings();
+
+if (feSettings.length === 0 || beSettings.length === 0) {
+  console.error('  EMPTY  a setting vocabulary parsed to nothing — the guard would pass vacuously');
+  process.exit(1);
+}
+
+if (feSettings.join(',') !== beSettings.join(',')) {
+  console.error('  SETTING VOCABULARY MISMATCH');
+  console.error(`         frontend: [${feSettings.join(', ')}]`);
+  console.error(`         backend:  [${beSettings.join(', ')}]`);
+  console.error('         A value only the frontend knows reaches the CHECK constraint as a 500.');
+  process.exit(1);
+}
 
 if (frontend.length === 0) {
   console.error(
@@ -49,7 +93,10 @@ const extra = backend.filter((id) => !frontend.includes(id));
 const sameOrder = frontend.join(',') === backend.join(',');
 
 if (missing.length === 0 && extra.length === 0 && sameOrder) {
-  console.log(`  OK  both tiers declare the same ${frontend.length} theme ids, in the same order`);
+  console.log(
+    `  OK  both tiers declare the same ${frontend.length} theme ids and the same ` +
+      `${feSettings.length} place settings, in the same order`
+  );
   process.exit(0);
 }
 

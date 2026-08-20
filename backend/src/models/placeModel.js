@@ -72,7 +72,7 @@ const getPlaceById = async (id) => {
     // than the JSON and so could see what an API-level assertion could not.
     `SELECT id, name, location, description, district, state, locality, pin_code,
            latitude, longitude, coordinates_source, primary_image_url, themes, tags, custom_keys,
-           rating_count, rating_sum, created_at, updated_at,
+           setting, rating_count, rating_sum, created_at, updated_at,
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
         ELSE NULL

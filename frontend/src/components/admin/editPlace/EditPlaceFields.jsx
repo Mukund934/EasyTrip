@@ -1,3 +1,5 @@
+import { SettingSelector } from '../SettingSelector';
+
 export const EditPlaceFields = ({ form }) => {
   const { formData, handleChange } = form;
 
@@ -135,6 +137,11 @@ export const EditPlaceFields = ({ form }) => {
             className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
           ></textarea>
         </div>
+      </div>
+
+      {/* TD-023 — the reason `places.setting` stopped being a column nothing could write to. */}
+      <div className="mt-8">
+        <SettingSelector value={formData.setting} onChange={handleChange} />
       </div>
     </div>
   );

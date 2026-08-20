@@ -3,10 +3,18 @@ import { motion } from 'framer-motion';
 import { themeOptions } from './placeFormOptions';
 import { StepNavigation } from './StepNavigation';
 import ImageUpload from '../../ImageUpload';
+import { SettingSelector } from '../SettingSelector';
 
 export const StepMediaThemes = ({ form }) => {
-  const { formData, errors, handleThemeToggle, handleImageChange, handleImageRemove, goToStep } =
-    form;
+  const {
+    formData,
+    errors,
+    handleChange,
+    handleThemeToggle,
+    handleImageChange,
+    handleImageRemove,
+    goToStep
+  } = form;
 
   return (
     <motion.div
@@ -90,6 +98,10 @@ export const StepMediaThemes = ({ form }) => {
           {formData.themes.length !== 1 ? 's' : ''}
         </p>
       </div>
+
+      {/* TD-023 — classified at creation, so the backfill only ever has to cover what already
+          existed rather than growing with every new place. */}
+      <SettingSelector value={formData.setting} onChange={handleChange} />
 
       <StepNavigation
         onPrevious={() => goToStep(2)}

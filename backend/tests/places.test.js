@@ -259,6 +259,29 @@ describe('GET /api/places/:id', () => {
     expect(res.body.name).toBe('Hampi');
   });
 
+  // `TD-023`. `places.setting` had a migration, a validator, a CHECK constraint, an index and two
+  // features reading it — and this query never selected it. The write path accepted a
+  // classification the read path could not return, so the admin form had no way to show what a
+  // place already was, and every unrelated edit would have silently reset it to the default.
+  //
+  // A one-column omission, invisible to every backend test, because nothing asked.
+  test('returns the place’s setting, so an editor can show what it already is', async () => {
+    const res = await request(app).get('/api/places/1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('setting');
+    // Seeded rows carry the column default: nothing in the catalogue is classified yet, which is
+    // the state `TD-023` exists to make changeable.
+    expect(res.body.setting).toBe('unknown');
+  });
+
+  test('and reports a real classification once one is set', async () => {
+    await pool.query("UPDATE places SET setting = 'outdoor' WHERE id = 1");
+
+    const res = await request(app).get('/api/places/1');
+    expect(res.body.setting).toBe('outdoor');
+  });
+
   // Found by the E2E suite (IMP-094): this endpoint is public and Next serialises the whole payload
   // into `__NEXT_DATA__`, so shipping `created_by`/`updated_by` put a curating admin's raw Firebase
   // UID into the HTML of every place page, for every anonymous visitor. Nothing consumed it — both

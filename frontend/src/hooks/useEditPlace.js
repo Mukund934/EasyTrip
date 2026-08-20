@@ -32,6 +32,10 @@ export function useEditPlace(id, { currentUser, isAdmin, getIdToken }, onSaved) 
     themes: [],
     tags: [],
     custom_keys: {},
+    // TD-023. Defaulted rather than blank: the column is NOT NULL with this default, so a form
+    // that started empty would send '' and the validator would read it as "not provided" —
+    // silently keeping whatever was there while appearing to have set it.
+    setting: 'unknown',
     created_by: '',
     created_by_name: '',
     updated_by: '',
@@ -74,6 +78,7 @@ export function useEditPlace(id, { currentUser, isAdmin, getIdToken }, onSaved) 
           themes: data.themes || [],
           tags: data.tags || [],
           custom_keys: data.custom_keys || {},
+          setting: data.setting || 'unknown',
           created_by: data.created_by || currentUser?.uid || '',
           created_by_name:
             data.created_by_name ||

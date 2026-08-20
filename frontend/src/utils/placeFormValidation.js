@@ -118,5 +118,9 @@ export const emptyPlaceForm = () => ({
   coordinates_source: null,
   themes: [],
   tags: [],
-  custom_keys: {}
+  custom_keys: {},
+  // TD-023. A real default rather than '' — the column is NOT NULL and the API validator reads a
+  // falsy value as "not provided", so an empty string would look like a choice and behave like
+  // silence.
+  setting: 'unknown'
 });
