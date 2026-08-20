@@ -30,6 +30,19 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // Locale routing, for zero dependencies (IMP-114). `en` is the default and therefore
+  // unprefixed, so every existing URL is untouched; Hindi lives under /hi.
+  //
+  // `localeDetection: false` is the load-bearing setting and it is a product decision, not a
+  // default. With detection on, a browser sending `Accept-Language: hi` is redirected into a
+  // locale whose dictionary is deliberately partial — so the users most likely to be sent there
+  // are the ones most likely to notice half a translation. The owner's decision was "English
+  // default, Hindi optional", and optional means chosen, not detected.
+  i18n: {
+    locales: ['en', 'hi'],
+    defaultLocale: 'en',
+    localeDetection: false
+  },
   // Stop advertising the framework and its version.
   poweredByHeader: false,
   // `unoptimized: true` disabled the optimizer globally, so every `next/image` in the codebase

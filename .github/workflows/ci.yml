@@ -125,6 +125,13 @@ jobs:
       - name: Check the theme vocabulary matches across tiers
         run: npm run check:themes
 
+      # IMP-114. Three ways a dictionary rots, and only one of them is visible while you work: a
+      # component asking for a key nothing defines renders the key in the navbar, but only on the
+      # page you did not open. The other two -- a dead Hindi string, and a locale list that
+      # disagrees with the router -- are invisible until a user finds them.
+      - name: Check the translation vocabulary
+        run: npm run check:i18n
+
       # Only the free half of IMP-128 runs here: the README's headline total against its own three
       # parts, which needs no test run. The parts themselves are checked by the `test-counts` job
       # below, once the three suites have reported what they actually ran.
