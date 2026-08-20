@@ -2,6 +2,7 @@ const tripModel = require('../models/tripModel');
 const feasibilityService = require('../services/feasibilityService');
 const routeOrderService = require('../services/routeOrderService');
 const tripForecastService = require('../services/tripForecastService');
+const tripRoutingService = require('../services/tripRoutingService');
 const logger = require('../utils/logger');
 
 /**
@@ -71,8 +72,28 @@ const getTripFeasibility = async (req, res) => {
     const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
     if (!trip) return notFound(res);
 
-    const withForecast = await tripForecastService.attachForecast(trip);
-    res.status(200).json({ feasibility: feasibilityService.checkTrip(withForecast) });
+    // Two independent enrichments, run together rather than in sequence: neither reads the
+    // other's output, and a day's forecast and its road distances come from different providers.
+    const [withForecast, roads] = await Promise.all([
+      tripForecastService.attachForecast(trip),
+      tripRoutingService.attachRoadLegs(trip)
+    ]);
+    // `attachRoadLegs` returns its own copy, so the two are merged by day rather than chained —
+    // chaining would mean whichever ran second silently discarded the first one's fields.
+    const enriched = {
+      ...withForecast,
+      days: withForecast.days.map((day, index) => ({
+        ...day,
+        ...(roads.days?.[index]?.road_legs
+          ? {
+              road_legs: roads.days[index].road_legs,
+              routing_source: roads.days[index].routing_source
+            }
+          : {})
+      }))
+    };
+
+    res.status(200).json({ feasibility: feasibilityService.checkTrip(enriched) });
   } catch (error) {
     logger.error({ err: error }, 'Error checking trip feasibility');
     res.status(500).json({ message: 'Error checking this trip' });

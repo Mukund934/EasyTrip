@@ -37,7 +37,7 @@ const asUser = { Authorization: authHeader({ uid: 'seed-user-uid' }) };
 const HAMPI = 1;
 const COORG = 2;
 const GOKARNA = 3;
-// ~85 km from Hampi, so a morning stop and an afternoon one are comfortably reachable. Gokarna is
+// 105.7 km from Hampi, so a morning stop and an afternoon one are comfortably reachable. Gokarna is
 // 250 km away and would trip `insufficient_travel_time` — a real finding, and noise in a fixture
 // that is about rain.
 const BADAMI = 4;

@@ -206,24 +206,40 @@ const checkTravelTime = (day, timedItems) => {
     const distanceKm = haversineKm(coordinatesOf(from.item), coordinatesOf(to.item));
     if (distanceKm === null || distanceKm < ASSUMPTIONS.negligible_distance_km) continue;
 
+    // `FV-026` stage (b). A routed leg, when `tripRoutingService` attached one, is a measurement;
+    // the haversine estimate is an assumption wearing a number. They are never blended — a finding
+    // is one or the other, and says which.
+    const routed = day.road_legs?.[`${from.item.id}->${to.item.id}`];
+
     // Leaving time is the end of the previous item where one is given, its start otherwise.
     const departure = from.end ?? from.start;
     const gapMinutes = to.start - departure;
-    const neededMinutes = travelMinutesForKm(distanceKm);
+    const neededMinutes = routed ? routed.minutes : travelMinutesForKm(distanceKm);
     if (gapMinutes >= neededMinutes) continue;
+
+    // "250 km by road" states a measurement; "about 325 km" states an estimate. The wording
+    // carries the difference, because `estimated: true` is a field a screenshot loses.
+    const howFar = routed
+      ? `${Math.round(routed.km)} km by road`
+      : `about ${Math.round(distanceKm * ASSUMPTIONS.road_factor)} km`;
 
     findings.push(
       finding(
         'insufficient_travel_time',
         'error',
-        `"${from.item.title}" to "${to.item.title}" is about ${Math.round(distanceKm * ASSUMPTIONS.road_factor)} km — roughly ${neededMinutes} minutes — but the plan allows ${gapMinutes}.`,
+        `"${from.item.title}" to "${to.item.title}" is ${howFar} — roughly ${neededMinutes} minutes — but the plan allows ${gapMinutes}.`,
         {
           day_number: day.day_number,
           item_ids: [from.item.id, to.item.id],
           straight_line_km: Number(distanceKm.toFixed(1)),
           estimated_travel_minutes: neededMinutes,
           available_minutes: gapMinutes,
-          estimated: true
+          // The whole point of the upgrade: this flips to `false` when the number was measured,
+          // and `FeasibilityPanel` stops printing the straight-line caveat under it.
+          estimated: !routed,
+          ...(routed
+            ? { road_km: Number(routed.km.toFixed(1)), source: day.routing_source ?? null }
+            : {})
         }
       )
     );

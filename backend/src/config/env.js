@@ -81,6 +81,15 @@ const RULES = [
     }
   },
   {
+    name: 'OPENROUTESERVICE_API_KEY',
+    // Deliberately neither required nor production-only. Absent, `routingService` reports itself
+    // unconfigured and the feasibility engine keeps the straight-line estimate it has always used
+    // (`FV-026` stage b) — so a deployment with no key is a *less precise* product, not a broken
+    // one, and the boot gate must not claim otherwise.
+    describe:
+      'Optional. OpenRouteService key for real road distances; without it travel times stay estimates'
+  },
+  {
     name: 'CORS_ALLOWED_ORIGINS',
     productionOnly: true,
     describe: 'Comma-separated browser origins allowed to call this API',
