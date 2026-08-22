@@ -211,6 +211,15 @@ router.get(
   handleValidationErrors,
   tripController.getDayRouteSuggestion
 );
+// The day as it would be drawn (`FV-026` stage c). Nested identically, so a day that is not
+// yours is a 404 by the same query rather than by a second check that has to remember.
+router.get(
+  '/trips/:tripId/days/:dayId/route',
+  isAuthenticated,
+  [idParam('tripId'), idParam('dayId')],
+  handleValidationErrors,
+  tripController.getDayRoute
+);
 router.put(
   '/trips/:tripId',
   isAuthenticated,

@@ -16,6 +16,31 @@ const EARTH_RADIUS_KM = 6371;
 const toRadians = (degrees) => (degrees * Math.PI) / 180;
 
 /**
+ * A pair of coordinates as real numbers, or `null` when there is not one.
+ *
+ * **`Number(null)` is 0, and 0 is a finite number.** Coercing first and checking `isFinite`
+ * afterwards therefore reads a missing longitude as the Greenwich meridian, and every subsequent
+ * step is confident and wrong: a distance of 8,000 km, a marker in the Gulf of Guinea, a matrix
+ * request about open water. The emptiness check has to come **before** the coercion.
+ *
+ * Exported because more than one module has to make this decision and they must make it
+ * identically. `FV-026` stage (c) has two: what gets drawn and what gets measured. If those two
+ * sets ever disagree, the measured legs are keyed to pairs that are not the pairs on screen — a
+ * failure that produces no error, only a quietly wrong number under a correct-looking line.
+ *
+ * Shape-agnostic on purpose. This module still knows nothing about a trip, a place or an item.
+ */
+const finitePoint = (latitude, longitude) => {
+  const present = (value) => value !== null && value !== undefined && value !== '';
+  if (!present(latitude) || !present(longitude)) return null;
+
+  const parsed = { latitude: Number(latitude), longitude: Number(longitude) };
+  if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude)) return null;
+
+  return parsed;
+};
+
+/**
  * Great-circle distance in kilometres, or `null` when either point is unknown.
  *
  * `null` rather than 0 on missing coordinates, and the difference matters: 0 would mean "these are
@@ -23,18 +48,12 @@ const toRadians = (degrees) => (degrees * Math.PI) / 180;
  * A check that cannot run must say so, not pass.
  */
 const haversineKm = (a, b) => {
-  // `Number(null)` is 0, and 0 is a finite number — so coercing first and checking `isFinite`
-  // afterwards reads a missing longitude as the Greenwich meridian and returns a confident,
-  // nonsensical 8,000 km. Caught by the test that asserts this returns null; the emptiness check
-  // has to come before the coercion, not after it.
-  const present = (value) => value !== null && value !== undefined && value !== '';
-  if (![a?.latitude, a?.longitude, b?.latitude, b?.longitude].every(present)) return null;
+  const from = finitePoint(a?.latitude, a?.longitude);
+  const to = finitePoint(b?.latitude, b?.longitude);
+  if (!from || !to) return null;
 
-  const lat1 = Number(a.latitude);
-  const lon1 = Number(a.longitude);
-  const lat2 = Number(b.latitude);
-  const lon2 = Number(b.longitude);
-  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return null;
+  const { latitude: lat1, longitude: lon1 } = from;
+  const { latitude: lat2, longitude: lon2 } = to;
 
   const dLat = toRadians(lat2 - lat1);
   const dLon = toRadians(lon2 - lon1);
@@ -44,4 +63,4 @@ const haversineKm = (a, b) => {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 };
 
-module.exports = { haversineKm };
+module.exports = { haversineKm, finitePoint };

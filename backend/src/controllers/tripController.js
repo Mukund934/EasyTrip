@@ -7,6 +7,7 @@ const routeOrderService = require('../services/routeOrderService');
 const tripForecastService = require('../services/tripForecastService');
 const tripRoutingService = require('../services/tripRoutingService');
 const replanService = require('../services/replanService');
+const dayRouteService = require('../services/dayRouteService');
 const logger = require('../utils/logger');
 
 /**
@@ -174,6 +175,42 @@ const getDayRouteSuggestion = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/auth/trips/:tripId/days/:dayId/route
+ *
+ * One day as a line on a map (`FV-026` stage c).
+ *
+ * **A read, and the last one this feature needs.** Stages (a), (b) and (d) all produced numbers
+ * about a day; this produces the picture, which is what the item's user problem is actually about —
+ * a zig-zag is obvious as a shape and invisible as a list.
+ *
+ * Per day rather than per trip, matching `getDayRouteSuggestion` beside it: a route is a property
+ * of one day, and drawing six of them on a page load would put six matrix calls behind a screen the
+ * reader may never scroll to. The client asks for the day it is showing.
+ *
+ * The road lookup is the same one the feasibility report makes, in the order this day is **listed**
+ * rather than the order its clock implies — see `dayRouteService`. On a day whose list and clock
+ * agree, that is the identical request, so it comes back off the cache `attachRoadLegs` filled.
+ */
+const getDayRoute = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
+    if (!trip) return notFound(res);
+
+    const day = trip.days.find((candidate) => candidate.id === Number(req.params.dayId));
+    if (!day) return notFound(res);
+
+    // The service's own ordering, not a second copy of it: the measurement and the drawing have to
+    // describe the same sequence, and two sorts written out twice is how they stop doing so.
+    const roads = await tripRoutingService.roadLegsForItems(dayRouteService.orderedItems(day));
+
+    res.status(200).json({ route: dayRouteService.buildDayRoute(day, roads) });
+  } catch (error) {
+    logger.error({ err: error }, 'Error building a day route');
+    res.status(500).json({ message: 'Error drawing this day' });
+  }
+};
+
 /** POST /api/auth/trips */
 const createTrip = async (req, res) => {
   try {
@@ -334,6 +371,7 @@ module.exports = {
   getTripFeasibility,
   getTripReplanSuggestion,
   getDayRouteSuggestion,
+  getDayRoute,
   createTrip,
   updateTrip,
   deleteTrip,
