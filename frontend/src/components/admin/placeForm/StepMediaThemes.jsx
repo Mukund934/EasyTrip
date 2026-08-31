@@ -4,6 +4,7 @@ import { themeOptions } from './placeFormOptions';
 import { StepNavigation } from './StepNavigation';
 import ImageUpload from '../../ImageUpload';
 import { SettingSelector } from '../SettingSelector';
+import { AccessibilitySurvey } from '../AccessibilitySurvey';
 
 export const StepMediaThemes = ({ form }) => {
   const {
@@ -102,6 +103,13 @@ export const StepMediaThemes = ({ form }) => {
       {/* TD-023 — classified at creation, so the backfill only ever has to cover what already
           existed rather than growing with every new place. */}
       <SettingSelector value={formData.setting} onChange={handleChange} />
+
+      {/* `BL-138`. Surveyed at creation for the same reason the classification is: the API has
+          accepted these fields on create since Sprint 8.33, and without a control here a new place
+          was unsurveyed until somebody thought to re-open it. `accessibility_source` is in this
+          step's `STEP_FIELDS`, so an unattributed claim stops the wizard here rather than surfacing
+          as a rejected submit two steps later. */}
+      <AccessibilitySurvey formData={formData} onChange={handleChange} />
 
       <StepNavigation
         onPrevious={() => goToStep(2)}

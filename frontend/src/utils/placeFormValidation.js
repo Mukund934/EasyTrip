@@ -18,7 +18,11 @@ import { surveyProblem } from '../constants/placeAccessibility';
 export const STEP_FIELDS = {
   1: ['name', 'location', 'description'],
   2: ['district', 'state', 'locality', 'pin_code', 'latitude', 'longitude'],
-  3: [],
+  // `accessibility_source` is the only one of `FV-029`'s five fields that can produce an error, and
+  // it belongs to the step that collects them (`BL-138`). Without it the wizard would let an
+  // unattributed claim past step 3 and then refuse the final submit with a message keyed to a field
+  // no visible step owns — blocked, with nothing on screen to explain it.
+  3: ['accessibility_source'],
   4: ['image']
 };
 

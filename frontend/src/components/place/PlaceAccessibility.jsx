@@ -1,6 +1,6 @@
 import { FiCheck, FiInfo, FiMinus, FiSlash, FiUsers } from 'react-icons/fi';
 
-import { isClaimed } from '../../constants/placeAccessibility';
+import { hasAccessibilityInfo, isClaimed } from '../../constants/placeAccessibility';
 import { formatDateShort } from '../../utils/dateFormat';
 
 /**
@@ -59,8 +59,9 @@ export const PlaceAccessibility = ({ place }) => {
   const notes = place?.accessibility_notes;
 
   // Nothing recorded and nothing to say. Rendering an empty panel would be a heading promising
-  // information that is not there.
-  if (!surveyed && !notes) return null;
+  // information that is not there — and `hasAccessibilityInfo` is shared with the table of contents
+  // so the two cannot disagree about whether this section exists (`BL-139`).
+  if (!hasAccessibilityInfo(place)) return null;
 
   const checked = place.accessibility_checked_on
     ? formatDateShort(place.accessibility_checked_on)

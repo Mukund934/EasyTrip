@@ -22,7 +22,8 @@ import { MagazineSidebar } from '../../components/place/MagazineSidebar';
 import { PlaceArticle } from '../../components/place/PlaceArticle';
 import { PlaceSeoHead } from '../../components/place/PlaceSeoHead';
 import { PlaceLoadingState, PlaceErrorState } from '../../components/place/PlaceDetailStates';
-import { composeGallery, PLACE_SECTIONS } from '../../utils/placeDetail';
+import { composeGallery, visiblePlaceSections } from '../../utils/placeDetail';
+import { hasAccessibilityInfo } from '../../constants/placeAccessibility';
 import { getAverageRating } from '../../utils/rating';
 
 /**
@@ -67,7 +68,19 @@ export default function PlaceDetails({
     );
 
   const reviewActions = usePlaceReviewActions(id, reviews, auth, { setPlace, setReviews });
-  const [activeSection, setActiveSection] = useActiveSection(PLACE_SECTIONS, [contentLoading]);
+
+  // Only the sections this place actually renders (`BL-139`). Memoised because `useActiveSection`
+  // needs a stable reference — a fresh array each render tears down and re-registers the observer.
+  const sections = useMemo(
+    () =>
+      visiblePlaceSections({
+        hasImages: images.length > 0,
+        hasAccessibility: hasAccessibilityInfo(place)
+      }),
+    [images.length, place]
+  );
+
+  const [activeSection, setActiveSection] = useActiveSection(sections, [contentLoading]);
   const { share, shareTo } = useSharePlace(place);
 
   // Scroll progress
@@ -109,7 +122,7 @@ export default function PlaceDetails({
         />
 
         <MobileTableOfContents
-          sections={PLACE_SECTIONS}
+          sections={sections}
           activeSection={activeSection}
           isOpen={showTableOfContents}
           onToggle={() => setShowTableOfContents((prev) => !prev)}
@@ -122,7 +135,7 @@ export default function PlaceDetails({
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-20">
           {/* Table of Contents for larger screens */}
           <div className="hidden md:block mb-12">
-            <TableOfContents sections={PLACE_SECTIONS} />
+            <TableOfContents sections={sections} />
           </div>
 
           <div className="lg:grid lg:grid-cols-3 lg:gap-12">

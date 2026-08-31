@@ -7,13 +7,16 @@ import { MagazineDetails } from './MagazineDetails';
 import MagazineGallery from '../MagazineGallery';
 import RelatedPlaces from '../RelatedPlaces';
 import { PlaceAccessibility } from './PlaceAccessibility';
+import { hasAccessibilityInfo } from '../../constants/placeAccessibility';
 
 /**
  * The article column — the five sections the table of contents lists, in order.
  *
  * Each `<section id>` here is what `useActiveSection` observes, so the ids must stay in step with
- * `PLACE_SECTIONS`. Gallery is conditional: a place with no images renders no gallery section at
- * all rather than an empty one.
+ * `PLACE_SECTIONS`. **Two of them are conditional** — gallery and access — and the *same*
+ * predicates decide the markup here and the list `visiblePlaceSections` hands the table of contents.
+ * That is the whole of `BL-139`: when those two answers were allowed to differ, the contents listed
+ * a "Photo Gallery" link that scrolled nowhere on every place with no images.
  */
 export const PlaceArticle = ({
   place,
@@ -45,12 +48,14 @@ export const PlaceArticle = ({
           place rather than a picture of it — and early on a phone, which is where somebody who needs
           it will look first. Renders nothing when nothing has been recorded.
           
-          **Deliberately not a `<section id>`.** Every id here is a `PLACE_SECTIONS` entry and the
-          table of contents renders those unconditionally, so an "access" link would be a dead
-          anchor on every place nobody has surveyed — which today is all of them. It becomes worth
-          registering once the catalogue has coverage, and `BL-139` records the ToC change that
-          would need to come first. */}
-      <PlaceAccessibility place={place} />
+          It is a registered section again as of `BL-139`: the table of contents now lists only the
+          sections a place actually renders, so an "access" entry appears exactly when this panel
+          does. Before that it would have been a dead anchor on every unsurveyed place. */}
+      {hasAccessibilityInfo(place) && (
+        <section id="access" className="scroll-mt-24">
+          <PlaceAccessibility place={place} />
+        </section>
+      )}
 
       {/* Image Gallery */}
       {images.length > 0 && (

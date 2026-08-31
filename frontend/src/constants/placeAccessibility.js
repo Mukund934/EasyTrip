@@ -75,6 +75,21 @@ export const isClaimed = (level) =>
   typeof level === 'string' && ACCESS_LEVELS.includes(level) && level !== DEFAULT_ACCESS_LEVEL;
 
 /**
+ * Does this place have anything to say about getting in?
+ *
+ * One predicate with two consumers, and they must not disagree: `PlaceAccessibility` renders nothing
+ * when it is false, and the table of contents must not list a section that is not there (`BL-139`).
+ * Two copies of this condition is precisely how a dead anchor appears.
+ *
+ * Notes count. *"The lift was out of order in August"* asserts nothing about either axis and is
+ * still worth a section — it is often the most useful thing on the page.
+ */
+export const hasAccessibilityInfo = (place) =>
+  isClaimed(place?.step_free_access) ||
+  isClaimed(place?.accessible_restroom) ||
+  Boolean(place?.accessibility_notes);
+
+/**
  * What is wrong with this survey, or `null`.
  *
  * The same rule `places_accessibility_is_attributed` enforces, restated in the browser so the admin
