@@ -294,3 +294,145 @@ describe('the write helper', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Browsing by it (`BL-137`)
+// ---------------------------------------------------------------------------
+describe('filtering the catalogue by step-free access', () => {
+  /** Survey three of the four seeded places, leaving one deliberately unsurveyed. */
+  const survey = async () => {
+    await pool.query(
+      `UPDATE places SET step_free_access = $2, accessibility_source = 'site_visit',
+              accessibility_checked_on = DATE '2026-08-01'
+       WHERE id = $1`,
+      [1, 'yes']
+    );
+    await pool.query(
+      `UPDATE places SET step_free_access = $2, accessibility_source = 'operator',
+              accessibility_checked_on = DATE '2026-07-15'
+       WHERE id = $1`,
+      [2, 'partial']
+    );
+    await pool.query(
+      `UPDATE places SET step_free_access = $2, accessibility_source = 'third_party',
+              accessibility_checked_on = DATE '2026-06-01'
+       WHERE id = $1`,
+      [3, 'no']
+    );
+    // Place 4 is left `unknown`, which is the state the whole catalogue is in today.
+  };
+
+  const ids = (body) => (body.data || []).map((place) => place.id).sort();
+
+  beforeEach(survey);
+
+  test('asking for verified step-free returns only that', async () => {
+    // JSON array, which is how every collection filter on this endpoint is spelled.
+    const response = await request(app).get('/api/places?stepFree=["yes"]');
+    expect(response.status).toBe(200);
+    expect(ids(response.body)).toEqual([1]);
+  });
+
+  test('asking for "or partly" widens it by exactly one', async () => {
+    const response = await request(app).get('/api/places?stepFree=["yes","partial"]');
+    expect(response.status).toBe(200);
+    expect(ids(response.body)).toEqual([1, 2]);
+  });
+
+  test('repeated query parameters work too, for a hand-written request', async () => {
+    const response = await request(app).get('/api/places?stepFree=yes&stepFree=partial');
+    expect(ids(response.body)).toEqual([1, 2]);
+  });
+
+  test('an unsurveyed place is never returned by this filter', async () => {
+    // **The property the filter exists for.** The season filter one function over deliberately
+    // KEEPS unannotated rows, because a missing "best time" is not evidence of a bad season. Here
+    // the reverse holds: somebody filtering on step-free access is asking which places anybody has
+    // actually checked, and an unsurveyed row is the exact thing they are trying not to rely on.
+    for (const level of ['yes', 'partial', 'no']) {
+      const response = await request(app).get(`/api/places?stepFree=["${level}"]`);
+      expect(response.status).toBe(200);
+      expect(ids(response.body)).not.toContain(4);
+    }
+  });
+
+  test('no filter still returns the unsurveyed places, including the one nobody checked', async () => {
+    const response = await request(app).get('/api/places');
+    expect(ids(response.body)).toEqual([1, 2, 3, 4]);
+  });
+
+  test('"no" is a filterable answer, not an absence', async () => {
+    // A traveller who wants to know what is definitely not accessible is asking a real question,
+    // and answering it is what makes recording `no` worth an admin's time.
+    const response = await request(app).get('/api/places?stepFree=["no"]');
+    expect(ids(response.body)).toEqual([3]);
+  });
+
+  test('an unrecognised level returns an empty list, matching every other filter here', async () => {
+    // The first draft of this filter allowlisted the query and asserted a 400, on the argument that
+    // an empty list reads as "there are no accessible places". `isStringArray` already answers that:
+    // membership is opt-in and only the write paths ask for it, because a query allowlist turns a
+    // stale bookmark into an error — and `places.test.js` pins exactly this shape for `themes`.
+    // Making one filter special needed a property to justify it, and there is none.
+    const response = await request(app).get('/api/places?stepFree=["maybe"]');
+    expect(response.status).toBe(200);
+    expect(ids(response.body)).toEqual([]);
+  });
+
+  test('a malformed value is still a 400, because it is not a filter at all', async () => {
+    // The line the convention does draw: an unknown *member* is a read that matched nothing, but a
+    // value that is not a JSON array of strings is a request nobody can act on.
+    const response = await request(app).get('/api/places?stepFree=%7B%22not%22%3A%22a+list%22%7D');
+    expect(response.status).toBe(400);
+  });
+
+  test('it composes with the other filters rather than replacing them', async () => {
+    const response = await request(app).get(
+      '/api/places?stepFree=["yes","partial"]&searchTerm=Hampi'
+    );
+    expect(response.status).toBe(200);
+    expect(ids(response.body)).toEqual([1]);
+  });
+});
+
+describe('what a card is given to render a badge with', () => {
+  beforeEach(async () => {
+    await pool.query(
+      `UPDATE places SET step_free_access = 'yes', accessibility_source = 'site_visit',
+              accessibility_checked_on = DATE '2026-08-01'
+       WHERE id = 1`
+    );
+  });
+
+  const first = async () => {
+    const response = await request(app).get('/api/places?searchTerm=Hampi');
+    return response.body.data[0];
+  };
+
+  test('the answer, the source and the date all reach the list payload', async () => {
+    // A badge that says "step-free" and nothing else is the unmarked assertion this whole item
+    // exists to prevent. The card cannot render the caveat unless the list carries it.
+    const place = await first();
+    expect(place.step_free_access).toBe('yes');
+    expect(place.accessibility_source).toBe('site_visit');
+    expect(place.accessibility_checked_on).toBe('2026-08-01');
+  });
+
+  test('the date is a string in the list too, not a Date a day out', async () => {
+    // Same defect, same fix, different projection — and a separate assertion because the two
+    // queries are separate SQL and one has been corrected without the other before.
+    const place = await first();
+    expect(typeof place.accessibility_checked_on).toBe('string');
+  });
+
+  test('the detail-page fields are deliberately not in the list projection', async () => {
+    // `accessible_restroom` and `accessibility_notes` are sentences, not badges. The file's own
+    // rule is that a column no list consumer reads is not shipped, and `getPlaceById` has both.
+    const place = await first();
+    expect(place.accessible_restroom).toBeUndefined();
+    expect(place.accessibility_notes).toBeUndefined();
+
+    const detail = await request(app).get('/api/places/1');
+    expect(detail.body.accessible_restroom).toBeDefined();
+  });
+});

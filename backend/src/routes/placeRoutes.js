@@ -238,6 +238,18 @@ const searchRules = [
   query('themes')
     .optional({ values: 'falsy' })
     .custom(isStringArray('themes', 20, 60)),
+  // `FV-029`. **Deliberately not allowlisted**, unlike the write rule for the same column.
+  //
+  // The first draft passed `ACCESS_LEVELS` here, on the argument that a filter silently matching
+  // nothing reads to a traveller as "there are no accessible places". `isStringArray`'s own comment
+  // answers that: membership is opt-in and only the write paths ask for it, because applying it to a
+  // query turns a stale bookmark into a 400 — and `places.test.js` pins the opposite contract for
+  // reads. The concern is real and it is identical for `themes`; making this one filter behave
+  // differently would be a special case with no property to justify it. An empty result is the
+  // browse page's job to explain (`IMP-031` already separates "nothing matched" from "failed").
+  query('stepFree')
+    .optional({ values: 'falsy' })
+    .custom(isStringArray('stepFree', 4, 20)),
   query('minRating')
     .optional({ values: 'falsy' })
     .isFloat({ min: 0, max: 5 })
