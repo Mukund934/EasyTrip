@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { test, expect } = require('@playwright/test');
+const authEmulator = require('../auth-emulator');
+const { PORTS } = require('../../playwright.config');
 
 /**
  * The accessibility gate (`PE-022`).
@@ -48,11 +50,13 @@ const AXE = fs.readFileSync(
 );
 
 /**
- * The public routes. **`/saved`, `/profile` and the admin pages are deliberately absent**, and not
- * because they matter less — they redirect an anonymous browser to `/login`, so scanning them here
- * measures the login page twice and reports it as coverage. The first draft of this file did exactly
- * that and the URL in the probe output is what gave it away. Signed-in routes need a signed-in scan;
- * `BL-144` records it.
+ * The routes an anonymous browser can reach.
+ *
+ * **`/saved`, `/profile` and `/trips` are not here because they redirect** — an anonymous browser is
+ * sent to `/login`, so scanning them in this block measures the login page repeatedly and reports it
+ * as coverage. The first draft of this file did exactly that, and the URL in the probe output is
+ * what gave it away. They are covered by the signed-in block at the bottom, which asserts it landed
+ * on the route it asked for precisely so that mistake cannot come back silently.
  */
 const ROUTES = ['/', '/browse', '/places/1', '/login', '/signup', '/about'];
 
@@ -158,4 +162,67 @@ test.describe('every public route passes axe, except what we have written down',
 
     expect(stale, `Accepted violations that no longer occur:\n  ${stale.join('\n  ')}`).toEqual([]);
   });
+});
+
+/**
+ * The routes only a signed-in traveller can reach (`BL-144`).
+ *
+ * **These were the gate's own documented gap.** An anonymous browser is redirected from every one of
+ * them to `/login`, so the public block above cannot cover them — scanning them there measured the
+ * login page repeatedly and would have reported it as coverage. That is what the first draft did.
+ *
+ * Reaching them at all needs a browser that can sign in, which this project could not do until
+ * `TD-024` (Sprint 8.30). So this is the second thing that change bought, after the workspace
+ * journeys: **the half of the product behind authentication is now scannable, and it is the half a
+ * traveller spends the most time in.**
+ */
+const AUTH_STATE = authEmulator.readState();
+
+const AUTH_ROUTES = ['/saved', '/profile', '/trips'];
+
+/** Same shape and same rules as `ACCEPTED`. Measured, not guessed. */
+const ACCEPTED_AUTH = {};
+
+test.describe('the signed-in routes pass too', () => {
+  test.skip(
+    !AUTH_STATE.enabled,
+    `Firebase Auth Emulator unavailable — ${AUTH_STATE.reason || 'reason not recorded'}`
+  );
+
+  const signIn = async (page) => {
+    await page.goto('/login');
+    await page.locator('#email').fill('e2e-user@easytrip.test');
+    await page.locator('#password').fill('e2e-password');
+    await page.getByRole('button', { name: /^sign in$/i }).click();
+    await page.waitForURL(`${PORTS.BASE_URL}/`, { timeout: 20_000 });
+  };
+
+  for (const route of AUTH_ROUTES) {
+    test(`${route} has no unaccepted violations`, async ({ page }) => {
+      await signIn(page);
+      const violations = await scan(page, route);
+
+      // The redirect check the public block learned the hard way: a route that bounced us to
+      // `/login` would otherwise be scanned as if it were the page under test, and pass.
+      expect(
+        new URL(page.url()).pathname,
+        `${route} redirected — the scan measured another page`
+      ).toBe(route);
+
+      const accepted = ACCEPTED_AUTH[route] || {};
+      const unexpected = violations.filter((v) => !(v.id in accepted));
+      expect(
+        unexpected,
+        `Unaccepted accessibility violations on ${route}: ` +
+          unexpected.map((v) => `${v.id} (${v.impact}, ${v.count}) — ${v.example}`).join(' | ')
+      ).toEqual([]);
+
+      for (const violation of violations) {
+        expect(
+          violation.count,
+          `${route}: ${violation.id} grew past its accepted ceiling`
+        ).toBeLessThanOrEqual(accepted[violation.id]);
+      }
+    });
+  }
 });

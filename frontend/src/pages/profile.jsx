@@ -126,7 +126,12 @@ export default function Profile() {
           <div className="bg-white shadow-md rounded-lg overflow-hidden">
             <div className="px-4 py-5 sm:px-6 bg-primary-600">
               <h1 className="text-xl font-semibold text-white">My Profile</h1>
-              <p className="mt-1 max-w-2xl text-sm text-primary-100">
+              {/* `primary-50`, not `primary-100`. On `primary-600` (#0277b4) the 100 step measures
+                  4.26:1 — under the 4.5:1 AA needs for normal-size text — and 50 measures
+                  4.58:1 while keeping the muted-subtitle look. Same reasoning and same
+                  precedent as `IMP-084`, which darkened `primary-600` itself for AA; found by
+                  the accessibility gate on `/profile` (`PE-022`). */}
+              <p className="mt-1 max-w-2xl text-sm text-primary-50">
                 Manage your personal information
               </p>
             </div>
@@ -282,7 +287,7 @@ export default function Profile() {
                 <h2 id="my-reviews-heading" className="text-xl font-semibold text-white">
                   Your Reviews
                 </h2>
-                <p className="mt-1 max-w-2xl text-sm text-primary-100">
+                <p className="mt-1 max-w-2xl text-sm text-primary-50">
                   Everything you have written, most recently updated first
                 </p>
               </div>
