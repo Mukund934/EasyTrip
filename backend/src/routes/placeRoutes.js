@@ -10,6 +10,12 @@ const { geocodeAddress } = require('../controllers/geocodeController');
 const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
 const { SUPPORTED_GEOCODERS } = require('../controllers/helpers/coordinateSource');
 const { THEME_IDS } = require('../constants/themes');
+const {
+  ACCESS_LEVELS,
+  ACCESSIBILITY_SOURCES,
+  ACCESS_FIELDS,
+  isClaimed
+} = require('../constants/placeAccessibility');
 const { PLACE_SETTINGS } = require('../constants/placeSetting');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
@@ -136,7 +142,63 @@ const placeBodyRules = (required) => [
   body('tags')
     .optional({ values: 'falsy' })
     .custom(isStringArray('tags', 50, 60)),
-  body('custom_keys').optional({ values: 'falsy' }).custom(isFlatObject)
+  body('custom_keys').optional({ values: 'falsy' }).custom(isFlatObject),
+
+  // ---------------------------------------------------------------------------
+  // Accessibility (`FV-029` stage a)
+  // ---------------------------------------------------------------------------
+  ...ACCESS_FIELDS.map((field) =>
+    body(field)
+      .optional({ values: 'falsy' })
+      .isIn(ACCESS_LEVELS)
+      .withMessage(`${field} must be one of: ${ACCESS_LEVELS.join(', ')}`)
+  ),
+  body('accessibility_notes')
+    .optional({ values: 'falsy' })
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('accessibility_notes must be 2000 characters or fewer'),
+  body('accessibility_source')
+    .optional({ values: 'falsy' })
+    .isIn(ACCESSIBILITY_SOURCES)
+    .withMessage(`accessibility_source must be one of: ${ACCESSIBILITY_SOURCES.join(', ')}`),
+  body('accessibility_checked_on')
+    .optional({ values: 'falsy' })
+    .isISO8601({ strict: true })
+    .withMessage('accessibility_checked_on must be a date, as YYYY-MM-DD')
+    .bail()
+    .custom((value) => {
+      // The same rule as `places_accessibility_checked_on_not_future`, restated here so a typo in
+      // the year is a readable message rather than a 500 from a constraint violation. The
+      // constraint remains the thing that is true — this route is not the only possible writer.
+      if (value.slice(0, 10) > new Date().toISOString().slice(0, 10)) {
+        throw new Error('accessibility_checked_on cannot be in the future');
+      }
+      return true;
+    }),
+
+  /**
+   * A claim must say who says so, and when (`FV-029`'s kill criterion).
+   *
+   * `places_accessibility_is_attributed` enforces this in the database, which is where it has to be
+   * — the API is not the only possible writer, and this is a safety claim rather than a formatting
+   * one. Restating it here buys a 400 with a sentence instead of a 500 from a constraint the caller
+   * cannot read.
+   *
+   * Checked on the **body**, so it only fires when the request actually sets an axis. A patch that
+   * touches neither leaves an existing claim and its provenance exactly as they were.
+   */
+  body().custom((payload) => {
+    const claims = ACCESS_FIELDS.some((field) => isClaimed(payload?.[field]));
+    if (!claims) return true;
+    if (payload.accessibility_source && payload.accessibility_checked_on) return true;
+    throw new Error(
+      'An accessibility claim needs accessibility_source and accessibility_checked_on. ' +
+        'Unverified access information is worse than none — leave the answer as "unknown" instead.'
+    );
+  })
 ];
 
 // Search accepts the same collection shapes as the write routes (JSON arrays as query text).

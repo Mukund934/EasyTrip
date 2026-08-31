@@ -118,6 +118,25 @@ describe('GET /api/places', () => {
     expect(edited.body.setting).toBe('mixed');
   });
 
+  test('an empty setting on a multipart edit means "leave it alone", not a 500 (BUG-055)', async () => {
+    // Reachable from an ordinary browser: an HTML <select> with its empty option selected submits
+    // `setting=""`, and a multipart form submits every field it renders whether or not anybody
+    // touched it. The validator is `optional({ values: 'falsy' })` so it never sees the value; the
+    // controller used to pass it through, and `places_setting_known` rejected the whole edit.
+    const res = await request(app)
+      .put('/api/admin/places/2')
+      .set('Authorization', authHeader({ uid: 'seed-admin-uid' }))
+      .field('setting', '')
+      .field('name', 'Renamed With An Empty Setting');
+
+    expect(res.status).toBe(200);
+
+    const { rows } = await pool.query('SELECT name, setting FROM places WHERE id = 2');
+    expect(rows[0].name).toBe('Renamed With An Empty Setting');
+    // Untouched, which is what "said nothing" has to mean.
+    expect(rows[0].setting).toBe('unknown');
+  });
+
   test('an unknown theme is refused on write, though it is tolerated on a read', async () => {
     // The asymmetry is deliberate and this pins both halves. `themes` is a closed vocabulary shared
     // with the browse filter, so storing one nothing offers creates a place no filter can find --

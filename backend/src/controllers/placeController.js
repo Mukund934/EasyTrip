@@ -10,6 +10,8 @@ const logger = require('../utils/logger');
 const { getCurrentUser } = require('./helpers/currentUser');
 const { criteriaFromQuery } = require('./helpers/placeQuery');
 const { sameCoordinate, resolveCoordinateSource } = require('./helpers/coordinateSource');
+const { accessibilityForCreate, accessibilityPatch } = require('./helpers/placeAccessibility');
+const { provided } = require('./helpers/writeFields');
 const fs = require('fs');
 const {
   uploadImage,
@@ -182,6 +184,8 @@ const createPlace = async (req, res) => {
       tags: parseJsonField(tags, []),
       custom_keys: parseJsonField(custom_keys, {}),
       setting,
+      // An omitted accessibility section creates an unsurveyed row, never an unattributed claim.
+      ...accessibilityForCreate(req.body),
       created_by: user,
       updated_by: user
     };
@@ -352,7 +356,14 @@ const updatePlace = async (req, res) => {
       // the value. Writing `setting,` unconditionally would put the key there with `undefined`,
       // node-pg would send NULL, and the NOT NULL column would reject the whole edit — the
       // BUG-048 shape, one column over. Omitted means "leave the classification alone".
-      ...(setting === undefined ? {} : { setting }),
+      // `provided`, not `!== undefined`: an untouched <select> submits `setting=""`, the validator
+      // reads that as "said nothing", and passing it through put an empty string against a CHECK
+      // constraint — a 500 on an ordinary edit (`BUG-055`). One predicate for both halves now.
+      ...provided('setting', setting),
+      // Sparse for the same reason `setting` is, and for one more of its own: these five are
+      // checked against each other by the database, so sending NULL for the keys a request omitted
+      // would strip the provenance from a row that still claims step-free access. See the helper.
+      ...accessibilityPatch(req.body),
       updated_by: user
     };
 

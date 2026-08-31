@@ -127,7 +127,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **1,226 assertions across three layers** – 654 API tests against a real PostgreSQL, 450 component tests, and 122 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. Measured across Sprints 8.31–8.32, by running all three suites; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,252 assertions across three layers** – 680 API tests against a real PostgreSQL, 450 component tests, and 122 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. Measured at Sprint 8.33, by running all three suites; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – six jobs: lint and build, frontend tests, migrations, API tests, end-to-end, and a job that checks the assertion counts above against what the suites actually ran
