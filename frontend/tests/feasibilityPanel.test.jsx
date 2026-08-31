@@ -357,3 +357,97 @@ describe('a report never outlives the plan it describes', () => {
     expect(result.current.feasibilityError.message).toBe('Could not check this trip');
   });
 });
+
+// ---------------------------------------------------------------------------
+// A stop that conflicts with the traveller's stated needs (`FV-029` stage d)
+// ---------------------------------------------------------------------------
+describe('an accessibility finding carries who checked and when', () => {
+  const ACCESS_ERROR = {
+    code: 'stop_not_step_free',
+    severity: 'error',
+    message: '"The Fort" has no step-free access.',
+    checked_by: 'site_visit',
+    checked_on: '2026-08-01'
+  };
+
+  test('the finding renders with its provenance beneath it', () => {
+    // The badge's rule, in a warning. Without this a ramp removed last winter reads exactly like
+    // one confirmed this morning.
+    render(
+      <FeasibilityPanel
+        report={report([ACCESS_ERROR])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('"The Fort" has no step-free access.')).toBeInTheDocument();
+    expect(screen.getByText(/Checked in person, Aug 1, 2026/)).toBeInTheDocument();
+  });
+
+  test('an operator claim stays hedged, because it is an interested party', () => {
+    render(
+      <FeasibilityPanel
+        report={report([{ ...ACCESS_ERROR, checked_by: 'operator' }])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+    expect(screen.getByText(/The place says so/)).toBeInTheDocument();
+  });
+
+  test('it is not mistaken for a forecast attribution', () => {
+    // **The collision this key exists to avoid.** `source` means "the provider whose data produced
+    // this finding" and is rendered as the literal words "Forecast from" because Open-Meteo is
+    // CC-BY. Reusing it for a survey would have shipped "Forecast from site_visit".
+    render(
+      <FeasibilityPanel
+        report={report([ACCESS_ERROR])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Forecast from/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Open-Meteo/)).not.toBeInTheDocument();
+  });
+
+  test('and a forecast finding still gets its attribution', () => {
+    // The other half of the same assertion: separating the keys must not have broken the one that
+    // was already there.
+    render(
+      <FeasibilityPanel
+        report={report([
+          {
+            code: 'outdoor_item_in_darkness',
+            severity: 'warning',
+            message: '"Sunset Point" is outdoors and runs to 19:30, after sunset at 18:41.',
+            source: 'Open-Meteo'
+          }
+        ])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Forecast from/)).toBeInTheDocument();
+  });
+
+  test('a finding with no provenance renders no provenance line', () => {
+    render(
+      <FeasibilityPanel
+        report={report([{ ...ACCESS_ERROR, checked_by: null, checked_on: null }])}
+        checking={false}
+        error={null}
+        onCheck={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('"The Fort" has no step-free access.')).toBeInTheDocument();
+    expect(screen.queryByText(/Checked in person/)).not.toBeInTheDocument();
+  });
+});

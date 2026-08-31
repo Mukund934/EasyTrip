@@ -98,7 +98,16 @@ const getTripWorkspace = async (userId, tripId) => {
             places.name AS place_name, places.location AS place_location,
             places.primary_image_url AS place_image_url,
             places.latitude AS place_latitude, places.longitude AS place_longitude,
-            places.setting AS place_setting
+            places.setting AS place_setting,
+            -- FV-029 stage (d). The feasibility engine is pure (ADR-041), so a place's accessibility
+            -- has to arrive as data on the item rather than be looked up mid-check. Carried with its
+            -- provenance for the same reason the badge shows a date: a finding that says a stop is
+            -- not step-free, without saying who checked and when, is the unmarked assertion this
+            -- item exists to prevent -- moved into a warning.
+            places.step_free_access AS place_step_free_access,
+            places.accessible_restroom AS place_accessible_restroom,
+            places.accessibility_source AS place_accessibility_source,
+            to_char(places.accessibility_checked_on, 'YYYY-MM-DD') AS place_accessibility_checked_on
      FROM trip_items
      JOIN trip_days ON trip_days.id = trip_items.trip_day_id
      JOIN trips ON trips.id = trip_days.trip_id

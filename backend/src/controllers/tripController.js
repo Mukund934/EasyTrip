@@ -1,4 +1,5 @@
 const tripModel = require('../models/tripModel');
+const userModel = require('../models/userModel');
 // Items live in their own model: they are the only rows reached through two joins, and that rule
 // is easier to keep true in one file (Sprint 8.26).
 const tripItemModel = require('../models/tripItemModel');
@@ -98,15 +99,23 @@ const getTripFeasibility = async (req, res) => {
     const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
     if (!trip) return notFound(res);
 
-    // Two independent enrichments, run together rather than in sequence: neither reads the
-    // other's output, and a day's forecast and its road distances come from different providers.
-    const [withForecast, roads] = await Promise.all([
+    // Three independent reads, run together rather than in sequence: none of them looks at another's
+    // output. The forecast and the road distances come from different providers; the access needs
+    // come from the caller's own profile and are the one input that is about the traveller rather
+    // than the plan (`FV-029` stage d).
+    const [withForecast, roads, accessNeeds] = await Promise.all([
       tripForecastService.attachForecast(trip),
-      tripRoutingService.attachRoadLegs(trip)
+      tripRoutingService.attachRoadLegs(trip),
+      userModel.getAccessNeeds(req.user.uid)
     ]);
-    res
-      .status(200)
-      .json({ feasibility: feasibilityService.checkTrip(mergeEnrichments(withForecast, roads)) });
+    res.status(200).json({
+      feasibility: feasibilityService.checkTrip(
+        mergeEnrichments(withForecast, roads),
+        // Passed as data rather than looked up inside the engine, which `ADR-041` requires: the
+        // check has to be replayable, and a validator that consults the world cannot be.
+        accessNeeds
+      )
+    });
   } catch (error) {
     logger.error({ err: error }, 'Error checking trip feasibility');
     res.status(500).json({ message: 'Error checking this trip' });

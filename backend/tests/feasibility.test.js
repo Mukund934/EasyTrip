@@ -724,3 +724,273 @@ describe('FV-027 stage (a) — the refusals, as pure functions', () => {
     expect(found.source).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Stops that conflict with what the traveller needs (`FV-029` stage d)
+// ---------------------------------------------------------------------------
+describe('the traveller’s own access needs', () => {
+  /** A one-day trip with a single stop whose place carries the given accessibility answers. */
+  const tripWithStop = (over = {}) => ({
+    start_date: null,
+    end_date: null,
+    days: [
+      {
+        day_number: 1,
+        items: [
+          item({
+            title: 'The Fort',
+            place_id: 1,
+            place_step_free_access: 'unknown',
+            place_accessible_restroom: 'unknown',
+            place_accessibility_source: 'site_visit',
+            place_accessibility_checked_on: '2026-08-01',
+            ...over
+          })
+        ]
+      }
+    ]
+  });
+
+  const codes = (result) => result.findings.map((f) => f.code);
+
+  describe('a traveller who has stated nothing', () => {
+    test.each(['yes', 'no', 'partial', 'unknown'])(
+      'sees no access finding against a %s stop',
+      (answer) => {
+        // The default for every row in `users`. Somebody who has not told us they need step-free
+        // access must not be shown findings about it — they did not ask, and a warning they cannot
+        // act on is noise that teaches them to skim.
+        const result = checkTrip(tripWithStop({ place_step_free_access: answer }));
+        expect(codes(result)).toEqual([]);
+      }
+    );
+
+    test('and `requirements` may be omitted entirely, as every existing caller does', () => {
+      expect(checkTrip(tripWithStop({ place_step_free_access: 'no' })).findings).toEqual([]);
+    });
+  });
+
+  describe('a traveller who needs step-free access', () => {
+    const needs = { requires_step_free: true, requires_accessible_restroom: false };
+
+    test('a verified "no" is an error, because it is a locked door', () => {
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'no' }), needs);
+
+      expect(codes(result)).toEqual(['stop_not_step_free']);
+      expect(result.findings[0].severity).toBe('error');
+      // An error, so the plan is reported as not executable — for this traveller it is not.
+      expect(result.feasible).toBe(false);
+      expect(result.findings[0].message).toContain('The Fort');
+    });
+
+    test('"partial" is a warning, because only a human can read the notes', () => {
+      // "A ramp to the courtyard, eleven steps to the sanctum" is fine for one traveller and
+      // impossible for another. The engine has no business deciding which.
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'partial' }), needs);
+
+      expect(codes(result)).toEqual(['stop_partly_step_free']);
+      expect(result.findings[0].severity).toBe('warning');
+      expect(result.feasible).toBe(true);
+    });
+
+    test('"yes" produces nothing at all', () => {
+      expect(checkTrip(tripWithStop({ place_step_free_access: 'yes' }), needs).findings).toEqual(
+        []
+      );
+    });
+
+    test('**"unknown" is silent**, which is the whole design', () => {
+      // Almost the entire catalogue is unsurveyed. Warning "to be safe" would put a finding on
+      // nearly every stop — training the traveller who most needs these to dismiss them, and doing
+      // it by asserting something nobody checked. `FV-029`'s kill criterion forbids exactly that.
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'unknown' }), needs);
+      expect(result.findings).toEqual([]);
+      expect(result.feasible).toBe(true);
+    });
+
+    test('a stop with no place at all is silent too', () => {
+      // "Lunch somewhere" is not a place and has nothing to check.
+      const result = checkTrip(
+        tripWithStop({
+          place_id: null,
+          place_step_free_access: undefined,
+          place_accessible_restroom: undefined
+        }),
+        needs
+      );
+      expect(result.findings).toEqual([]);
+    });
+
+    test('the finding carries who checked and when', () => {
+      // The same rule the badge follows. A warning that reaches the traveller as a screenshot has
+      // to say who checked and when, or it is the bare assertion this item forbids.
+      //
+      // `checked_by` rather than `source`, and the distinction is load-bearing: `source` already
+      // means "the provider whose data produced this finding" and the panel renders it as the words
+      // *"Forecast from …"*. Reusing it would have shipped "Forecast from site_visit".
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'no' }), needs);
+
+      expect(result.findings[0]).toMatchObject({
+        checked_by: 'site_visit',
+        checked_on: '2026-08-01',
+        day_number: 1
+      });
+      expect(result.findings[0].item_ids).toHaveLength(1);
+      // Never `source`: that key drives a forecast attribution one component over.
+      expect(result.findings[0].source).toBeUndefined();
+    });
+  });
+
+  describe('a traveller who needs an accessible restroom', () => {
+    const needs = { requires_step_free: false, requires_accessible_restroom: true };
+
+    test.each([
+      ['no', 'warning'],
+      ['partial', 'warning']
+    ])('a %s restroom is a %s, not an error', (answer, severity) => {
+      // A restroom decides how long somebody can comfortably stay; step-free access decides whether
+      // they get in at all. Calling both errors would be easier and would flatten a distinction the
+      // person reading this actually needs.
+      const result = checkTrip(tripWithStop({ place_accessible_restroom: answer }), needs);
+
+      expect(codes(result)).toEqual(['stop_without_accessible_restroom']);
+      expect(result.findings[0].severity).toBe(severity);
+      expect(result.feasible).toBe(true);
+    });
+
+    test('a step-free problem is not reported to somebody who did not ask about it', () => {
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'no' }), needs);
+      expect(result.findings).toEqual([]);
+    });
+  });
+
+  describe('both needs at once', () => {
+    const needs = { requires_step_free: true, requires_accessible_restroom: true };
+
+    test('one stop can produce two findings, and the trip is not feasible', () => {
+      const result = checkTrip(
+        tripWithStop({ place_step_free_access: 'no', place_accessible_restroom: 'no' }),
+        needs
+      );
+
+      expect(codes(result).sort()).toEqual([
+        'stop_not_step_free',
+        'stop_without_accessible_restroom'
+      ]);
+      expect(result.feasible).toBe(false);
+      expect(result.counts).toMatchObject({ errors: 1, warnings: 1 });
+    });
+  });
+});
+
+describe('the access needs reach the engine through the real stack', () => {
+  // The pure tests above prove the rule. This proves the wiring: the profile column, the workspace
+  // projection that carries a place's answers onto an item, and the controller that reads the
+  // caller's own needs. Three separate pieces, each of which can be correct while the chain is not.
+  const surveyPlace = async (id, answers) => {
+    const req = request(app)
+      .put(`/api/admin/places/${id}`)
+      .set({ Authorization: authHeader({ uid: 'seed-admin-uid' }) });
+    Object.entries({
+      accessibility_source: 'site_visit',
+      accessibility_checked_on: '2026-08-01',
+      ...answers
+    }).forEach(([key, value]) => req.field(key, String(value)));
+    await req.expect(200);
+  };
+
+  const tripWithPlace = async (placeId) => {
+    const trip = await seedTrip();
+    await request(app)
+      .post(`/api/auth/trips/${trip.id}/days/${trip.days[0].id}/items`)
+      .set(asUser)
+      .send({ place_id: placeId, title: 'The Fort', position: 0 })
+      .expect(201);
+    return trip;
+  };
+
+  const feasibilityOf = async (tripId) =>
+    (await request(app).get(`/api/auth/trips/${tripId}/feasibility`).set(asUser).expect(200)).body
+      .feasibility;
+
+  test('a traveller who has stated nothing sees no access finding', async () => {
+    await surveyPlace(1, { step_free_access: 'no' });
+    const trip = await tripWithPlace(1);
+
+    const feasibility = await feasibilityOf(trip.id);
+    expect(feasibility.findings.map((f) => f.code)).not.toContain('stop_not_step_free');
+  });
+
+  test('stating the requirement makes the same trip report the same stop', async () => {
+    // The whole chain, changed by one field on the profile and nothing else.
+    await surveyPlace(1, { step_free_access: 'no' });
+    const trip = await tripWithPlace(1);
+
+    await request(app)
+      .put('/api/auth/profile')
+      .set(asUser)
+      .send({ name: 'Tom Traveller', requires_step_free: true })
+      .expect(200);
+
+    const feasibility = await feasibilityOf(trip.id);
+    const found = feasibility.findings.find((f) => f.code === 'stop_not_step_free');
+
+    expect(found).toBeTruthy();
+    expect(found.severity).toBe('error');
+    expect(feasibility.feasible).toBe(false);
+    // Provenance survives the round trip, including the date as a string rather than a Date a day
+    // out — the same defect `placeModel` and `placeListModel` each needed `to_char` for.
+    expect(found).toMatchObject({ checked_by: 'site_visit', checked_on: '2026-08-01' });
+  });
+
+  test('an unsurveyed place stays silent even for a traveller who needs it', async () => {
+    // Place 4 is seeded and never surveyed. This is the state the real catalogue is in, so it is
+    // the case that decides whether the feature is usable or is a wall of warnings.
+    const trip = await tripWithPlace(4);
+    await request(app)
+      .put('/api/auth/profile')
+      .set(asUser)
+      .send({ name: 'Tom Traveller', requires_step_free: true })
+      .expect(200);
+
+    const feasibility = await feasibilityOf(trip.id);
+    expect(feasibility.findings.map((f) => f.code)).not.toContain('stop_not_step_free');
+    expect(feasibility.feasible).toBe(true);
+  });
+
+  test('one traveller’s needs never affect another’s report', async () => {
+    await surveyPlace(1, { step_free_access: 'no' });
+    await request(app)
+      .put('/api/auth/profile')
+      .set(asUser)
+      .send({ name: 'Tom Traveller', requires_step_free: true })
+      .expect(200);
+
+    // A second identity with its own trip containing the same place.
+    const asOther = { Authorization: authHeader({ uid: 'seed-other-uid' }) };
+    const created = await request(app)
+      .post('/api/auth/trips')
+      .set(asOther)
+      .send({ title: 'Someone else' })
+      .expect(201);
+    const workspace = await request(app)
+      .get(`/api/auth/trips/${created.body.trip.id}`)
+      .set(asOther)
+      .expect(200);
+    await request(app)
+      .post(`/api/auth/trips/${created.body.trip.id}/days/${workspace.body.trip.days[0].id}/items`)
+      .set(asOther)
+      .send({ place_id: 1, title: 'The Fort', position: 0 })
+      .expect(201);
+
+    const other = (
+      await request(app)
+        .get(`/api/auth/trips/${created.body.trip.id}/feasibility`)
+        .set(asOther)
+        .expect(200)
+    ).body.feasibility;
+
+    expect(other.findings.map((f) => f.code)).not.toContain('stop_not_step_free');
+    expect(other.feasible).toBe(true);
+  });
+});

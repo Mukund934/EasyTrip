@@ -29,6 +29,8 @@ test.skip(
 );
 
 const asAdmin = { Authorization: `Bearer ${state.tokens?.admin?.idToken}` };
+const asTraveller = { Authorization: `Bearer ${state.tokens?.nonAdmin?.idToken}` };
+const IDENTITY = { email: 'e2e-user@easytrip.test', password: 'e2e-password' };
 const HAMPI = 1;
 
 /** Record a survey the way the admin form does — multipart, through the real route. */
@@ -157,5 +159,94 @@ test.describe('a place nobody has surveyed', () => {
     // would promise information that does not exist.
     await expect(page.getByRole('heading', { name: /Badami/ }).first()).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Getting in' })).toHaveCount(0);
+  });
+});
+
+/**
+ * A stated need reaching a trip report (`FV-029` stage d).
+ *
+ * The chain is profile column → `userModel` → controller → engine → payload → panel, and every link
+ * has its own coverage: 22 API assertions on the engine and the wiring, 5 component assertions on
+ * the panel. **The one thing neither tier can see is whether the payload the API sends is the shape
+ * the panel reads** — the frontend/backend disagreement this layer exists for, and the reason
+ * `checked_by` had to stop being called `source` in the first place.
+ */
+test.describe('a stated access need reaches the trip report', () => {
+  const signIn = async (page) => {
+    await page.goto('/login');
+    await page.locator('#email').fill(IDENTITY.email);
+    await page.locator('#password').fill(IDENTITY.password);
+    await page.getByRole('button', { name: /^sign in$/i }).click();
+    await page.waitForURL(`${PORTS.BASE_URL}/`, { timeout: 20_000 });
+  };
+
+  /** A trip with one stop at a place surveyed as having no step-free access. */
+  const setUp = async (request, { requiresStepFree }) => {
+    await survey(request, HAMPI, {
+      step_free_access: 'no',
+      accessibility_source: 'site_visit',
+      accessibility_checked_on: '2026-08-01'
+    });
+
+    await request.put(`${PORTS.API_URL}/auth/profile`, {
+      headers: asTraveller,
+      data: { name: 'E2E nonAdmin', requires_step_free: requiresStepFree }
+    });
+
+    const created = await request.post(`${PORTS.API_URL}/auth/trips`, {
+      headers: asTraveller,
+      data: { title: 'Access check' }
+    });
+    const { trip } = await created.json();
+    const workspace = await request.get(`${PORTS.API_URL}/auth/trips/${trip.id}`, {
+      headers: asTraveller
+    });
+    const dayId = (await workspace.json()).trip.days[0].id;
+
+    await request.post(`${PORTS.API_URL}/auth/trips/${trip.id}/days/${dayId}/items`, {
+      headers: asTraveller,
+      data: { place_id: HAMPI, title: 'The Fort', position: 0 }
+    });
+
+    return trip.id;
+  };
+
+  test.afterEach(async ({ request }) => {
+    await resetSurvey(request, HAMPI);
+    await request.put(`${PORTS.API_URL}/auth/profile`, {
+      headers: asTraveller,
+      data: { name: 'E2E nonAdmin', requires_step_free: false }
+    });
+    const listed = await request.get(`${PORTS.API_URL}/auth/trips`, { headers: asTraveller });
+    for (const trip of (await listed.json()).trips || []) {
+      await request.delete(`${PORTS.API_URL}/auth/trips/${trip.id}`, { headers: asTraveller });
+    }
+  });
+
+  test('the report names the stop, and says who checked and when', async ({ request, page }) => {
+    const tripId = await setUp(request, { requiresStepFree: true });
+
+    await signIn(page);
+    await page.goto(`/trips/${tripId}`);
+    await page.getByRole('button', { name: 'Check this plan' }).click();
+
+    await expect(page.getByText('"The Fort" has no step-free access.')).toBeVisible();
+    // The provenance, rendered from `checked_by` rather than `source`. If the two keys were ever
+    // merged again this would read "Forecast from site_visit", which is the assertion below.
+    await expect(page.getByText(/Checked in person, Aug 1, 2026/)).toBeVisible();
+    await expect(page.getByText(/Forecast from/)).toHaveCount(0);
+  });
+
+  test('and says nothing to a traveller who has not stated the need', async ({ request, page }) => {
+    // The same trip, the same surveyed place, one profile field different.
+    const tripId = await setUp(request, { requiresStepFree: false });
+
+    await signIn(page);
+    await page.goto(`/trips/${tripId}`);
+    await page.getByRole('button', { name: 'Check this plan' }).click();
+
+    // The report still runs — it just has nothing to say about access.
+    await expect(page.getByRole('button', { name: 'Check this plan' })).toBeVisible();
+    await expect(page.getByText(/step-free/i)).toHaveCount(0);
   });
 });

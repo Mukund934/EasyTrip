@@ -63,6 +63,7 @@ const ASSUMPTIONS = {
 };
 
 const { haversineKm } = require('./geoDistance');
+const { checkAccessNeeds } = require('./feasibilityAccess');
 
 /** Estimated minutes to travel a straight-line distance, rounded up to the minute. */
 const travelMinutesForKm = (straightLineKm) =>
@@ -439,7 +440,7 @@ const checkDuplicates = (day, orderedItems) => {
  * plan that cannot be executed. Collapsing the two would make the engine an opinion about taste,
  * and it would stop being usable as `AI-006`'s scorer.
  */
-const checkTrip = (trip) => {
+const checkTrip = (trip, requirements = null) => {
   const findings = [...checkDayBounds(trip)];
 
   for (const day of trip?.days || []) {
@@ -464,7 +465,8 @@ const checkTrip = (trip) => {
       ...checkDaylight(day, timedItems),
       ...checkWetOutdoor(day, orderedItems),
       ...checkClustering(day, orderedItems),
-      ...checkDuplicates(day, orderedItems)
+      ...checkDuplicates(day, orderedItems),
+      ...checkAccessNeeds(day, orderedItems, requirements)
     );
   }
 
