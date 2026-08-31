@@ -2,9 +2,10 @@
 /**
  * Assert the frontend and backend **controlled vocabularies** are the same lists.
  *
- * Two of them now: `themes` (14 ids) and `places.setting` (4). The filename still says "theme"
- * because renaming it would churn `package.json`, the CI workflow and four documents to rename a
- * check that already does the job — the header is the accurate description.
+ * Four of them now: `themes` (14 ids), `places.setting` (4), and `FV-029`'s two accessibility
+ * lists — the answer levels and the sources. The filename still says "theme" because renaming it
+ * would churn `package.json`, the CI workflow and four documents to rename a check that already
+ * does the job — the header is the accurate description.
  *
  * **Why this exists.** A theme id is stored in `places.themes` and is what the browse filter offers,
  * so it is a contract both tiers have to agree on. They cannot share a module — the frontend is ESM
@@ -54,6 +55,45 @@ const backendSettings = () => {
   return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
 };
 
+/** A named `export const NAME = [...]` / `const NAME = [...]` list of quoted strings, in order. */
+const listFrom = (file, name) => {
+  const source = readFileSync(join(ROOT, file), 'utf8');
+  const block = new RegExp(`${name} = \\[([\\s\\S]*?)\\];`).exec(source);
+  if (!block) throw new Error(`${file}: could not find ${name}`);
+  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+};
+
+/**
+ * The two `FV-029` vocabularies, which have the same third reader the settings do.
+ *
+ * Both back `CHECK` constraints, so a value only the frontend knows is a **500 from the database**
+ * rather than a rejected request — and on this feature the column is a safety claim, which is why
+ * they are guarded rather than trusted to stay in step.
+ */
+const ACCESSIBILITY_LISTS = [
+  { name: 'ACCESS_LEVELS', label: 'accessibility answers' },
+  { name: 'ACCESSIBILITY_SOURCES', label: 'accessibility sources' }
+];
+
+for (const { name, label } of ACCESSIBILITY_LISTS) {
+  const fe = listFrom('frontend/src/constants/placeAccessibility.js', name);
+  const be = listFrom('backend/src/constants/placeAccessibility.js', name);
+
+  if (fe.length === 0 || be.length === 0) {
+    console.error(`  EMPTY  ${label} parsed to nothing — the guard would pass vacuously`);
+    process.exit(1);
+  }
+  if (fe.join(',') !== be.join(',')) {
+    console.error(`  ${label.toUpperCase()} MISMATCH`);
+    console.error(`         frontend: [${fe.join(', ')}]`);
+    console.error(`         backend:  [${be.join(', ')}]`);
+    console.error(
+      '         A value only the frontend knows reaches the CHECK constraint as a 500.'
+    );
+    process.exit(1);
+  }
+}
+
 const frontend = frontendIds();
 const backend = backendIds();
 
@@ -94,8 +134,9 @@ const sameOrder = frontend.join(',') === backend.join(',');
 
 if (missing.length === 0 && extra.length === 0 && sameOrder) {
   console.log(
-    `  OK  both tiers declare the same ${frontend.length} theme ids and the same ` +
-      `${feSettings.length} place settings, in the same order`
+    `  OK  both tiers declare the same ${frontend.length} theme ids, the same ` +
+      `${feSettings.length} place settings and the same 2 accessibility vocabularies, ` +
+      `in the same order`
   );
   process.exit(0);
 }

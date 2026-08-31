@@ -36,6 +36,14 @@ export function useEditPlace(id, { currentUser, isAdmin, getIdToken }, onSaved) 
     // that started empty would send '' and the validator would read it as "not provided" —
     // silently keeping whatever was there while appearing to have set it.
     setting: 'unknown',
+    // FV-029. Defaulted for the same reason `setting` is — the columns are NOT NULL with this
+    // default, and a blank would be read as "not provided". The provenance three start empty
+    // because absent is what they genuinely are until somebody surveys the place.
+    step_free_access: 'unknown',
+    accessible_restroom: 'unknown',
+    accessibility_notes: '',
+    accessibility_source: '',
+    accessibility_checked_on: '',
     created_by: '',
     created_by_name: '',
     updated_by: '',
@@ -79,6 +87,13 @@ export function useEditPlace(id, { currentUser, isAdmin, getIdToken }, onSaved) 
           tags: data.tags || [],
           custom_keys: data.custom_keys || {},
           setting: data.setting || 'unknown',
+          step_free_access: data.step_free_access || 'unknown',
+          accessible_restroom: data.accessible_restroom || 'unknown',
+          accessibility_notes: data.accessibility_notes || '',
+          accessibility_source: data.accessibility_source || '',
+          // Already `YYYY-MM-DD` from the API (`to_char` in `placeModel`), which is exactly what an
+          // <input type="date"> wants. A serialised Date would need slicing and would be a day out.
+          accessibility_checked_on: data.accessibility_checked_on || '',
           created_by: data.created_by || currentUser?.uid || '',
           created_by_name:
             data.created_by_name ||

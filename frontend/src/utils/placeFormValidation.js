@@ -7,6 +7,8 @@
  * change is that they now take their inputs instead of closing over them.
  */
 
+import { surveyProblem } from '../constants/placeAccessibility';
+
 /**
  * Which fields belong to which wizard step.
  *
@@ -29,6 +31,12 @@ export const STEP_FIELDS = {
  */
 export const collectErrors = (formData, primaryImage) => {
   const newErrors = {};
+
+  // FV-029. The same rule `places_accessibility_is_attributed` enforces, checked here so an
+  // unattributed claim is a message beside the field rather than a 400 after the admin has typed
+  // everything. The database is still what makes it true — this only decides when to say so.
+  const accessibility = surveyProblem(formData);
+  if (accessibility) newErrors.accessibility_source = accessibility;
 
   // Required fields
   if (!formData.name.trim()) {
@@ -122,5 +130,13 @@ export const emptyPlaceForm = () => ({
   // TD-023. A real default rather than '' — the column is NOT NULL and the API validator reads a
   // falsy value as "not provided", so an empty string would look like a choice and behave like
   // silence.
-  setting: 'unknown'
+  setting: 'unknown',
+  // FV-029, same reasoning as `setting` for the two enumerated axes. The provenance three start
+  // empty because absent is genuinely what they are until somebody surveys the place, and the API
+  // reads '' as "not provided".
+  step_free_access: 'unknown',
+  accessible_restroom: 'unknown',
+  accessibility_notes: '',
+  accessibility_source: '',
+  accessibility_checked_on: ''
 });
