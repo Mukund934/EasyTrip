@@ -129,7 +129,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **1,459 assertions across three layers** – 753 API tests against a real PostgreSQL, 565 component tests, and 141 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. Measured at Sprint 8.42, by running all three suites; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,472 assertions across three layers** – 753 API tests against a real PostgreSQL, 578 component tests, and 141 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. Measured at Sprint 8.43, by running all three suites; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data

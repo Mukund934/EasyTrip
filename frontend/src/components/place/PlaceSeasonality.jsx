@@ -9,6 +9,7 @@ import {
   isCrowdClaimed
 } from '../../constants/placeSeasonality';
 import { formatDateShort } from '../../utils/dateFormat';
+import { MonthGrid } from './MonthGrid';
 
 /**
  * When this place is worth visiting, and who says so (`FV-028` stage a).
@@ -66,6 +67,10 @@ export const PlaceSeasonality = ({ place }) => {
         {crowd && <Fact Icon={FiUsers} label="How busy" value={crowd} />}
         {duration && <Fact Icon={FiClock} label="Typical visit" value={duration} />}
       </div>
+
+      {/* `FV-028` stage (b), `INS-003`. The phrase above stays: the grid is scannable and the
+          sentence is precise, and a reader who cannot use the grid still gets the answer. */}
+      <MonthGrid months={place.best_months} />
 
       {/* In visible text rather than a `title`, because an unattributed claim and an attributed one
           are different statements and only the second can be judged. */}
