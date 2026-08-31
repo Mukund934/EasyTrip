@@ -23,6 +23,10 @@ const AUTOPLAY_MS = 5000;
 export function useHomeCarousel(places, loadError) {
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
+  // Whether the reader has asked the platform for less movement (`PE-022`). `false` on the server
+  // and on the first client render, so the markup hydrates identically either way and the carousel
+  // simply stops after mount rather than starting and being torn down.
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [direction, setDirection] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -30,6 +34,30 @@ export function useHomeCarousel(places, loadError) {
   const autoplayRef = useRef(null);
 
   const wishlist = useWishlist();
+
+  /**
+   * Honour `prefers-reduced-motion` (`PE-022`).
+   *
+   * `IMP-082` already handles this for CSS transitions and, via `<MotionConfig reducedMotion="user">`,
+   * for framer-motion. **It could not reach this carousel**, because the movement here is not an
+   * animation — it is a `setInterval` changing which slide exists. So a reader who had asked the
+   * whole platform to stop moving things still got a hero that advanced every five seconds.
+   *
+   * That is WCAG 2.2.2: content that moves automatically for more than five seconds needs a way to
+   * pause it, and the platform-level request is the clearest way a reader can ask.
+   *
+   * Found while building the accessibility gate, and not by a rule — `axe` cannot see it. What it
+   * could see was the *symptom*: `/` reported 1, 8, 4 and 8 contrast violations across four
+   * identical scans, because each one measured whichever slide happened to be on screen.
+   */
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setPrefersReducedMotion(query.matches);
+
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
 
   // Check screen size
   useEffect(() => {
@@ -41,7 +69,7 @@ export function useHomeCarousel(places, loadError) {
 
   // Autoplay carousel
   useEffect(() => {
-    if (autoplay && places.length > 0 && !isTransitioning) {
+    if (autoplay && !prefersReducedMotion && places.length > 0 && !isTransitioning) {
       autoplayRef.current = setInterval(() => {
         setDirection(1);
         setIsTransitioning(true);
@@ -53,7 +81,7 @@ export function useHomeCarousel(places, loadError) {
     return () => {
       if (autoplayRef.current) clearInterval(autoplayRef.current);
     };
-  }, [autoplay, places.length, isTransitioning]);
+  }, [autoplay, prefersReducedMotion, places.length, isTransitioning]);
 
   // Navigation functions
   const goToNextPlace = () => {

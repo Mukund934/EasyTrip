@@ -132,7 +132,11 @@ export default function PlaceDetails({
         <MagazineIssueBar currentUser={currentUser} />
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-20">
+        {/* A `div`, not a `main`. `_app.jsx` already opens `<main id="main-content">` around
+            every page, so a second one here produced three axe violations from one cause —
+            duplicate main, non-top-level main, and a non-unique landmark — and left a screen
+            reader with two "main" regions to choose between (`PE-022`). */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-20">
           {/* Table of Contents for larger screens */}
           <div className="hidden md:block mb-12">
             <TableOfContents sections={sections} />
@@ -158,7 +162,7 @@ export default function PlaceDetails({
               <MagazineSidebar place={place} reviews={reviews} isLoading={contentLoading} />
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </>
   );

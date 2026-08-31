@@ -16,7 +16,10 @@ export const TableOfContents = ({ sections }) => {
           <div className="p-2 bg-primary-100 rounded-lg mr-3">
             <FiList className="text-primary-600 h-5 w-5" />
           </div>
-          <h3 className="font-serif text-xl font-bold text-gray-900">In This Article</h3>
+          {/* `h2`, not `h3`. The only heading above it is the place name (`h1`), so an `h3`
+              skipped a level and axe reported `heading-order`. The size is a Tailwind class,
+              so nothing moves on screen (`PE-022`). */}
+          <h2 className="font-serif text-xl font-bold text-gray-900">In This Article</h2>
         </div>
         <FiChevronDown
           className={`h-5 w-5 text-gray-500 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
