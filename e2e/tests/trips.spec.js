@@ -20,10 +20,14 @@ const authEmulator = require('../auth-emulator');
  * found by walking the `E2E` column of `PRODUCT_ROADMAP.md` §9 against `e2e/tests/` rather than by
  * trusting the matrix, which claimed otherwise.
  *
- * **What is deliberately not here: a drag-and-drop journey.** Reordering items in the workspace UI
- * needs a token from the Firebase **client** SDK, which is the open remainder of `TD-020` — the
- * cookie the admin specs set reaches the SSR gate, not `auth.currentUser`. Faking a browser session
- * to make this look more end-to-end would prove less than driving the real endpoints does.
+ * **What is deliberately not here: a drag-and-drop journey.** It used to be blocked — reordering in
+ * the workspace UI needs a token from the Firebase **client** SDK, and the cookie the admin specs set
+ * reaches the SSR gate rather than `auth.currentUser`. **That blocker is gone** (`TD-024`, Sprint
+ * 8.30): `signed-in-workspace.spec.js` signs in for real and drives the workspace as that user.
+ *
+ * It stays out of *this* file anyway, because this file is about the ownership boundary and a drag
+ * is not an ownership question. It is now an ordinary backlog item rather than a thing that cannot
+ * be written.
  */
 
 const API = 'http://127.0.0.1:5100/api';
