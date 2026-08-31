@@ -20,6 +20,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import FeasibilityPanel from '../../components/trips/FeasibilityPanel';
 import ReplanPanel from '../../components/trips/ReplanPanel';
 import RouteSuggestion from '../../components/trips/RouteSuggestion';
+import DayRoute from '../../components/trips/DayRoute';
 import { formatDate } from '../../utils/dateFormat';
 
 /**
@@ -139,6 +140,9 @@ export default function TripWorkspace() {
     routeSuggestions,
     suggestRoute,
     applyRouteSuggestion,
+    dayRoutes,
+    drawingDay,
+    drawDay,
     addDay,
     removeDay,
     addItem,
@@ -378,6 +382,16 @@ export default function TripWorkspace() {
                   busy={busy}
                   onSuggest={() => suggestRoute(day.id)}
                   onApply={() => applyRouteSuggestion(day.id)}
+                />
+
+                {/* The drawing, below the proposal that talks about it (`FV-026` stage c). In this
+                    order because they answer different questions and only one of them is ever
+                    declined: a day with times on it gets no suggestion, and still gets a map. */}
+                <DayRoute
+                  route={dayRoutes[day.id]}
+                  dayNumber={day.day_number}
+                  busy={busy || drawingDay === day.id}
+                  onDraw={() => drawDay(day.id)}
                 />
               </section>
             ))}

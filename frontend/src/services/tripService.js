@@ -51,12 +51,6 @@ const getTripFeasibility = async (tripId, token) => {
 };
 
 /**
- * A shorter order for one day, if there is one (`FV-026` stage a).
- *
- * Read-only. Applying a suggestion goes through `reorderItems`, which already exists and already
- * validates — so a suggestion can never become a write this module invented.
- */
-/**
  * What to change when the forecast disagrees with the plan (`FV-027` stage b).
  *
  * A read. Applying a proposal is `updateItem` with a `trip_day_id`, which is the same endpoint the
@@ -71,6 +65,12 @@ const getTripReplanSuggestion = async (tripId, token) => {
   }
 };
 
+/**
+ * A shorter order for one day, if there is one (`FV-026` stage a).
+ *
+ * Read-only. Applying a suggestion goes through `reorderItems`, which already exists and already
+ * validates — so a suggestion can never become a write this module invented.
+ */
 const getDayRouteSuggestion = async (tripId, dayId, token) => {
   try {
     const { data } = await apiClient.get(
@@ -80,6 +80,30 @@ const getDayRouteSuggestion = async (tripId, dayId, token) => {
     return data?.suggestion ?? null;
   } catch (error) {
     throw withFallback(error, 'Could not check this day');
+  }
+};
+
+/**
+ * One day as it would be drawn (`FV-026` stage c).
+ *
+ * A read, and a *separate* one from `getDayRouteSuggestion` beside it even though both are about a
+ * day's geography. They answer different questions — *what would a shorter order be?* and *what does
+ * this order look like?* — and the second is the only one that can be true of a day the first
+ * declines, which is every day with times on it.
+ *
+ * The response is returned whether or not it is drawable: a refusal carries a `reason` and a
+ * sentence, and the panel renders it. Collapsing that to `null` would make "this day has no mapped
+ * stops" indistinguishable from "the request failed".
+ */
+const getDayRoute = async (tripId, dayId, token) => {
+  try {
+    const { data } = await apiClient.get(
+      `/auth/trips/${tripId}/days/${dayId}/route`,
+      authed(token)
+    );
+    return data?.route ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not draw this day');
   }
 };
 
@@ -187,6 +211,7 @@ const tripService = {
   getTripFeasibility,
   getTripReplanSuggestion,
   getDayRouteSuggestion,
+  getDayRoute,
   createTrip,
   updateTrip,
   deleteTrip,
@@ -205,6 +230,7 @@ export {
   getTripFeasibility,
   getTripReplanSuggestion,
   getDayRouteSuggestion,
+  getDayRoute,
   createTrip,
   updateTrip,
   deleteTrip,

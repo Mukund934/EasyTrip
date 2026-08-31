@@ -123,3 +123,104 @@ test.describe('a browser that has actually signed in', () => {
     expect(page.url()).toBe(workspaceUrl);
   });
 });
+
+/**
+ * The day drawn on a map (`FV-026` stage c), through the whole stack.
+ *
+ * The panel's own logic is covered by 18 component assertions against a stubbed map. What those
+ * cannot reach is everything between them and the database: the endpoint, `dayRouteService`'s
+ * ordering, the service call, the hook, and a Leaflet instance that only exists in a real browser.
+ *
+ * The fixture is chosen to exercise the honest-refusal path as well as the happy one. Coorg is
+ * seeded **with null coordinates**, so a day holding it produces a route with a stop the map cannot
+ * draw — and `unmapped` is the field that has to say so. A journey with three mappable stops would
+ * have proved the drawing and not the admission.
+ */
+test.describe('a day, drawn', () => {
+  const auth = { Authorization: `Bearer ${state.tokens?.nonAdmin?.idToken}` };
+
+  /** Leave no rows behind: every spec in this suite shares one database. */
+  const clearTrips = async (request) => {
+    const listed = await request.get(`${PORTS.API_URL}/auth/trips`, { headers: auth });
+    if (!listed.ok()) return;
+    const { trips = [] } = await listed.json();
+    for (const trip of trips) {
+      await request.delete(`${PORTS.API_URL}/auth/trips/${trip.id}`, { headers: auth });
+    }
+  };
+
+  test.beforeEach(async ({ request }) => clearTrips(request));
+  test.afterAll(async ({ request }) => clearTrips(request));
+
+  test('the stops, the distance between them, and the one it could not place', async ({
+    page,
+    request
+  }) => {
+    // Set up through the API and assert through the browser. The write path already has its own
+    // coverage in `trips.spec.js`; what is under test here is the reading and the drawing.
+    const created = await request.post(`${PORTS.API_URL}/auth/trips`, {
+      headers: auth,
+      data: { title: 'Drawn day' }
+    });
+    expect(created.status()).toBe(201);
+    const { trip } = await created.json();
+
+    const workspace = await request.get(`${PORTS.API_URL}/auth/trips/${trip.id}`, {
+      headers: auth
+    });
+    const dayId = (await workspace.json()).trip.days[0].id;
+
+    // Hampi (15.335, 76.46) and Gokarna (14.55, 74.32) are ~250 km apart; Coorg is seeded with no
+    // coordinates at all, which is the case `unmapped` exists for.
+    for (const [position, place] of [
+      [0, { place_id: 1, title: 'Hampi ruins' }],
+      [1, { place_id: 2, title: 'Coorg, unplaceable' }],
+      [2, { place_id: 3, title: 'Gokarna beach' }]
+    ]) {
+      const added = await request.post(
+        `${PORTS.API_URL}/auth/trips/${trip.id}/days/${dayId}/items`,
+        { headers: auth, data: { ...place, position } }
+      );
+      expect(added.status()).toBe(201);
+    }
+
+    await signIn(page);
+    await page.goto(`/trips/${trip.id}`);
+
+    // Scoped to the region rather than the page, and that is the point of the region existing.
+    // Every day renders the same heading and the same button text, so an unscoped `getByText` for a
+    // stop name matches twice — once in the day's item list, once in the route panel — which is a
+    // real ambiguity for a screen reader before it is an inconvenience for a test.
+    const panel = page.getByRole('region', { name: 'Day 1 on a map' });
+    await expect(panel.getByRole('button', { name: /draw day 1/i })).toBeVisible();
+
+    // Nothing is drawn until it is asked for — six days on page load would be six routing lookups
+    // behind a panel the reader may never scroll to.
+    await expect(panel.getByText(/km, about/)).toHaveCount(0);
+
+    await panel.getByRole('button', { name: /draw day 1/i }).click();
+
+    // The two mappable stops, in the order the day lists them, with a real distance between them.
+    await expect(panel.getByText('Hampi ruins')).toBeVisible();
+    await expect(panel.getByText('Gokarna beach')).toBeVisible();
+    await expect(panel.getByText(/across 2 stops/)).toBeVisible();
+    await expect(panel.getByText(/km, about \d+ min/).first()).toBeVisible();
+
+    // The admission. A stop silently absent from a drawing is indistinguishable from a feature that
+    // did not notice it.
+    await expect(panel.getByText(/not linked to a place with coordinates/i)).toBeVisible();
+    await expect(panel.getByText(/Coorg, unplaceable/)).toBeVisible();
+
+    // With no OPENROUTESERVICE_API_KEY in this environment, every leg must be labelled an estimate
+    // and the assumptions named. A measured claim here would mean the client called a provider the
+    // suite never configured.
+    await expect(panel.getByText(/\(estimated\)/).first()).toBeVisible();
+    await expect(panel.getByText(/40 km\/h/)).toBeVisible();
+    await expect(panel.getByText(/OpenRouteService/)).toHaveCount(0);
+
+    // The map itself: `aria-hidden`, so it is addressed by test id rather than by role — which is
+    // the accessibility design working, not a workaround for it.
+    await expect(page.getByTestId('day-route-map-1')).toBeVisible();
+    await expect(page.locator('.leaflet-container')).toBeVisible();
+  });
+});

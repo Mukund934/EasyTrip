@@ -41,6 +41,14 @@ export function useTripWorkspace(tripId) {
   // asked about separately, and a second day's answer must not replace the first's.
   const [routeSuggestions, setRouteSuggestions] = useState({});
 
+  // Drawn routes, keyed by day id (`FV-026` stage c). Same shape and the same reason as the map
+  // above — and kept apart from it because they are different claims about a day. A suggestion says
+  // *this order could be shorter*; a route says *this is the order you have*. One is a proposal that
+  // goes stale the moment the day changes; so does the other, which is why both are cleared by the
+  // same writes.
+  const [dayRoutes, setDayRoutes] = useState({});
+  const [drawingDay, setDrawingDay] = useState(null);
+
   const refresh = useCallback(async () => {
     if (!tripId) return null;
     setError(null);
@@ -85,6 +93,10 @@ export function useTripWorkspace(tripId) {
         // Same reasoning, same danger: a suggestion computed from the old order is a set of moves
         // that no longer means what it says once the day has changed under it.
         setRouteSuggestions({});
+        // And the drawing, which is the most literal case of it: a line through the stops in their
+        // old order, still on screen beside the new order, is a picture of a day that no longer
+        // exists. A wrong map is read as fact faster than a wrong sentence is.
+        setDayRoutes({});
         // And the replan, for the sharpest version of it: applying one proposal changes the plan
         // every *other* proposal was computed against, so the rest of the list stops being true the
         // instant the first one is accepted. Clearing here is what makes that automatic — applying
@@ -176,6 +188,37 @@ export function useTripWorkspace(tripId) {
         // Cleared rather than kept: a stale suggestion beside an error reads as "still valid".
         setRouteSuggestions((current) => ({ ...current, [dayId]: null }));
         return null;
+      }
+    },
+    [tripId, getIdToken]
+  );
+
+  /**
+   * Fetch one day as it would be drawn (`FV-026` stage c).
+   *
+   * On demand and per day, for the reason the endpoint is shaped that way: drawing every day of a
+   * six-day trip on page load would put six routing lookups behind a panel the reader may never
+   * open. The user asks for the day they are looking at.
+   *
+   * A refusal is **stored**, not discarded. `{ drawable: false, reason, detail }` is an answer — the
+   * day is empty, or nothing on it has coordinates — and the panel renders the sentence. Only a
+   * thrown error clears the entry, so "there is nothing to draw" and "the request failed" stay
+   * distinguishable on screen.
+   */
+  const drawDay = useCallback(
+    async (dayId) => {
+      setDrawingDay(dayId);
+      try {
+        const token = await getIdToken();
+        const route = await tripService.getDayRoute(tripId, dayId, token);
+        setDayRoutes((current) => ({ ...current, [dayId]: route }));
+        return route;
+      } catch (drawError) {
+        setActionError(drawError);
+        setDayRoutes((current) => ({ ...current, [dayId]: null }));
+        return null;
+      } finally {
+        setDrawingDay(null);
       }
     },
     [tripId, getIdToken]
@@ -287,6 +330,9 @@ export function useTripWorkspace(tripId) {
     routeSuggestions,
     suggestRoute,
     applyRouteSuggestion,
+    dayRoutes,
+    drawingDay,
+    drawDay,
     updateTrip,
     addDay,
     removeDay,
