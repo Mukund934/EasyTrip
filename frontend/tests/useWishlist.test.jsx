@@ -255,3 +255,118 @@ describe('signing in imports what was saved before', () => {
     expect(window.localStorage.getItem(LIKES_STORAGE_KEY)).toBeNull();
   });
 });
+
+/**
+ * The hook must never write back a value it only read (`BUG-054`, Sprint 8.32).
+ *
+ * Found in the E2E suite rather than here: the persistence journey seeded four likes on a page that
+ * had already loaded, reloaded it, and got `[]` back. The seed was not lost by the read — it was
+ * overwritten by the **first page's own write**, which fires after the load that triggered it and
+ * carries the empty state the restore had just found.
+ *
+ * That echo is invisible in every single-actor test, because writing back what you read changes
+ * nothing you can observe. It is only a defect when somebody else touches the key in the window
+ * between the restore and the echo — another tab, or a fixture — and then it silently wins.
+ */
+describe('a page load does not write over what it did not change', () => {
+  test('restoring stored likes writes nothing back', async () => {
+    window.localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify([1, 2, 3]));
+    const write = jest.spyOn(Storage.prototype, 'setItem');
+
+    const { result } = renderHook(() => useWishlist());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    expect(result.current.savedIds).toEqual([1, 2, 3]);
+    // The restore reads the key and leaves it alone. Counting `setItem` calls rather than checking
+    // the value is the point: the echo wrote the *correct* value, so only the call is observable.
+    expect(write.mock.calls.filter(([key]) => key === LIKES_STORAGE_KEY)).toHaveLength(0);
+
+    write.mockRestore();
+  });
+
+  test('a first visit does not create the key just to say it is empty', async () => {
+    const { result } = renderHook(() => useWishlist());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    // Absent, not `"[]"`. A key that exists is a claim that something was stored.
+    expect(window.localStorage.getItem(LIKES_STORAGE_KEY)).toBeNull();
+    expect(result.current.savedIds).toEqual([]);
+  });
+
+  test('a value written by somebody else after the restore survives', async () => {
+    // The E2E failure, reproduced at this tier: the hook mounts on an empty key, and the fixture
+    // lands while the write effect is still pending. Before the fix, `[]` arrived afterwards.
+    const { result } = renderHook(() => useWishlist());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    window.localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify([7, 8]));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(stored()).toEqual([7, 8]);
+  });
+
+  test('the guard consults what the restore found, not the key as it stands now', async () => {
+    // **This is the assertion that distinguishes the fix from the near-miss.** The first attempt at
+    // it read the key again inside the write effect — `skip when the key is absent` — which looks
+    // equivalent and is not: by then something else has created the key, the guard sees it present,
+    // and `[]` goes straight over the top. A mutation reintroducing that phrasing survived every
+    // other test in this file, because none of them let the two values disagree.
+    //
+    // Here they disagree by construction: the key reports itself absent to the restore and present
+    // to anything that looks afterwards. That is the browser race with the timing removed.
+    const realGetItem = Storage.prototype.getItem;
+    let reads = 0;
+    const read = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(function (key) {
+      if (key !== LIKES_STORAGE_KEY) return realGetItem.call(this, key);
+      reads += 1;
+      return reads === 1 ? null : JSON.stringify([7, 8]);
+    });
+    const write = jest.spyOn(Storage.prototype, 'setItem');
+
+    const { result } = renderHook(() => useWishlist());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    expect(result.current.savedIds).toEqual([]);
+    expect(write.mock.calls.filter(([key]) => key === LIKES_STORAGE_KEY)).toHaveLength(0);
+
+    read.mockRestore();
+    write.mockRestore();
+  });
+
+  test('liking, unliking and liking again all persist', async () => {
+    // The round trip, because "write only what changed" needs the hook to keep track of what it
+    // last wrote — not just of what it first read. If it only remembers the restore, coming back to
+    // a value it restored looks like "nothing changed" and the write is skipped, so the third state
+    // here would silently keep the second one's storage.
+    window.localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify([1]));
+    const { result } = renderHook(() => useWishlist());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    await act(async () => {
+      await result.current.toggle(1);
+    });
+    expect(stored()).toEqual([]);
+
+    await act(async () => {
+      await result.current.toggle(1);
+    });
+    expect(stored()).toEqual([1]);
+  });
+
+  test('but unliking the last place still persists the empty list', async () => {
+    // The guard is "nothing to save and nowhere it was saved", not "nothing to save" — otherwise
+    // removing your only like would look saved and come back on the next load.
+    window.localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify([4]));
+    const { result } = renderHook(() => useWishlist());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    await act(async () => {
+      await result.current.toggle(4);
+    });
+
+    expect(result.current.savedIds).toEqual([]);
+    expect(stored()).toEqual([]);
+  });
+});
