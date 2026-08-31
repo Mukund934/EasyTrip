@@ -1,3 +1,5 @@
+const logger = require('../../utils/logger');
+
 /**
  * How a place write decides that a caller actually supplied a field (`BUG-055`).
  *
@@ -32,4 +34,26 @@ const isProvided = (value) => value !== undefined && value !== '';
 /** `{ key: value }` when the caller supplied it, `{}` when they did not — for spreading into a patch. */
 const provided = (key, value) => (isProvided(value) ? { [key]: value } : {});
 
-module.exports = { isProvided, provided };
+/**
+ * A collection field, however it crossed the wire.
+ *
+ * Multipart sends `themes`, `tags`, `custom_keys` and `best_months` as JSON **text**; a JSON client
+ * sends them as real arrays and objects. Both shapes are accepted, and an unparseable one falls back
+ * rather than throwing — a malformed `tags` should not take down an edit to a description.
+ *
+ * Moved here from `placeController` when `FV-028` needed the same conversion from a second module.
+ * It lives beside `isProvided` because they answer the two halves of one question: *did the caller
+ * supply this*, and *what did they actually mean by it*.
+ */
+const parseJsonField = (field, defaultValue) => {
+  if (!field) return defaultValue;
+
+  try {
+    return typeof field === 'string' ? JSON.parse(field) : field;
+  } catch (error) {
+    logger.warn({ err: error }, 'Could not parse JSON field; using raw value');
+    return defaultValue;
+  }
+};
+
+module.exports = { isProvided, provided, parseJsonField };

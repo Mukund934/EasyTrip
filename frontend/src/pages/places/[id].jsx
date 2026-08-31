@@ -24,6 +24,7 @@ import { PlaceSeoHead } from '../../components/place/PlaceSeoHead';
 import { PlaceLoadingState, PlaceErrorState } from '../../components/place/PlaceDetailStates';
 import { composeGallery, visiblePlaceSections } from '../../utils/placeDetail';
 import { hasAccessibilityInfo } from '../../constants/placeAccessibility';
+import { hasSeasonalityInfo } from '../../constants/placeSeasonality';
 import { getAverageRating } from '../../utils/rating';
 
 /**
@@ -75,7 +76,8 @@ export default function PlaceDetails({
     () =>
       visiblePlaceSections({
         hasImages: images.length > 0,
-        hasAccessibility: hasAccessibilityInfo(place)
+        hasAccessibility: hasAccessibilityInfo(place),
+        hasSeasonality: hasSeasonalityInfo(place)
       }),
     [images.length, place]
   );

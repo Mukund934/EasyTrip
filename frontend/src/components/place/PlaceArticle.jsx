@@ -7,6 +7,8 @@ import { MagazineDetails } from './MagazineDetails';
 import MagazineGallery from '../MagazineGallery';
 import RelatedPlaces from '../RelatedPlaces';
 import { PlaceAccessibility } from './PlaceAccessibility';
+import { PlaceSeasonality } from './PlaceSeasonality';
+import { hasSeasonalityInfo } from '../../constants/placeSeasonality';
 import { hasAccessibilityInfo } from '../../constants/placeAccessibility';
 
 /**
@@ -51,6 +53,16 @@ export const PlaceArticle = ({
           It is a registered section again as of `BL-139`: the table of contents now lists only the
           sections a place actually renders, so an "access" entry appears exactly when this panel
           does. Before that it would have been a dead anchor on every unsurveyed place. */}
+      {/* `FV-028`. Above accessibility because *when* is the question a reader asks first, and
+          `PLACE_SECTIONS` lists them in this order so the contents and the page agree. The panel
+          returns null when nothing is curated, and `visiblePlaceSections` uses the same predicate,
+          so the anchor and the section appear together. */}
+      {hasSeasonalityInfo(place) && (
+        <section id="when" className="scroll-mt-24">
+          <PlaceSeasonality place={place} />
+        </section>
+      )}
+
       {hasAccessibilityInfo(place) && (
         <section id="access" className="scroll-mt-24">
           <PlaceAccessibility place={place} />

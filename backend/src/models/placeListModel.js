@@ -19,6 +19,12 @@ const pool = require('../config/db');
 // the only seasonal data places actually carry. This used to have a hand-maintained twin in
 // browse.jsx's client-side filter; that copy is gone (IMP-046), so this is now the only
 // definition of what "summer" means and there is nothing left to keep in sync.
+const { SEASON_MONTHS: CURATED_SEASON_MONTHS } = require('../constants/placeSeasonality');
+
+// The same three seasons in the two shapes the two data sources need: a regex for the free-text
+// fallback, and month numbers for the curated column. Duplicated on purpose and guarded by the
+// tests that assert they agree — one is a way of reading prose, the other is a way of reading an
+// array, and neither can be expressed in the other's terms.
 const SEASON_MONTHS = {
   summer: 'april|may|june',
   monsoon: 'july|august|september',
@@ -40,6 +46,7 @@ const LIST_COLUMNS = `
   places.latitude, places.longitude, places.primary_image_url, places.themes, places.tags,
   places.custom_keys, places.rating_count, places.rating_sum, places.created_at, places.updated_at,
   places.step_free_access, places.accessibility_source,
+  places.best_months, places.crowd_level, places.typical_visit_minutes,
   to_char(places.accessibility_checked_on, 'YYYY-MM-DD') AS accessibility_checked_on`;
 
 // Three of the five accessibility columns, and the omissions follow the rule above rather than
@@ -185,12 +192,30 @@ const buildFilters = (criteria = {}) => {
 
   const seasonPattern = SEASON_MONTHS[date];
   if (seasonPattern) {
+    // **Curated months first, prose only as a fallback (`FV-028`, `BUG-056`).**
+    //
+    // The regex below cannot tell a recommendation from a warning: `lower('Avoid April') ~
+    // 'april|may|june'` is TRUE, so a place whose own note says to stay away in April was returned
+    // to somebody filtering for April. Measured, not suspected.
+    //
+    // `best_months` says which months are *good*, so the curated branch has no such failure mode.
+    // The fallback is kept, unchanged and still defective, for the rows nobody has curated —
+    // because the alternative is backfilling months out of the same prose, which is the identical
+    // guess wearing a schema. `FV-028`'s kill criterion: a blank field is acceptable, an invented
+    // one is not.
+    //
+    // A place with no `custom_keys` entry is still kept by the fallback, for the reason that branch
+    // has always given: a missing annotation is not evidence of a bad season.
+    params.push(CURATED_SEASON_MONTHS[date]);
+    const monthsParam = params.length;
     params.push(seasonPattern);
-    // A place with no recorded best time is kept rather than hidden: the filter narrows the
-    // list, it does not exclude everything that has not been annotated yet.
     where +=
-      ` AND (places.custom_keys->>'Best Time to Visit' IS NULL` +
-      ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length})`;
+      ` AND (` +
+      `(array_length(places.best_months, 1) IS NOT NULL AND places.best_months && $${monthsParam}::SMALLINT[])` +
+      ` OR (array_length(places.best_months, 1) IS NULL AND (` +
+      `places.custom_keys->>'Best Time to Visit' IS NULL` +
+      ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length}))` +
+      `)`;
   }
 
   return { where, params, searchParam };

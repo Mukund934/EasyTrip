@@ -5,6 +5,7 @@ import { StepNavigation } from './StepNavigation';
 import ImageUpload from '../../ImageUpload';
 import { SettingSelector } from '../SettingSelector';
 import { AccessibilitySurvey } from '../AccessibilitySurvey';
+import SeasonalitySurvey from '../SeasonalitySurvey';
 
 export const StepMediaThemes = ({ form }) => {
   const {
@@ -110,6 +111,11 @@ export const StepMediaThemes = ({ form }) => {
           step's `STEP_FIELDS`, so an unattributed claim stops the wizard here rather than surfacing
           as a rejected submit two steps later. */}
       <AccessibilitySurvey formData={formData} onChange={handleChange} />
+
+      {/* `FV-028`, on the same step and for the same reason: the API has accepted these fields on
+          create since this sprint, and a place with no control here stays uncurated until somebody
+          thinks to re-open it. `seasonality_source` is in this step's `STEP_FIELDS`. */}
+      <SeasonalitySurvey formData={formData} onChange={handleChange} />
 
       <StepNavigation
         onPrevious={() => goToStep(2)}

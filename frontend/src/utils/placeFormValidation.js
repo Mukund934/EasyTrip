@@ -8,6 +8,7 @@
  */
 
 import { surveyProblem } from '../constants/placeAccessibility';
+import { seasonalityProblem } from '../constants/placeSeasonality';
 
 /**
  * Which fields belong to which wizard step.
@@ -22,7 +23,7 @@ export const STEP_FIELDS = {
   // it belongs to the step that collects them (`BL-138`). Without it the wizard would let an
   // unattributed claim past step 3 and then refuse the final submit with a message keyed to a field
   // no visible step owns — blocked, with nothing on screen to explain it.
-  3: ['accessibility_source'],
+  3: ['accessibility_source', 'seasonality_source'],
   4: ['image']
 };
 
@@ -41,6 +42,12 @@ export const collectErrors = (formData, primaryImage) => {
   // everything. The database is still what makes it true — this only decides when to say so.
   const accessibility = surveyProblem(formData);
   if (accessibility) newErrors.accessibility_source = accessibility;
+
+  // FV-028. Same rule, same reason, different columns: `places_seasonality_is_attributed` refuses
+  // an unattributed claim, and meeting that as a 400 after typing everything is an obstacle rather
+  // than a rule.
+  const seasonality = seasonalityProblem(formData);
+  if (seasonality) newErrors.seasonality_source = seasonality;
 
   // Required fields
   if (!formData.name.trim()) {
@@ -142,5 +149,13 @@ export const emptyPlaceForm = () => ({
   accessible_restroom: 'unknown',
   accessibility_notes: '',
   accessibility_source: '',
-  accessibility_checked_on: ''
+  accessibility_checked_on: '',
+  // FV-028. `best_months` is `[]` and not `null`, matching the column: `buildPlaceFormData` drops
+  // null, so a cleared month list would send nothing and the API would keep the old months while
+  // the form showed none. `typical_visit_minutes` is '' because absent is genuinely what it is.
+  best_months: [],
+  crowd_level: 'unknown',
+  typical_visit_minutes: '',
+  seasonality_source: '',
+  seasonality_checked_on: ''
 });

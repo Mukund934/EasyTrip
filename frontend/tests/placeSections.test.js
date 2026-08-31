@@ -23,9 +23,24 @@ const ids = (sections) => sections.map((section) => section.id);
 
 describe('a place with everything', () => {
   test('lists every registered section, in the order the article renders them', () => {
-    const sections = visiblePlaceSections({ hasImages: true, hasAccessibility: true });
+    const sections = visiblePlaceSections({
+      hasImages: true,
+      hasAccessibility: true,
+      hasSeasonality: true
+    });
 
-    expect(ids(sections)).toEqual(['about', 'details', 'access', 'gallery', 'reviews', 'related']);
+    expect(ids(sections)).toEqual([
+      'about',
+      'details',
+      'when',
+      'access',
+      'gallery',
+      'reviews',
+      'related'
+    ]);
+    // The assertion that caught `FV-028` registering a section without teaching this test about it:
+    // "everything" has to mean every registered section, or the case quietly stops covering the
+    // newest one.
     expect(sections).toHaveLength(PLACE_SECTIONS.length);
   });
 });
@@ -41,6 +56,13 @@ describe('a place missing a section does not link to it', () => {
   test('nothing recorded about access means no access entry', () => {
     expect(ids(visiblePlaceSections({ hasImages: true, hasAccessibility: false }))).not.toContain(
       'access'
+    );
+  });
+
+  test('nothing curated about when to go means no "When To Go" entry', () => {
+    // `FV-028`, absent for the entire catalogue on the day it ships — exactly as `access` was.
+    expect(ids(visiblePlaceSections({ hasImages: true, hasSeasonality: false }))).not.toContain(
+      'when'
     );
   });
 
@@ -60,9 +82,11 @@ describe('a place missing a section does not link to it', () => {
     // drop them — a filter that over-reached would hide navigation rather than fix it.
     for (const hasImages of [true, false]) {
       for (const hasAccessibility of [true, false]) {
-        expect(ids(visiblePlaceSections({ hasImages, hasAccessibility }))).toEqual(
-          expect.arrayContaining(['about', 'details', 'reviews', 'related'])
-        );
+        for (const hasSeasonality of [true, false]) {
+          expect(
+            ids(visiblePlaceSections({ hasImages, hasAccessibility, hasSeasonality }))
+          ).toEqual(expect.arrayContaining(['about', 'details', 'reviews', 'related']));
+        }
       }
     }
   });

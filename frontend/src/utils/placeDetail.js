@@ -59,6 +59,7 @@ export const buildEditorialExcerpt = (place) =>
 export const PLACE_SECTIONS = [
   { id: 'about', title: 'About This Place' },
   { id: 'details', title: 'Essential Details' },
+  { id: 'when', title: 'When To Go' },
   { id: 'access', title: 'Getting In' },
   { id: 'gallery', title: 'Photo Gallery' },
   { id: 'reviews', title: 'Traveler Reviews' },
@@ -79,9 +80,12 @@ export const PLACE_SECTIONS = [
  * `useActiveSection` needs a **stable reference**, so callers must memoise the result: a fresh array
  * each render tears down and re-registers the observer every time.
  */
-export const visiblePlaceSections = ({ hasImages, hasAccessibility }) =>
+export const visiblePlaceSections = ({ hasImages, hasAccessibility, hasSeasonality }) =>
   PLACE_SECTIONS.filter((section) => {
     if (section.id === 'gallery') return Boolean(hasImages);
     if (section.id === 'access') return Boolean(hasAccessibility);
+    // `FV-028`. Absent for the whole catalogue on the day it ships, exactly as `access` was, and
+    // registered here for the same reason: the contents must list what the page renders.
+    if (section.id === 'when') return Boolean(hasSeasonality);
     return true;
   });

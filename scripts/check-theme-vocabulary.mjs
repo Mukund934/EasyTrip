@@ -75,9 +75,28 @@ const ACCESSIBILITY_LISTS = [
   { name: 'ACCESSIBILITY_SOURCES', label: 'accessibility sources' }
 ];
 
-for (const { name, label } of ACCESSIBILITY_LISTS) {
-  const fe = listFrom('frontend/src/constants/placeAccessibility.js', name);
-  const be = listFrom('backend/src/constants/placeAccessibility.js', name);
+/**
+ * The two `FV-028` vocabularies, held to the same rule for the same reason.
+ *
+ * `crowd_level` backs `places_crowd_level_known` and `seasonality_source` backs
+ * `places_seasonality_source_known`, so a value only the frontend knows is a 500 from the database
+ * rather than a rejected request. The stakes are lower than `FV-029`'s — a wrong crowd level is a
+ * disappointing afternoon, not a wasted journey — but the failure mode is identical, and two
+ * adjacent vocabularies with different guarantees is worse than one rule applied four times.
+ */
+const SEASONALITY_LISTS = [
+  { name: 'CROWD_LEVELS', label: 'crowd levels' },
+  { name: 'SEASONALITY_SOURCES', label: 'seasonality sources' }
+];
+
+const PAIRED_LISTS = [
+  ...ACCESSIBILITY_LISTS.map((list) => ({ ...list, module: 'placeAccessibility' })),
+  ...SEASONALITY_LISTS.map((list) => ({ ...list, module: 'placeSeasonality' }))
+];
+
+for (const { name, label, module } of PAIRED_LISTS) {
+  const fe = listFrom(`frontend/src/constants/${module}.js`, name);
+  const be = listFrom(`backend/src/constants/${module}.js`, name);
 
   if (fe.length === 0 || be.length === 0) {
     console.error(`  EMPTY  ${label} parsed to nothing — the guard would pass vacuously`);
@@ -135,7 +154,9 @@ const sameOrder = frontend.join(',') === backend.join(',');
 if (missing.length === 0 && extra.length === 0 && sameOrder) {
   console.log(
     `  OK  both tiers declare the same ${frontend.length} theme ids, the same ` +
-      `${feSettings.length} place settings and the same 2 accessibility vocabularies, ` +
+      // Counted from `PAIRED_LISTS` rather than typed, so adding a vocabulary cannot leave this
+      // line claiming a number it no longer checks.
+      `${feSettings.length} place settings and the same ${PAIRED_LISTS.length} paired vocabularies, ` +
       `in the same order`
   );
   process.exit(0);
