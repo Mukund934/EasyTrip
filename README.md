@@ -129,7 +129,7 @@
 
 ### 🧪 Engineering
 
-- ✅ **1,472 assertions across three layers** – 753 API tests against a real PostgreSQL, 578 component tests, and 141 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. Measured at Sprint 8.43, by running all three suites; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,500 assertions across three layers** – 771 API tests against a real PostgreSQL, 588 component tests, and 141 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. Measured at Sprint 8.44, by running all three suites; reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
@@ -550,21 +550,22 @@ The table below is the complete set of Express routes the backend actually regis
 
 ### Places - public reads
 
-| Method | Endpoint                      | Auth | Description                                                                                                                                                |
-| ------ | ----------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/places`                     | -    | List places. Filters: `searchTerm`, `location`, `district`, `state`, `tags`, `themes`, `minRating`, `date`. Paged with `limit`/`offset`, ordered by `sort` |
-| GET    | `/places/search`              | -    | The same handler under a second name                                                                                                                       |
-| GET    | `/places/suggest`             | -    | Typeahead suggestions (`q`, `limit` up to 10)                                                                                                              |
-| GET    | `/places/locations`           | -    | Distinct locations                                                                                                                                         |
-| GET    | `/places/districts`           | -    | Distinct districts                                                                                                                                         |
-| GET    | `/places/states`              | -    | Distinct states                                                                                                                                            |
-| GET    | `/places/tags`                | -    | Distinct tags                                                                                                                                              |
-| GET    | `/places/:id`                 | -    | One place                                                                                                                                                  |
-| GET    | `/places/:id/image`           | -    | Primary image (redirect, with an SVG placeholder fallback)                                                                                                 |
-| GET    | `/places/:id/images`          | -    | Gallery images                                                                                                                                             |
-| GET    | `/places/:id/images/:imageId` | -    | Same handler as `/places/:id/image`                                                                                                                        |
-| GET    | `/places/:id/weather`         | -    | Live forecast for that place's own coordinates. Deliberately **not** `?lat=&lon=`, which would be an open proxy to a third party at our IP                 |
-| GET    | `/places/:id/reviews`         | -    | Reviews. Soft-authenticated: your own review is flagged for the edit UI, but no author id is ever returned                                                 |
+| Method | Endpoint                      | Auth | Description                                                                                                                                                              |
+| ------ | ----------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/places`                     | -    | List places. Filters: `searchTerm`, `location`, `district`, `state`, `tags`, `themes`, `minRating`, `date`. Paged with `limit`/`offset`, ordered by `sort`               |
+| GET    | `/places/search`              | -    | The same handler under a second name                                                                                                                                     |
+| GET    | `/places/suggest`             | -    | Typeahead suggestions (`q`, `limit` up to 10)                                                                                                                            |
+| GET    | `/places/locations`           | -    | Distinct locations                                                                                                                                                       |
+| GET    | `/places/districts`           | -    | Distinct districts                                                                                                                                                       |
+| GET    | `/places/states`              | -    | Distinct states                                                                                                                                                          |
+| GET    | `/places/tags`                | -    | Distinct tags                                                                                                                                                            |
+| GET    | `/places/:id`                 | -    | One place                                                                                                                                                                |
+| GET    | `/places/:id/image`           | -    | Primary image (redirect, with an SVG placeholder fallback)                                                                                                               |
+| GET    | `/places/:id/images`          | -    | Gallery images                                                                                                                                                           |
+| GET    | `/places/:id/images/:imageId` | -    | Same handler as `/places/:id/image`                                                                                                                                      |
+| GET    | `/places/:id/quieter-nearby`  | -    | Places nearby that somebody judged **quieter than this one**. Empty unless both ends have a curated crowd level - a comparison needs two known values (`FV-028` stage c) |
+| GET    | `/places/:id/weather`         | -    | Live forecast for that place's own coordinates. Deliberately **not** `?lat=&lon=`, which would be an open proxy to a third party at our IP                               |
+| GET    | `/places/:id/reviews`         | -    | Reviews. Soft-authenticated: your own review is flagged for the edit UI, but no author id is ever returned                                                               |
 
 ### Reviews - writes
 

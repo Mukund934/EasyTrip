@@ -27,6 +27,7 @@ const {
 } = require('../config/cloudinary');
 
 // Re-exported so `placeRoutes.js` keeps a single import and the surface stays identical.
+const alternatives = require('./placeAlternativesController');
 const images = require('./placeImageController');
 const reviews = require('./placeReviewController');
 const taxonomy = require('./placeTaxonomyController');
@@ -486,6 +487,7 @@ module.exports = {
   createPlace,
   updatePlace,
   deletePlace,
+  ...alternatives,
   ...images,
   ...reviews,
   ...taxonomy

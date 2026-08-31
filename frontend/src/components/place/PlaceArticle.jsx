@@ -8,6 +8,7 @@ import MagazineGallery from '../MagazineGallery';
 import RelatedPlaces from '../RelatedPlaces';
 import { PlaceAccessibility } from './PlaceAccessibility';
 import { PlaceSeasonality } from './PlaceSeasonality';
+import { QuieterNearby } from './QuieterNearby';
 import { hasSeasonalityInfo } from '../../constants/placeSeasonality';
 import { hasAccessibilityInfo } from '../../constants/placeAccessibility';
 
@@ -104,6 +105,12 @@ export const PlaceArticle = ({
 
       {/* Related Places */}
       <section id="related" className="scroll-mt-24">
+        {/* `FV-028` stage (c). Inside the existing section on purpose: it renders nothing for a
+            place with no quieter neighbour, which is every place today, so giving it an anchor of
+            its own would mean a table-of-contents entry pointing at nothing - the exact defect
+            `BL-139` fixed. Nothing to register, nothing to gate, nothing to go stale. */}
+        <QuieterNearby placeId={place.id} />
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

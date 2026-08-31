@@ -47,6 +47,14 @@ router.get('/places/tags', placeController.getTags);
 router.get('/places/:id', placeController.getPlaceById);
 router.get('/places/:id/image', placeController.getPlaceImage);
 router.get('/places/:id/images', placeController.getPlaceImages);
+// `FV-028` stage (c). Public and read-only. Returns [] rather than 404 when the place has no curated
+// crowd level - "nobody has judged this" is an answer, not a missing resource.
+router.get(
+  '/places/:id/quieter-nearby',
+  placeIdParam,
+  handleValidationErrors,
+  placeController.getQuieterNearby
+);
 // Real weather (`IMP-110`), keyed on the place's own coordinates. Public: the forecast at a
 // tourist site is not private, and the page is server-rendered for crawlers. Deliberately NOT
 // `?lat=&lon=` — that would be an open proxy to a third party at our rate limit, from our IP.

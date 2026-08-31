@@ -111,6 +111,15 @@ export const fetchPlaceById = async (id, options = {}) => request(`/places/${id}
 export const fetchPlaceImages = async (id, options = {}) =>
   request(`/places/${id}/images`, options);
 
+/**
+ * Quieter places near this one (`FV-028` stage c).
+ *
+ * Returns `{ data: [] }` for almost every place, and that is the designed answer rather than a
+ * failure: "less crowded" is a relation, so it needs a curated crowd level at both ends.
+ */
+export const fetchQuieterNearby = async (id, options = {}) =>
+  request(`/places/${id}/quieter-nearby`, options);
+
 export const fetchPlaceReviews = async (id, options = {}) =>
   request(`/places/${id}/reviews`, options);
 
