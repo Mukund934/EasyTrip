@@ -27,18 +27,6 @@ test.skip(
   `Firebase Auth Emulator unavailable — ${state.reason || 'reason not recorded'}`
 );
 
-/** Put a real ID token where the SSR admin gate looks for it. */
-const signIn = async (context, identity) => {
-  await context.addCookies([
-    {
-      name: 'et_id_token',
-      value: state.tokens[identity].idToken,
-      domain: '127.0.0.1',
-      path: '/'
-    }
-  ]);
-};
-
 /**
  * Ask the Next server for a page **without following redirects**, and read the gate's own answer.
  *
@@ -59,6 +47,32 @@ const gateDecision = async (request, path, identity) => {
   return { status: response.status(), location: response.headers()['location'] ?? null };
 };
 
+/**
+ * Sign in the way an admin does — the real form, the real SDK, the real emulator (`TD-024`).
+ *
+ * **The cookie alone is not a browser session, and two tests here were quietly relying on it being
+ * one.** A helper that only did `addCookies` used to live here; it satisfied the *server*, because
+ * `getServerSideProps` reads `et_id_token` and lets the request through. The **client** then mounts,
+ * `useAuth()` finds no user, and the page's own `useEffect` guard redirects to `/login` — measured
+ * at roughly five seconds. It is deleted rather than kept beside this one: two helpers named for the
+ * same act, one of which produces a half-signed-in page, is how the wrong one gets picked.
+ *
+ * So `expect(page).toHaveURL(/\/admin$/)` was a race against that bounce. It resolves on the first
+ * poll that matches, so it passed whenever the check landed inside the window and failed when it did
+ * not, and `TD-024` changed the timing by putting an emulator round trip into auth resolution. It
+ * failed once in a full run on 2026-08-31 and is recorded in `NOTES` §92.
+ *
+ * The fix is not a longer timeout or a narrower assertion — it is to actually sign in, which is the
+ * thing this file could not do until Sprint 8.30 and the gap `TD-020` stayed open for.
+ */
+const signInThroughTheForm = async (page) => {
+  await page.goto('/login');
+  await page.locator('#email').fill('e2e-admin@easytrip.test');
+  await page.locator('#password').fill('e2e-password');
+  await page.getByRole('button', { name: /^sign in$/i }).click();
+  await page.waitForURL('http://127.0.0.1:3100/', { timeout: 20_000 });
+};
+
 test.describe('a real admin is allowed through', () => {
   test('the server-side gate lets the request through (200, no redirect)', async ({ request }) => {
     // The allow path. Until now every admin assertion in this suite proved a *denial*, which means
@@ -69,22 +83,30 @@ test.describe('a real admin is allowed through', () => {
     expect(location).toBeNull();
   });
 
-  test('and the page renders in a browser', async ({ page, context }) => {
-    await signIn(context, 'admin');
+  test('and the page renders in a browser', async ({ page }) => {
+    await signInThroughTheForm(page);
     await page.goto('/admin');
 
     await expect(page).toHaveURL(/\/admin$/);
+    // The assertion that makes the first one mean something: the page is still there after the
+    // client has had time to bounce it. Without a real session it reliably is not.
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
   });
 
-  test('the manage-places page renders the seeded catalogue', async ({ page, context }) => {
+  test('the manage-places page renders the seeded catalogue', async ({ page }) => {
     // Proves the authenticated identity survives past the gate into a page that actually queries
-    // the API — frontend and backend agreeing about who the caller is.
-    await signIn(context, 'admin');
+    // the API — frontend and backend agreeing about who the caller is. Through a real sign-in, so
+    // the catalogue it renders is fetched with a token the client itself holds.
+    await signInThroughTheForm(page);
     await page.goto('/admin/managePlaces');
 
     await expect(page).toHaveURL(/managePlaces/);
-    await expect(page.getByText('Hampi').first()).toBeVisible();
+    // `visible: true`, not `.first()`. The page renders a mobile list and a desktop table and hides
+    // one by CSS, so the first match in DOM order is the hidden one — which only became reachable
+    // once a real sign-in made the page fetch anything at all. Asserting on a hidden element would
+    // be asserting that the markup exists rather than that an admin can see the catalogue.
+    await expect(page.getByText('Hampi').filter({ visible: true }).first()).toBeVisible();
   });
 
   test('the API answers check-admin true for the same token', async ({ request }) => {

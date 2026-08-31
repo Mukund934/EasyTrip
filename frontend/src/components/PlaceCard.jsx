@@ -16,6 +16,7 @@ import {
 
 import { getPlaceImageUrl } from '../utils/placeImage';
 import { formatAverageRating, getRatingCount, getAverageRating } from '../utils/rating';
+import AccessibilityBadge from './AccessibilityBadge';
 import { formatDateShort } from '../utils/dateFormat';
 
 const PlaceCard = ({ place, priority = false }) => {
@@ -306,6 +307,14 @@ const PlaceCard = ({ place, priority = false }) => {
               ) : null}
             </div>
           )}
+
+          {/* Step-free access (`FV-029`). Bottom-left, clear of the theme chips top-left and the
+              location badge top-right, and above the gradient so the date stays readable. Renders
+              nothing at all for an unsurveyed place — an absent badge means nobody checked, and a
+              greyed-out one would read as a verdict. */}
+          <div className="absolute bottom-3 left-3 z-20">
+            <AccessibilityBadge place={place} />
+          </div>
 
           {/* Location Badge */}
           {(place.state || place.district) && (

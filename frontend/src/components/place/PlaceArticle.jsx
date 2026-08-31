@@ -6,6 +6,7 @@ import { PlaceArticleSkeleton } from './PlaceDetailStates';
 import { MagazineDetails } from './MagazineDetails';
 import MagazineGallery from '../MagazineGallery';
 import RelatedPlaces from '../RelatedPlaces';
+import { PlaceAccessibility } from './PlaceAccessibility';
 
 /**
  * The article column — the five sections the table of contents lists, in order.
@@ -39,6 +40,17 @@ export const PlaceArticle = ({
       <section id="details" className="scroll-mt-24">
         <MagazineDetails customKeys={place.custom_keys} themes={place.themes} />
       </section>
+
+      {/* Getting in (`FV-029`). Between the details and the gallery, because it is a fact about the
+          place rather than a picture of it — and early on a phone, which is where somebody who needs
+          it will look first. Renders nothing when nothing has been recorded.
+          
+          **Deliberately not a `<section id>`.** Every id here is a `PLACE_SECTIONS` entry and the
+          table of contents renders those unconditionally, so an "access" link would be a dead
+          anchor on every place nobody has surveyed — which today is all of them. It becomes worth
+          registering once the catalogue has coverage, and `BL-139` records the ToC change that
+          would need to come first. */}
+      <PlaceAccessibility place={place} />
 
       {/* Image Gallery */}
       {images.length > 0 && (

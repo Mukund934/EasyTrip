@@ -13,7 +13,6 @@ import {
   FiMapPin,
   FiLayers,
   FiTag,
-  FiCalendar,
   FiStar,
   FiCheck,
   FiSliders,
@@ -22,7 +21,9 @@ import {
 } from 'react-icons/fi';
 
 import FilterSection from './FilterSection';
-import { themeOptions, dateOptions } from './browseOptions';
+import { themeOptions } from './browseOptions';
+import AccessFilterSection from './AccessFilterSection';
+import SeasonFilterSection from './SeasonFilterSection';
 
 // The single deliberate exception to the one-date-policy rule, and the only one in the app.
 // `utils/dateFormat.js` pins the zone to UTC because a *stored* timestamp must read identically for
@@ -60,7 +61,8 @@ const BrowseFilterPanel = ({
     themes: selectedThemes,
     tags: selectedTags,
     date: selectedDate,
-    minRating: ratingFilter
+    minRating: ratingFilter,
+    stepFree
   } = filters;
   const {
     setSearchTerm,
@@ -69,6 +71,7 @@ const BrowseFilterPanel = ({
     setSelectedState,
     setSelectedDate,
     setRatingFilter,
+    setStepFree,
     handleThemeToggle,
     handleTagToggle
   } = setters;
@@ -280,38 +283,19 @@ const BrowseFilterPanel = ({
             </div>
           </FilterSection>
 
-          <FilterSection
-            title="Best Time to Visit"
-            icon={<FiCalendar className="text-primary-600" />}
+          <SeasonFilterSection
+            value={selectedDate}
+            onChange={setSelectedDate}
             collapsed={collapsedSections.date}
             onToggle={() => toggleSection('date')}
-          >
-            <div className="grid grid-cols-2 gap-2">
-              {dateOptions.map((option) => (
-                <motion.button
-                  key={option.id}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => setSelectedDate(option.id)}
-                  className={`py-2 px-3 rounded-md text-sm flex items-center justify-between ${
-                    selectedDate === option.id
-                      ? 'bg-primary-100 text-primary-800 border border-primary-300'
-                      : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <span className="mr-2">{option.icon}</span>
-                    <span>{option.label}</span>
-                  </div>
-                  {selectedDate === option.id && (
-                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <FiCheck className="h-4 w-4 text-primary-600" />
-                    </motion.span>
-                  )}
-                </motion.button>
-              ))}
-            </div>
-          </FilterSection>
+          />
+
+          <AccessFilterSection
+            value={stepFree}
+            onChange={setStepFree}
+            collapsed={collapsedSections.access}
+            onToggle={() => toggleSection('access')}
+          />
 
           <FilterSection
             title="Rating"
