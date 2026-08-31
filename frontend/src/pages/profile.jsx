@@ -6,12 +6,19 @@ import { toast } from 'react-toastify';
 import { FiUser, FiMapPin, FiCalendar, FiSave } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import MyReviews from '../components/profile/MyReviews';
+import AccessNeeds from '../components/AccessNeeds';
 
 export default function Profile() {
   const { currentUser, loading: authLoading, updateProfile, getIdToken } = useAuth();
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [dob, setDob] = useState('');
+  // `FV-029` stage (c). One object rather than two booleans: they are submitted together, loaded
+  // together, and the profile form sends itself whole — so they behave as one field.
+  const [accessNeeds, setAccessNeeds] = useState({
+    requires_step_free: false,
+    requires_accessible_restroom: false
+  });
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -54,6 +61,13 @@ export default function Profile() {
         setDob(
           (current) => current || (data.dob ? new Date(data.dob).toISOString().split('T')[0] : '')
         );
+        // Assigned rather than `current ||`-ed like the two above. `false` is a real stored value,
+        // and the "keep what the user has already typed" guard those use would make an unchecked
+        // box impossible to distinguish from an unloaded one.
+        setAccessNeeds({
+          requires_step_free: Boolean(data.requires_step_free),
+          requires_accessible_restroom: Boolean(data.requires_accessible_restroom)
+        });
       } catch (error) {
         // Non-fatal: the form still works, it just starts empty. Failing loudly here would block
         // editing over a transient network error.
@@ -76,7 +90,8 @@ export default function Profile() {
       const result = await updateProfile({
         name,
         location,
-        dob
+        dob,
+        ...accessNeeds
       });
 
       if (result.success) {
@@ -202,6 +217,13 @@ export default function Profile() {
                     />
                   </div>
                 </div>
+
+                <AccessNeeds
+                  values={accessNeeds}
+                  onChange={(name, checked) =>
+                    setAccessNeeds((current) => ({ ...current, [name]: checked }))
+                  }
+                />
 
                 {/* Submit Button */}
                 <div className="flex justify-end">

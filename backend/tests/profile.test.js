@@ -209,3 +209,103 @@ describe('check-admin when the caller has no database row', () => {
     expect(res.body.isAdmin).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// What a traveller needs, as opposed to what a place offers (`FV-029` stage c)
+// ---------------------------------------------------------------------------
+describe('stated access needs', () => {
+  const profile = async () =>
+    (
+      await pool.query(
+        'SELECT requires_step_free, requires_accessible_restroom FROM users WHERE firebase_uid = $1',
+        [USER.uid]
+      )
+    ).rows[0];
+
+  const save = (body) => request(app).put('/api/auth/profile').set(asUser).send(body);
+
+  test('every existing traveller starts with no stated requirement', async () => {
+    // `FALSE`, not `NULL`, and it is the only safe default: a `TRUE` default would give every
+    // traveller in the catalogue warnings they never asked for, and teaching people to dismiss
+    // accessibility warnings is worse than not showing them.
+    expect(await profile()).toEqual({
+      requires_step_free: false,
+      requires_accessible_restroom: false
+    });
+  });
+
+  test('the profile route returns them, so a client can render what it will send back', async () => {
+    const response = await request(app).get('/api/auth/profile').set(asUser);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      requires_step_free: false,
+      requires_accessible_restroom: false
+    });
+  });
+
+  test('a traveller can state a requirement', async () => {
+    await save({ name: 'Tom Traveller', requires_step_free: true }).expect(200);
+    expect(await profile()).toMatchObject({ requires_step_free: true });
+  });
+
+  test('and can take it back, which is why false is a real value here', async () => {
+    // The assertion that pins `optional({ values: 'null' })`. Under `values: 'falsy'` — which every
+    // other optional rule on this route uses — `false` is indistinguishable from an absent key, so
+    // a requirement could be set and never removed.
+    await save({ name: 'Tom Traveller', requires_step_free: true }).expect(200);
+    await save({ name: 'Tom Traveller', requires_step_free: false }).expect(200);
+    expect(await profile()).toMatchObject({ requires_step_free: false });
+  });
+
+  test('a client that does not know about the fields cannot reset them', async () => {
+    // The profile form submits itself whole, so an absent key means "this client has not heard of
+    // the field" rather than "clear it". `COALESCE` is deliberately the opposite of what
+    // `updatePlace` does, for the opposite reason (`BUG-048`): a place patch is sparse by design.
+    await save({ name: 'Tom Traveller', requires_accessible_restroom: true }).expect(200);
+    await save({ name: 'Renamed', location: 'Bengaluru' }).expect(200);
+
+    expect(await profile()).toMatchObject({ requires_accessible_restroom: true });
+  });
+
+  test('the two needs are independent', async () => {
+    await save({
+      name: 'Tom Traveller',
+      requires_step_free: true,
+      requires_accessible_restroom: false
+    }).expect(200);
+
+    expect(await profile()).toEqual({
+      requires_step_free: true,
+      requires_accessible_restroom: false
+    });
+  });
+
+  test.each(['maybe', 2, 'sometimes'])('%p is rejected rather than coerced', async (value) => {
+    const response = await save({ name: 'Tom Traveller', requires_step_free: value });
+    expect(response.status).toBe(400);
+    expect(await profile()).toMatchObject({ requires_step_free: false });
+  });
+
+  test('it is not exposed on any public route', async () => {
+    // Health-adjacent personal data, handled exactly as `dob` is (migration 002). A place page
+    // carries reviews written by this user, so it is the realistic place for a leak.
+    await save({ name: 'Tom Traveller', requires_step_free: true }).expect(200);
+
+    const place = await request(app).get('/api/places/1');
+    expect(place.status).toBe(200);
+    expect(JSON.stringify(place.body)).not.toContain('requires_step_free');
+
+    const list = await request(app).get('/api/places');
+    expect(JSON.stringify(list.body)).not.toContain('requires_step_free');
+  });
+
+  test('another traveller cannot read or write them', async () => {
+    await save({ name: 'Tom Traveller', requires_step_free: true }).expect(200);
+
+    const other = await request(app).get('/api/auth/profile').set(asGhost);
+    expect(other.status).toBe(200);
+    // The ghost is provisioned on first read and gets its own row, not this one's.
+    expect(other.body.requires_step_free).toBe(false);
+    expect(await profile()).toMatchObject({ requires_step_free: true });
+  });
+});

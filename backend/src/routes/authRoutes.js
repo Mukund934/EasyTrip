@@ -26,6 +26,16 @@ const profileRules = [
     .trim()
     .isLength({ max: 120 })
     .withMessage('Location must be at most 120 characters'),
+  // `FV-029` stage (c). `values: 'null'` rather than `'falsy'`, and the distinction is the whole
+  // point: `false` is a real answer here — it is how somebody *removes* a stated requirement — and
+  // `optional({ values: 'falsy' })` would silently drop it, leaving the requirement set forever.
+  ...['requires_step_free', 'requires_accessible_restroom'].map((field) =>
+    body(field)
+      .optional({ values: 'null' })
+      .isBoolean()
+      .withMessage(`${field} must be true or false`)
+      .toBoolean()
+  ),
   body('dob')
     .optional({ values: 'falsy' })
     .isISO8601()
