@@ -436,3 +436,58 @@ describe('what a card is given to render a badge with', () => {
     expect(detail.body.accessible_restroom).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Erasing a note (`BL-140`)
+// ---------------------------------------------------------------------------
+describe('a saved note can be taken back', () => {
+  beforeEach(async () => {
+    await edit({ accessibility_notes: 'The lift was out of order in August.' }).expect(200);
+  });
+
+  test('a cleared textarea erases it', async () => {
+    // The defect this closes was mine: `isProvided` reads `''` as "the caller said nothing", which
+    // `BUG-055` needed for the constrained columns and which made a note impossible to remove. A
+    // wrong note that cannot be erased is worse than one that was never recorded.
+    await edit({ accessibility_notes: '' }).expect(200);
+    expect((await row()).accessibility_notes).toBe('');
+  });
+
+  test('and omitting the field still leaves it alone', async () => {
+    // The other half. `''` is a value; absence is still absence, or every unrelated edit would wipe
+    // the notes.
+    await edit({ name: 'Renamed' }).expect(200);
+    expect((await row()).accessibility_notes).toBe('The lift was out of order in August.');
+  });
+
+  test('erasing a note does not disturb a claim beside it', async () => {
+    await edit(A_SURVEY).expect(200);
+    await edit({ accessibility_notes: '' }).expect(200);
+
+    // Notes are not part of `places_accessibility_is_attributed`, so clearing them cannot make an
+    // attributed claim unattributed — asserted rather than assumed, because the constraint is what
+    // would reject the whole edit if it could.
+    expect(await row()).toMatchObject({
+      accessibility_notes: '',
+      step_free_access: 'yes',
+      accessibility_source: 'site_visit'
+    });
+  });
+
+  test('the constrained fields still read an empty string as silence (BUG-055)', async () => {
+    // The rule is per column *kind*, not global. An empty `step_free_access` must stay absence:
+    // passing `''` to a CHECK-constrained column is the 500 `BUG-055` was.
+    const response = await edit({ ...A_SURVEY, step_free_access: '', accessible_restroom: '' });
+
+    expect(response.status).toBe(200);
+    expect(await row()).toMatchObject({ step_free_access: 'unknown' });
+  });
+
+  test('an empty check date is silence too, because a DATE cannot parse one', async () => {
+    await edit(A_SURVEY).expect(200);
+    const response = await edit({ accessibility_checked_on: '' });
+
+    expect(response.status).toBe(200);
+    expect((await row()).accessibility_checked_on).toBe('2026-08-01');
+  });
+});

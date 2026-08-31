@@ -24,6 +24,30 @@ const ACCESSIBILITY_KEYS = [
 ];
 
 /**
+ * The one field of the five where an empty string is a **value** rather than an absence
+ * (`BL-140`).
+ *
+ * `isProvided` treats `''` as "the caller said nothing", which is what `BUG-055` needed: an
+ * untouched `<select>` submits `name=""`, and passing that to a column with a `CHECK` constraint is
+ * a 500 on an ordinary edit. Three of these columns are constrained and the fourth is a `DATE` that
+ * `''` cannot parse into, so all four must keep that reading.
+ *
+ * **`accessibility_notes` is free text, and applying the same rule to it was a mistake of mine.**
+ * It made a saved note impossible to erase: a cleared textarea submits `''`, which was read as
+ * silence, so the old note survived every attempt to remove it. It is also inconsistent with the
+ * file it sits beside — `updatePlace` writes `description !== undefined`, so an empty description
+ * has always cleared the field.
+ *
+ * So the rule is per column *kind*, not global: an empty string is absence where the database would
+ * reject it, and a value where the database accepts it.
+ */
+const CLEARABLE_KEYS = new Set(['accessibility_notes']);
+
+/** Did the caller supply this particular field? */
+const suppliedFor = (key, value) =>
+  CLEARABLE_KEYS.has(key) ? value !== undefined : isProvided(value);
+
+/**
  * What a create should write.
  *
  * Defaults rather than pass-through for the two enumerated axes: a create that omits accessibility
@@ -55,11 +79,12 @@ const accessibilityForCreate = (body = {}) => ({
  * database would reject the whole edit — a rejected description change with a message about
  * accessibility, which is the kind of error nobody can act on.
  *
- * So absence means *leave the survey alone*, and it is expressed by the key not being there.
+ * So absence means *leave the survey alone*, and it is expressed by the key not being there — for
+ * every field except the notes, where an empty string is how a note is erased (`CLEARABLE_KEYS`).
  */
 const accessibilityPatch = (body = {}) =>
   Object.fromEntries(
-    ACCESSIBILITY_KEYS.filter((key) => isProvided(body[key])).map((key) => [key, body[key]])
+    ACCESSIBILITY_KEYS.filter((key) => suppliedFor(key, body[key])).map((key) => [key, body[key]])
   );
 
 module.exports = { ACCESSIBILITY_KEYS, accessibilityForCreate, accessibilityPatch };
