@@ -327,6 +327,26 @@ const checklistLabelRule = (required) =>
     .isLength({ min: 1, max: 200 })
     .withMessage('A checklist label must be between 1 and 200 characters');
 
+// `FV-006` stage (d). POST because it creates a trip; nested under the source so ownership is proved
+// by the same query everything else here uses. The optional title is validated with the same rule a
+// new trip's is - a copy is a trip, and a 201-character name must fail the same way.
+router.post(
+  '/trips/:tripId/duplicate',
+  isAuthenticated,
+  [
+    idParam('tripId'),
+    body('title')
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage('A trip needs a title')
+      .bail()
+      .isLength({ max: 200 })
+  ],
+  handleValidationErrors,
+  tripWorkspaceController.duplicateTrip
+);
+
 // `FV-009` stage (c), the owner's half. The public half is NOT here - it is on the unauthenticated
 // router, because the whole point is that the reader is not signed in. POST both creates and
 // **rotates**: somebody who thinks a link has spread further than they meant should not have to find

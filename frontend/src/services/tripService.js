@@ -325,6 +325,27 @@ const exportCalendar = async (tripId, token) => {
   }
 };
 
+/**
+ * Duplicate a trip (`FV-006` stage d).
+ *
+ * Returns the **new** trip, so the caller can navigate straight to it rather than re-fetching the
+ * list and guessing which one is the copy.
+ */
+const duplicateTrip = async (tripId, token, title) => {
+  try {
+    const { data } = await apiClient.post(
+      `/auth/trips/${tripId}/duplicate`,
+      // Omitted rather than sent empty: the server defaults to "Copy of <title>", and sending `null`
+      // would be a caller asking for a blank name.
+      title ? { title } : {},
+      authed(token)
+    );
+    return data?.trip ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not duplicate this trip');
+  }
+};
+
 // ---------------------------------------------------------------------------
 // The read-only share link (`FV-009` stage c)
 // ---------------------------------------------------------------------------
@@ -395,6 +416,7 @@ const tripService = {
   updateChecklistItem,
   deleteChecklistItem,
   exportCalendar,
+  duplicateTrip,
   getShare,
   createShare,
   revokeShare,

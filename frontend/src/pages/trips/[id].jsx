@@ -26,6 +26,7 @@ import TripNotes from '../../components/trips/TripNotes';
 import TripChecklist from '../../components/trips/TripChecklist';
 import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
 import ShareTripPanel from '../../components/trips/ShareTripPanel';
+import DuplicateTripButton from '../../components/trips/DuplicateTripButton';
 import { formatDate } from '../../utils/dateFormat';
 // `BUG-058`: the local-time version of this that used to live here rendered every day after a
 // daylight-saving transition as the day before. The arithmetic is done in UTC now, and shared,
@@ -252,6 +253,9 @@ export default function TripWorkspace() {
               looks right, and a control below four days is one they scroll past. */}
           <div className="mb-6 flex flex-wrap items-start gap-3">
             <ExportCalendarButton tripId={trip.id} title={trip.title} getToken={getIdToken} />
+            {/* `FV-006` stage (d). Beside the export controls because it is the same intention -
+                doing something with the plan as a whole rather than editing a stop in it. */}
+            <DuplicateTripButton tripId={trip.id} getToken={getIdToken} />
             <Link
               href={`/trips/${trip.id}/print`}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:border-primary-400 hover:text-primary-700"

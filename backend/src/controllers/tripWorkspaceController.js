@@ -1,6 +1,7 @@
 const tripWorkspaceModel = require('../models/tripWorkspaceModel');
 const tripModel = require('../models/tripModel');
 const { buildTripCalendar, calendarFilename } = require('../services/icsService');
+const tripDuplicateModel = require('../models/tripDuplicateModel');
 const logger = require('../utils/logger');
 
 /**
@@ -218,7 +219,28 @@ const exportCalendar = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Duplication (`FV-006` stage d)
+// ---------------------------------------------------------------------------
+
+/** POST /api/auth/trips/:tripId/duplicate */
+const duplicateTrip = async (req, res) => {
+  try {
+    const trip = await tripDuplicateModel.duplicateTrip(req.user.uid, req.params.tripId, {
+      title: req.body?.title
+    });
+    if (!trip) return notFound(res);
+
+    // 201 with the new trip, so the client can navigate straight to it rather than guessing its id
+    // from a list it would have to re-fetch.
+    return res.status(201).json({ trip });
+  } catch (error) {
+    return failed(res, error, 'duplicating this trip');
+  }
+};
+
 module.exports = {
+  duplicateTrip,
   exportCalendar,
   listNotes,
   createNote,
