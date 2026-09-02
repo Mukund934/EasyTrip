@@ -301,6 +301,30 @@ const deleteChecklistItem = async (tripId, itemId, token) => {
   }
 };
 
+/**
+ * The trip as an `.ics` file (`FV-009` stage a).
+ *
+ * **Returns the text, not a download.** The endpoint is authenticated, so the browser cannot simply
+ * follow a link to it - a plain `<a href>` sends no `Authorization` header and lands on a 401. The
+ * caller fetches the body with a token and hands it to the browser as a blob, which is also what
+ * makes a 422 (a trip with no dates) something we can show as a sentence rather than a downloaded
+ * file containing an error message.
+ */
+const exportCalendar = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/calendar.ics`, {
+      ...authed(token),
+      // Without this axios parses the body as JSON, fails, and hands back something that is not the
+      // file. It is text/calendar, so it is text.
+      responseType: 'text',
+      headers: { Accept: 'text/calendar' }
+    });
+    return data;
+  } catch (error) {
+    throw withFallback(error, 'Could not export this trip');
+  }
+};
+
 const tripService = {
   listTrips,
   getTrip,
@@ -324,7 +348,8 @@ const tripService = {
   listChecklist,
   addChecklistItem,
   updateChecklistItem,
-  deleteChecklistItem
+  deleteChecklistItem,
+  exportCalendar
 };
 
 export default tripService;

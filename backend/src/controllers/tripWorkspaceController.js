@@ -1,4 +1,6 @@
 const tripWorkspaceModel = require('../models/tripWorkspaceModel');
+const tripModel = require('../models/tripModel');
+const { buildTripCalendar, calendarFilename } = require('../services/icsService');
 const logger = require('../utils/logger');
 
 /**
@@ -186,7 +188,38 @@ const reorderChecklist = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Calendar export (`FV-009` stage a)
+// ---------------------------------------------------------------------------
+
+/** GET /api/auth/trips/:tripId/calendar.ics */
+const exportCalendar = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, req.params.tripId);
+    if (!trip) return notFound(res);
+
+    const calendar = buildTripCalendar(trip);
+    // A trip with no start date has no position on any calendar. **422, not 404 and not an empty
+    // file**: the trip exists and the request was well formed, but the thing being asked for cannot
+    // be made from it. An empty `.ics` would download and open as a working export of nothing.
+    if (!calendar) {
+      return res.status(422).json({
+        message: 'This trip has no start date, so its days are not on any calendar yet'
+      });
+    }
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    // The filename is slugified in the service, which is what keeps a quote or a newline in a
+    // user-supplied trip title out of this header.
+    res.setHeader('Content-Disposition', `attachment; filename="${calendarFilename(trip.title)}"`);
+    return res.status(200).send(calendar);
+  } catch (error) {
+    return failed(res, error, 'exporting this trip');
+  }
+};
+
 module.exports = {
+  exportCalendar,
   listNotes,
   createNote,
   updateNote,

@@ -326,6 +326,16 @@ const checklistLabelRule = (required) =>
     .isLength({ min: 1, max: 200 })
     .withMessage('A checklist label must be between 1 and 200 characters');
 
+// `FV-009` stage (a). A literal segment, declared before nothing that could shadow it, and GET-only
+// because it is a read. Authenticated like the rest: a trip is not public, so neither is its export.
+router.get(
+  '/trips/:tripId/calendar.ics',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripWorkspaceController.exportCalendar
+);
+
 router.get(
   '/trips/:tripId/notes',
   isAuthenticated,

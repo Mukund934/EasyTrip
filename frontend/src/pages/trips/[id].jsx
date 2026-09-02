@@ -23,6 +23,7 @@ import RouteSuggestion from '../../components/trips/RouteSuggestion';
 import DayRoute from '../../components/trips/DayRoute';
 import TripNotes from '../../components/trips/TripNotes';
 import TripChecklist from '../../components/trips/TripChecklist';
+import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
 import { formatDate } from '../../utils/dateFormat';
 
 /**
@@ -243,6 +244,12 @@ export default function TripWorkspace() {
               <span>{actionError.message}</span>
             </div>
           )}
+
+          {/* `FV-009` stage (a). Above the itinerary, because exporting is something a reader does
+              once the plan looks right, and a control below four days is one they scroll past. */}
+          <div className="mb-6">
+            <ExportCalendarButton tripId={trip.id} title={trip.title} getToken={getIdToken} />
+          </div>
 
           {/* Above the days, not below them: the report is about the plan as a whole, and a
               verdict a reader has to scroll past four days to find is a verdict they will not
