@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('express-validator');
 const placeController = require('../controllers/placeController');
+const placeFitController = require('../controllers/placeFitController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
@@ -17,7 +18,8 @@ const {
   listRules,
   suggestRules,
   reviewRules,
-  reportRules
+  reportRules,
+  fitQueryRules
 } = require('./placeValidators');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
@@ -47,6 +49,15 @@ router.get('/places/tags', placeController.getTags);
 router.get('/places/:id', placeController.getPlaceById);
 router.get('/places/:id/image', placeController.getPlaceImage);
 router.get('/places/:id/images', placeController.getPlaceImages);
+// `FV-028` stage (d). Public and read-only. The response carries its own working - every factor
+// that counted, every one that could not, and the coverage the score was computed over.
+router.get(
+  '/places/:id/fit',
+  placeIdParam,
+  fitQueryRules,
+  handleValidationErrors,
+  placeFitController.getPlaceFit
+);
 // `FV-028` stage (c). Public and read-only. Returns [] rather than 404 when the place has no curated
 // crowd level - "nobody has judged this" is an answer, not a missing resource.
 router.get(

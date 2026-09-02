@@ -78,6 +78,22 @@ const isFlatObject = (value) => {
   return true;
 };
 
+/**
+ * `FV-028` stage (d). Both optional, and both validated rather than coerced: `?month=13` is a caller
+ * error worth a 400, and silently clamping it to 12 would answer a different question convincingly.
+ */
+const fitQueryRules = [
+  query('month')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 12 })
+    .withMessage('month must be a month number from 1 to 12'),
+  query('interests')
+    .optional({ values: 'falsy' })
+    .isString()
+    .isLength({ max: 300 })
+    .withMessage('interests must be a comma-separated list')
+];
+
 const placeIdParam = param('id')
   .isInt({ min: 1 })
   .withMessage('Place id must be a positive integer');
@@ -425,6 +441,7 @@ const reportRules = [
 ];
 
 module.exports = {
+  fitQueryRules,
   placeIdParam,
   reviewIdParam,
   imageIdParam,

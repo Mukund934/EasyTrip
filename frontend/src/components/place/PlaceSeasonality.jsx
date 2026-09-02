@@ -10,6 +10,7 @@ import {
 } from '../../constants/placeSeasonality';
 import { formatDateShort } from '../../utils/dateFormat';
 import { MonthGrid } from './MonthGrid';
+import { PlaceFit } from './PlaceFit';
 
 /**
  * When this place is worth visiting, and who says so (`FV-028` stage a).
@@ -81,6 +82,13 @@ export const PlaceSeasonality = ({ place }) => {
             .join(' · ')}
         </p>
       )}
+
+      {/* `FV-028` stage (d). Inside this card, and therefore behind `hasSeasonalityInfo` above:
+          the fit panel is a form, and offering one on a place where every answer is "nobody has
+          recorded that" is worse than offering nothing. It also inherits this section's `when`
+          anchor rather than claiming one of its own, which is how `QuieterNearby` avoids the dead
+          table-of-contents entry `BL-139` fixed. */}
+      <PlaceFit placeId={place.id} />
     </div>
   );
 };
