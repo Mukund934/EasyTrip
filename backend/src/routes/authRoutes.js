@@ -13,6 +13,7 @@ const {
 const { getMyReviews } = require('../controllers/myReviewController');
 const tripController = require('../controllers/tripController');
 const tripWorkspaceController = require('../controllers/tripWorkspaceController');
+const tripShareController = require('../controllers/tripShareController');
 
 const profileRules = [
   body('name')
@@ -325,6 +326,32 @@ const checklistLabelRule = (required) =>
     .trim()
     .isLength({ min: 1, max: 200 })
     .withMessage('A checklist label must be between 1 and 200 characters');
+
+// `FV-009` stage (c), the owner's half. The public half is NOT here - it is on the unauthenticated
+// router, because the whole point is that the reader is not signed in. POST both creates and
+// **rotates**: somebody who thinks a link has spread further than they meant should not have to find
+// a separate control while worried about it.
+router.get(
+  '/trips/:tripId/share',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripShareController.getShare
+);
+router.post(
+  '/trips/:tripId/share',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripShareController.createShare
+);
+router.delete(
+  '/trips/:tripId/share',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripShareController.revokeShare
+);
 
 // `FV-009` stage (a). A literal segment, declared before nothing that could shadow it, and GET-only
 // because it is a read. Authenticated like the rest: a trip is not public, so neither is its export.

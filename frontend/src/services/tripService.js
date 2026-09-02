@@ -325,6 +325,51 @@ const exportCalendar = async (tripId, token) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// The read-only share link (`FV-009` stage c)
+// ---------------------------------------------------------------------------
+
+const getShare = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/share`, authed(token));
+    return data ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not load this share link');
+  }
+};
+
+/** Creates the link, and **rotates it** when one already exists — the same call for both. */
+const createShare = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.post(`/auth/trips/${tripId}/share`, {}, authed(token));
+    return data ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not create a share link');
+  }
+};
+
+const revokeShare = async (tripId, token) => {
+  try {
+    await apiClient.delete(`/auth/trips/${tripId}/share`, authed(token));
+    return true;
+  } catch (error) {
+    throw withFallback(error, 'Could not revoke this share link');
+  }
+};
+
+/**
+ * The public read. **No token, deliberately** — this is the one call in this file made by somebody
+ * who is not signed in, and passing a credential would defeat the purpose of the link.
+ */
+const getSharedTrip = async (shareToken, options = {}) => {
+  try {
+    const { data } = await apiClient.get(`/trips/shared/${shareToken}`, options);
+    return data?.trip ?? null;
+  } catch (error) {
+    throw withFallback(error, 'This link is not valid');
+  }
+};
+
 const tripService = {
   listTrips,
   getTrip,
@@ -349,7 +394,11 @@ const tripService = {
   addChecklistItem,
   updateChecklistItem,
   deleteChecklistItem,
-  exportCalendar
+  exportCalendar,
+  getShare,
+  createShare,
+  revokeShare,
+  getSharedTrip
 };
 
 export default tripService;

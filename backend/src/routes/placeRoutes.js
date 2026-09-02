@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { query } = require('express-validator');
+const { param, query } = require('express-validator');
 const placeController = require('../controllers/placeController');
 const placeFitController = require('../controllers/placeFitController');
+const tripShareController = require('../controllers/tripShareController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
@@ -163,6 +164,29 @@ router.delete(
   [placeIdParam, imageIdParam],
   handleValidationErrors,
   placeController.deletePlaceImage
+);
+
+// ---------------------------------------------------------------------------
+// The public half of a share link (`FV-009` stage c)
+// ---------------------------------------------------------------------------
+// **On this router precisely because it is unauthenticated** - the whole point of a share link is
+// that the reader is not signed in. It lives beside the place reads rather than under `/auth` so
+// that its lack of a token is a property of where it is mounted, not something a reader has to
+// notice is missing.
+//
+// The token is 256 bits, so guessing is not a threat model and no limiter is tuned against brute
+// force; the global 1000-per-15-minutes ceiling in `app.js` still applies, as it does to every
+// public read here.
+//
+// `[A-Za-z0-9_-]{43}` on the parameter: a malformed token is a 400 rather than a database lookup,
+// and the pattern is the same base64url shape the column's `CHECK` constraint enforces.
+router.get(
+  '/trips/shared/:token',
+  param('token')
+    .matches(/^[A-Za-z0-9_-]{43}$/)
+    .withMessage('Not a valid share link'),
+  handleValidationErrors,
+  tripShareController.getSharedTrip
 );
 
 module.exports = router;

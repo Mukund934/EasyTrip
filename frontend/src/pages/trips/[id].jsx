@@ -25,6 +25,7 @@ import DayRoute from '../../components/trips/DayRoute';
 import TripNotes from '../../components/trips/TripNotes';
 import TripChecklist from '../../components/trips/TripChecklist';
 import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
+import ShareTripPanel from '../../components/trips/ShareTripPanel';
 import { formatDate } from '../../utils/dateFormat';
 // `BUG-058`: the local-time version of this that used to live here rendered every day after a
 // daylight-saving transition as the day before. The arithmetic is done in UTC now, and shared,
@@ -436,6 +437,13 @@ export default function TripWorkspace() {
           <div className="mt-8 grid gap-6 lg:grid-cols-2">
             <TripChecklist tripId={trip.id} getToken={getIdToken} />
             <TripNotes tripId={trip.id} getToken={getIdToken} />
+          </div>
+
+          {/* `FV-009` stage (c). Below the notes and checklist on purpose: the panel says those two
+              are *not* shared, and that sentence is easier to believe when the reader has just
+              scrolled past them. */}
+          <div className="mt-6">
+            <ShareTripPanel tripId={trip.id} getToken={getIdToken} />
           </div>
         </div>
       </div>
