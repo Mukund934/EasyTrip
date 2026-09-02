@@ -13,9 +13,26 @@ const pool = require('../config/db');
  * somebody else's itinerary, so the shape is never offered.
  */
 
-/** What a trip card in "My Trips" renders. */
+/**
+ * What a trip card in "My Trips" renders.
+ *
+ * **The dates are read as text on purpose, and this is a fix rather than a preference.** node-pg
+ * parses a `DATE` into a JavaScript `Date` at the *server's* local midnight, so a trip starting
+ * `2026-03-01` left this query as `Sun Mar 01 2026 00:00:00 GMT+0530` and reached the client, via
+ * `JSON.stringify`, as `"2026-02-28T18:30:00.000Z"` — **the day before**. It is the *server's* zone
+ * that decides this: east of UTC the local midnight lands on the previous UTC day, and both
+ * consumers then read it back in UTC, so once it happens it is wrong for **every** viewer, not only
+ * the ones sharing the server's zone. Two live defects came out of that one conversion
+ * (`BUG-050`, `BUG-051`), and
+ * both are the same mistake: a calendar date is not an instant, and giving it a time of day invents
+ * a timezone question that the column never had an answer to.
+ *
+ * `to_char` rather than `::text` so the format does not depend on the session's `DateStyle`.
+ */
 const TRIP_COLUMNS = `
-  trips.id, trips.title, trips.description, trips.start_date, trips.end_date,
+  trips.id, trips.title, trips.description,
+  to_char(trips.start_date, 'YYYY-MM-DD') AS start_date,
+  to_char(trips.end_date, 'YYYY-MM-DD') AS end_date,
   trips.status, trips.created_at, trips.updated_at`;
 
 /**
@@ -80,7 +97,17 @@ const getTripWorkspace = async (userId, tripId) => {
             trip_items.position,
             places.name AS place_name, places.location AS place_location,
             places.primary_image_url AS place_image_url,
-            places.latitude AS place_latitude, places.longitude AS place_longitude
+            places.latitude AS place_latitude, places.longitude AS place_longitude,
+            places.setting AS place_setting,
+            -- FV-029 stage (d). The feasibility engine is pure (ADR-041), so a place's accessibility
+            -- has to arrive as data on the item rather than be looked up mid-check. Carried with its
+            -- provenance for the same reason the badge shows a date: a finding that says a stop is
+            -- not step-free, without saying who checked and when, is the unmarked assertion this
+            -- item exists to prevent -- moved into a warning.
+            places.step_free_access AS place_step_free_access,
+            places.accessible_restroom AS place_accessible_restroom,
+            places.accessibility_source AS place_accessibility_source,
+            to_char(places.accessibility_checked_on, 'YYYY-MM-DD') AS place_accessibility_checked_on
      FROM trip_items
      JOIN trip_days ON trip_days.id = trip_items.trip_day_id
      JOIN trips ON trips.id = trip_days.trip_id
@@ -275,165 +302,6 @@ const deleteDay = async (userId, tripId, dayId) => {
   }
 };
 
-/**
- * Add an item to a day.
- *
- * `title` is resolved from the place when one is given and no title was supplied — the item has to
- * carry its own label, because `ON DELETE SET NULL` will one day take the place away and leave the
- * row behind (`ADR-031`).
- */
-const addItem = async (userId, tripId, dayId, item) => {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-
-    const day = await client.query(
-      `SELECT trip_days.id FROM trip_days
-       JOIN trips ON trips.id = trip_days.trip_id
-       WHERE trip_days.id = $1 AND trips.id = $2 AND trips.user_id = $3`,
-      [dayId, tripId, userId]
-    );
-
-    if (day.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return null;
-    }
-
-    let title = item.title;
-    if (!title && item.place_id) {
-      const place = await client.query('SELECT name FROM places WHERE id = $1', [item.place_id]);
-      // No row means the place does not exist; let the foreign key say so rather than inventing a
-      // title for something that is about to fail.
-      title = place.rows[0]?.name;
-    }
-
-    const position = await client.query(
-      'SELECT COALESCE(MAX(position), -1) + 1 AS position FROM trip_items WHERE trip_day_id = $1',
-      [dayId]
-    );
-
-    const created = await client.query(
-      `INSERT INTO trip_items
-         (trip_day_id, place_id, item_type, title, notes, start_time, end_time, position)
-       VALUES ($1, $2, COALESCE($3, 'place'), $4, $5, $6, $7, $8)
-       RETURNING id, trip_day_id, place_id, item_type, title, notes, start_time, end_time, position`,
-      [
-        dayId,
-        item.place_id || null,
-        item.item_type || null,
-        title,
-        item.notes || null,
-        item.start_time || null,
-        item.end_time || null,
-        position.rows[0].position
-      ]
-    );
-
-    await client.query('COMMIT');
-    return created.rows[0];
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-const UPDATABLE_ITEM_COLUMNS = ['title', 'notes', 'start_time', 'end_time', 'item_type'];
-
-/** Patch an item, scoped through its day to its trip to its owner. */
-const updateItem = async (userId, tripId, itemId, patch) => {
-  const columns = UPDATABLE_ITEM_COLUMNS.filter((column) => column in patch);
-  if (columns.length === 0) return null;
-
-  const values = columns.map((column) => patch[column]);
-  const assignments = columns.map((column, i) => `${column} = $${i + 1}`);
-
-  const result = await pool.query(
-    `UPDATE trip_items SET ${assignments.join(', ')}
-     FROM trip_days, trips
-     WHERE trip_items.id = $${values.length + 1}
-       AND trip_items.trip_day_id = trip_days.id
-       AND trip_days.trip_id = trips.id
-       AND trips.id = $${values.length + 2}
-       AND trips.user_id = $${values.length + 3}
-     RETURNING trip_items.id, trip_items.trip_day_id, trip_items.place_id, trip_items.item_type,
-               trip_items.title, trip_items.notes, trip_items.start_time, trip_items.end_time,
-               trip_items.position`,
-    [...values, itemId, tripId, userId]
-  );
-
-  return result.rows[0] || null;
-};
-
-/** Remove an item. */
-const deleteItem = async (userId, tripId, itemId) => {
-  const result = await pool.query(
-    `DELETE FROM trip_items
-     USING trip_days, trips
-     WHERE trip_items.id = $1
-       AND trip_items.trip_day_id = trip_days.id
-       AND trip_days.trip_id = trips.id
-       AND trips.id = $2
-       AND trips.user_id = $3`,
-    [itemId, tripId, userId]
-  );
-
-  return result.rowCount > 0;
-};
-
-/**
- * Move items into an explicit order within a day — the operation a drag-and-drop performs.
- *
- * Takes the **full** ordered list of item ids for that day and rewrites every position from it, in
- * one transaction. A "move item X to index 3" API would need the server to reconstruct the rest of
- * the order, which is the same information arriving less reliably.
- *
- * Every id is verified to belong to that day before anything is written: without it, including one
- * foreign id in the array would drag another user's item into this trip's ordering.
- */
-const reorderItems = async (userId, tripId, dayId, orderedItemIds) => {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-
-    const owned = await client.query(
-      `SELECT trip_items.id FROM trip_items
-       JOIN trip_days ON trip_days.id = trip_items.trip_day_id
-       JOIN trips ON trips.id = trip_days.trip_id
-       WHERE trip_days.id = $1 AND trips.id = $2 AND trips.user_id = $3`,
-      [dayId, tripId, userId]
-    );
-
-    const ownedIds = new Set(owned.rows.map((row) => row.id));
-
-    // Every id must be one of this day's, and every one of this day's must be present. A partial
-    // list would leave the omitted items at stale positions, silently interleaved with the new
-    // order — worse than a rejection, because it looks like it worked.
-    const requested = orderedItemIds.map(Number);
-    const sameSize = requested.length === ownedIds.size;
-    const allOwned = requested.every((id) => ownedIds.has(id));
-    if (!sameSize || !allOwned || new Set(requested).size !== requested.length) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-
-    for (const [position, itemId] of requested.entries()) {
-      await client.query('UPDATE trip_items SET position = $1 WHERE id = $2', [position, itemId]);
-    }
-
-    await client.query('COMMIT');
-    return true;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
 module.exports = {
   listTrips,
   getTrip,
@@ -443,9 +311,5 @@ module.exports = {
   deleteTrip,
   addDay,
   deleteDay,
-  addItem,
-  updateItem,
-  deleteItem,
-  reorderItems,
   spanInDays
 };

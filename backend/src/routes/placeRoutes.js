@@ -1,267 +1,30 @@
 const express = require('express');
 const router = express.Router();
-const { body, param, query } = require('express-validator');
+const { param, query } = require('express-validator');
 const placeController = require('../controllers/placeController');
+const placeFitController = require('../controllers/placeFitController');
+const tripShareController = require('../controllers/tripShareController');
 const { isAuthenticated, isAdmin, attachUserIfPresent } = require('../utils/authMiddleware');
 const { uploadMiddleware } = require('../utils/multerConfig');
 const { handleValidationErrors } = require('../utils/errorHandler');
 const { getPlaceWeather } = require('../controllers/weatherController');
 const { geocodeAddress } = require('../controllers/geocodeController');
-const { SORT_KEYS, SUGGEST_MAX_LIMIT } = require('../models/placeModel');
-const { SUPPORTED_GEOCODERS } = require('../controllers/helpers/coordinateSource');
+const {
+  placeIdParam,
+  reviewIdParam,
+  imageIdParam,
+  galleryCaptionRule,
+  placeBodyRules,
+  searchRules,
+  listRules,
+  suggestRules,
+  reviewRules,
+  reportRules,
+  fitQueryRules
+} = require('./placeValidators');
 
 // Multipart bodies arrive as strings, so collection fields are JSON text here and
 // plain values once a client posts JSON. Both shapes are accepted.
-const parseJson = (value) => (typeof value === 'string' ? JSON.parse(value) : value);
-
-const isStringArray = (label, maxEntries, maxLength) => (value) => {
-  let parsed;
-  try {
-    parsed = parseJson(value);
-  } catch (error) {
-    throw new Error(`${label} must be a JSON array of strings`);
-  }
-  if (!Array.isArray(parsed)) {
-    throw new Error(`${label} must be a JSON array of strings`);
-  }
-  if (parsed.length > maxEntries) {
-    throw new Error(`${label} may contain at most ${maxEntries} entries`);
-  }
-  if (parsed.some((entry) => typeof entry !== 'string' || entry.length > maxLength)) {
-    throw new Error(`${label} entries must be strings of at most ${maxLength} characters`);
-  }
-  return true;
-};
-
-const isFlatObject = (value) => {
-  let parsed;
-  try {
-    parsed = parseJson(value);
-  } catch (error) {
-    throw new Error('custom_keys must be a JSON object');
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('custom_keys must be a JSON object');
-  }
-  const entries = Object.entries(parsed);
-  if (entries.length > 30) {
-    throw new Error('custom_keys may contain at most 30 entries');
-  }
-  if (entries.some(([key, entry]) => key.length > 60 || String(entry).length > 500)) {
-    throw new Error('custom_keys entries are too long');
-  }
-  return true;
-};
-
-const placeIdParam = param('id')
-  .isInt({ min: 1 })
-  .withMessage('Place id must be a positive integer');
-
-const requiredText = (field, label, max) =>
-  body(field)
-    .trim()
-    .notEmpty()
-    .withMessage(`${label} is required`)
-    .bail()
-    .isLength({ max })
-    .withMessage(`${label} must be at most ${max} characters`);
-
-// Empty strings count as "not supplied": the admin form posts every field it has,
-// blank ones included, and an update patches only what it is actually given.
-const optionalText = (field, label, max) =>
-  body(field)
-    .optional({ values: 'falsy' })
-    .trim()
-    .isLength({ max })
-    .withMessage(`${label} must be at most ${max} characters`);
-
-const optionalUrl = (field) =>
-  body(field)
-    .optional({ values: 'falsy' })
-    .isURL({ protocols: ['http', 'https'], require_protocol: true })
-    .withMessage(`${field} must be a valid http(s) URL`);
-
-// Shared across create and update; `required` decides whether name/location may be
-// omitted, since update patches only the fields it is given.
-const placeBodyRules = (required) => [
-  required ? requiredText('name', 'Name', 200) : optionalText('name', 'Name', 200),
-  required ? requiredText('location', 'Location', 200) : optionalText('location', 'Location', 200),
-  optionalText('description', 'Description', 5000),
-  optionalText('district', 'District', 120),
-  optionalText('state', 'State', 120),
-  optionalText('locality', 'Locality', 120),
-  optionalText('pin_code', 'Pin code', 20),
-  // Not converted with toFloat(): the controllers treat a falsy value as "no
-  // coordinate", and a sanitized 0 would read as absent.
-  body('latitude')
-    .optional({ values: 'falsy' })
-    .isFloat({ min: -90, max: 90 })
-    .withMessage('Latitude must be between -90 and 90'),
-  body('longitude')
-    .optional({ values: 'falsy' })
-    .isFloat({ min: -180, max: 180 })
-    .withMessage('Longitude must be between -180 and 180'),
-  // Which geocoder produced those coordinates, when one did (IMP-127). Rejected rather than
-  // silently dropped: this field decides whether an attribution notice appears, so a typo that
-  // quietly removed one would be invisible in exactly the way a licence obligation must not be.
-  // The allowlist is `SUPPORTED_GEOCODERS`, which the 010 migration's CHECK constraint mirrors.
-  body('coordinates_source')
-    .optional({ values: 'falsy' })
-    .isIn(SUPPORTED_GEOCODERS)
-    .withMessage(`coordinates_source must be one of: ${SUPPORTED_GEOCODERS.join(', ')}`),
-  optionalUrl('primary_image_url'),
-  optionalUrl('image_url'),
-  body('themes')
-    .optional({ values: 'falsy' })
-    .custom(isStringArray('themes', 20, 60)),
-  body('tags')
-    .optional({ values: 'falsy' })
-    .custom(isStringArray('tags', 50, 60)),
-  body('custom_keys').optional({ values: 'falsy' }).custom(isFlatObject)
-];
-
-// Search accepts the same collection shapes as the write routes (JSON arrays as query text).
-// `date` is a season key, not a calendar date — see SEASON_MONTHS in placeModel.
-const searchRules = [
-  query('searchTerm')
-    .optional({ values: 'falsy' })
-    .isString()
-    .bail()
-    .trim()
-    .isLength({ max: 200 })
-    .withMessage('searchTerm must be at most 200 characters'),
-  query('location')
-    .optional({ values: 'falsy' })
-    .isString()
-    .bail()
-    .trim()
-    .isLength({ max: 120 })
-    .withMessage('location must be at most 120 characters'),
-  query('district')
-    .optional({ values: 'falsy' })
-    .isString()
-    .bail()
-    .trim()
-    .isLength({ max: 120 })
-    .withMessage('district must be at most 120 characters'),
-  query('state')
-    .optional({ values: 'falsy' })
-    .isString()
-    .bail()
-    .trim()
-    .isLength({ max: 120 })
-    .withMessage('state must be at most 120 characters'),
-  query('tags')
-    .optional({ values: 'falsy' })
-    .custom(isStringArray('tags', 50, 60)),
-  query('themes')
-    .optional({ values: 'falsy' })
-    .custom(isStringArray('themes', 20, 60)),
-  query('minRating')
-    .optional({ values: 'falsy' })
-    .isFloat({ min: 0, max: 5 })
-    .withMessage('minRating must be between 0 and 5'),
-  query('date')
-    .optional({ values: 'falsy' })
-    .isIn(['summer', 'monsoon', 'winter'])
-    .withMessage('date must be one of: summer, monsoon, winter')
-];
-
-// Pagination, sorting and projection (IMP-038). `limit` is capped in the model as well; this
-// rule exists so an out-of-range value is a 400 the caller can see rather than a silent clamp.
-// `sort` and `projection` are enumerations because both index into server-side SQL fragments —
-// rejecting anything unrecognised here keeps that lookup total.
-const listRules = [
-  query('limit')
-    .optional({ values: 'falsy' })
-    .isInt({ min: 1, max: 100 })
-    .withMessage('limit must be between 1 and 100'),
-  query('offset')
-    .optional({ values: 'falsy' })
-    .isInt({ min: 0 })
-    .withMessage('offset must be zero or greater'),
-  // Enumerated from the model rather than restated, so adding a sort cannot leave the validator
-  // rejecting a value the model supports (or accepting one it does not).
-  query('sort')
-    .optional({ values: 'falsy' })
-    .isIn(SORT_KEYS)
-    .withMessage(`sort must be one of: ${SORT_KEYS.join(', ')}`),
-  query('projection')
-    .optional({ values: 'falsy' })
-    .isIn(['list', 'map'])
-    .withMessage('projection must be one of: list, map'),
-  query('withStats')
-    .optional({ values: 'falsy' })
-    .isIn(['true', '1', 'false', '0'])
-    .withMessage('withStats must be a boolean')
-];
-
-// Typeahead (IMP-112). `q` is deliberately NOT `notEmpty()`: the browser sends an empty one the
-// instant the box is cleared, and that is an empty result, not a client error. The length cap
-// matches `searchTerm`'s so the two search surfaces cannot disagree about what is too long.
-const suggestRules = [
-  query('q')
-    .optional({ values: 'falsy' })
-    .isString()
-    .bail()
-    .trim()
-    .isLength({ max: 200 })
-    .withMessage('q must be at most 200 characters'),
-  query('limit')
-    .optional({ values: 'falsy' })
-    .isInt({ min: 1, max: SUGGEST_MAX_LIMIT })
-    .withMessage(`limit must be between 1 and ${SUGGEST_MAX_LIMIT}`)
-];
-
-const reviewRules = [
-  placeIdParam,
-  body('rating')
-    .exists({ values: 'falsy' })
-    .withMessage('Rating is required')
-    .bail()
-    .isInt({ min: 1, max: 5 })
-    .withMessage('Rating must be an integer between 1 and 5')
-    .toInt(),
-  body('comment')
-    .optional({ values: 'falsy' })
-    .isString()
-    .withMessage('Comment must be text')
-    .bail()
-    .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Comment must be at most 2000 characters')
-];
-
-const reviewIdParam = param('reviewId')
-  .isInt({ min: 1 })
-  .withMessage('Review id must be a positive integer');
-
-const imageIdParam = param('imageId')
-  .isInt({ min: 1 })
-  .withMessage('Image id must be a positive integer');
-
-// Caption arrives as multipart alongside the file, so it is optional and length-capped to the
-// column width rather than validated as structured input.
-const galleryCaptionRule = body('caption')
-  .optional({ values: 'falsy' })
-  .trim()
-  .isLength({ max: 255 })
-  .withMessage('Caption must be at most 255 characters');
-
-const reportRules = [
-  placeIdParam,
-  reviewIdParam,
-  // The current UI reports with a single click and sends no reason; the column and this rule
-  // exist so a reason box can be added without touching the schema or the route.
-  body('reason')
-    .optional({ values: 'falsy' })
-    .isString()
-    .withMessage('Reason must be text')
-    .bail()
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage('Reason must be at most 500 characters')
-];
 
 // Public routes
 // One handler, two names. `/places` had no validation at all before — it took no parameters, so
@@ -287,6 +50,23 @@ router.get('/places/tags', placeController.getTags);
 router.get('/places/:id', placeController.getPlaceById);
 router.get('/places/:id/image', placeController.getPlaceImage);
 router.get('/places/:id/images', placeController.getPlaceImages);
+// `FV-028` stage (d). Public and read-only. The response carries its own working - every factor
+// that counted, every one that could not, and the coverage the score was computed over.
+router.get(
+  '/places/:id/fit',
+  placeIdParam,
+  fitQueryRules,
+  handleValidationErrors,
+  placeFitController.getPlaceFit
+);
+// `FV-028` stage (c). Public and read-only. Returns [] rather than 404 when the place has no curated
+// crowd level - "nobody has judged this" is an answer, not a missing resource.
+router.get(
+  '/places/:id/quieter-nearby',
+  placeIdParam,
+  handleValidationErrors,
+  placeController.getQuieterNearby
+);
 // Real weather (`IMP-110`), keyed on the place's own coordinates. Public: the forecast at a
 // tourist site is not private, and the page is server-rendered for crawlers. Deliberately NOT
 // `?lat=&lon=` — that would be an open proxy to a third party at our rate limit, from our IP.
@@ -384,6 +164,29 @@ router.delete(
   [placeIdParam, imageIdParam],
   handleValidationErrors,
   placeController.deletePlaceImage
+);
+
+// ---------------------------------------------------------------------------
+// The public half of a share link (`FV-009` stage c)
+// ---------------------------------------------------------------------------
+// **On this router precisely because it is unauthenticated** - the whole point of a share link is
+// that the reader is not signed in. It lives beside the place reads rather than under `/auth` so
+// that its lack of a token is a property of where it is mounted, not something a reader has to
+// notice is missing.
+//
+// The token is 256 bits, so guessing is not a threat model and no limiter is tuned against brute
+// force; the global 1000-per-15-minutes ceiling in `app.js` still applies, as it does to every
+// public read here.
+//
+// `[A-Za-z0-9_-]{43}` on the parameter: a malformed token is a 400 rather than a database lookup,
+// and the pattern is the same base64url shape the column's `CHECK` constraint enforces.
+router.get(
+  '/trips/shared/:token',
+  param('token')
+    .matches(/^[A-Za-z0-9_-]{43}$/)
+    .withMessage('Not a valid share link'),
+  handleValidationErrors,
+  tripShareController.getSharedTrip
 );
 
 module.exports = router;

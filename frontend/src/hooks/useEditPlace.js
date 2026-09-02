@@ -32,6 +32,26 @@ export function useEditPlace(id, { currentUser, isAdmin, getIdToken }, onSaved) 
     themes: [],
     tags: [],
     custom_keys: {},
+    // TD-023. Defaulted rather than blank: the column is NOT NULL with this default, so a form
+    // that started empty would send '' and the validator would read it as "not provided" —
+    // silently keeping whatever was there while appearing to have set it.
+    setting: 'unknown',
+    // FV-029. Defaulted for the same reason `setting` is — the columns are NOT NULL with this
+    // default, and a blank would be read as "not provided". The provenance three start empty
+    // because absent is what they genuinely are until somebody surveys the place.
+    step_free_access: 'unknown',
+    accessible_restroom: 'unknown',
+    accessibility_notes: '',
+    accessibility_source: '',
+    accessibility_checked_on: '',
+    // FV-028. `best_months` is `[]` and not `null`, matching the column: `buildPlaceFormData` drops
+    // null, so a cleared month list would send nothing and the API would keep the old months while
+    // the form showed none. `typical_visit_minutes` is '' because absent is genuinely what it is.
+    best_months: [],
+    crowd_level: 'unknown',
+    typical_visit_minutes: '',
+    seasonality_source: '',
+    seasonality_checked_on: '',
     created_by: '',
     created_by_name: '',
     updated_by: '',
@@ -74,6 +94,24 @@ export function useEditPlace(id, { currentUser, isAdmin, getIdToken }, onSaved) 
           themes: data.themes || [],
           tags: data.tags || [],
           custom_keys: data.custom_keys || {},
+          setting: data.setting || 'unknown',
+          step_free_access: data.step_free_access || 'unknown',
+          accessible_restroom: data.accessible_restroom || 'unknown',
+          accessibility_notes: data.accessibility_notes || '',
+          accessibility_source: data.accessibility_source || '',
+          // Already `YYYY-MM-DD` from the API (`to_char` in `placeModel`), which is exactly what an
+          // <input type="date"> wants. A serialised Date would need slicing and would be a day out.
+          accessibility_checked_on: data.accessibility_checked_on || '',
+          // FV-028. `?? []` rather than `|| []` for the months so an existing empty array survives
+          // as itself, and `?? ''` for the duration so a real 0 would not be swallowed — it cannot
+          // be one today (the CHECK refuses it), which is exactly why `||` here would be a trap
+          // waiting for the constraint to change.
+          best_months: data.best_months ?? [],
+          crowd_level: data.crowd_level || 'unknown',
+          typical_visit_minutes: data.typical_visit_minutes ?? '',
+          seasonality_source: data.seasonality_source || '',
+          // Already `YYYY-MM-DD` from the API, like the accessibility date above.
+          seasonality_checked_on: data.seasonality_checked_on || '',
           created_by: data.created_by || currentUser?.uid || '',
           created_by_name:
             data.created_by_name ||

@@ -21,6 +21,27 @@
  * module, which is the sort of thing that only becomes findable once the logic is out of the
  * component.
  */
+/**
+ * What a traveller can ask about step-free access, and what each question means (`FV-029`).
+ *
+ * The API takes a list of levels; this is the shorter list of *questions* worth offering. Two, not
+ * four, and deliberately not a checkbox per level:
+ *
+ * - **`unknown` is never offered.** Filtering for "nobody has checked" is a data-quality query, not
+ *   a travel one, and putting it beside the others would suggest it belongs in the same sentence.
+ * - **`no` on its own is not offered either.** It is a real answer and the API can filter on it —
+ *   `an admin auditing coverage might` — but "show me the places I cannot get into" is not the
+ *   question this control is for.
+ *
+ * The `levels` arrays are what reach the API, and they are what the filter's honesty rests on:
+ * neither includes `unknown`, so neither can return a place nobody has checked.
+ */
+export const STEP_FREE_CHOICES = {
+  any: { label: 'Any', levels: undefined },
+  verified: { label: 'Step-free access', levels: ['yes'] },
+  partly: { label: 'Step-free, at least partly', levels: ['yes', 'partial'] }
+};
+
 export const createEmptyFilters = () => ({
   searchTerm: '',
   location: '',
@@ -29,7 +50,12 @@ export const createEmptyFilters = () => ({
   themes: [],
   tags: [],
   date: 'any',
-  minRating: 0
+  minRating: 0,
+  // `FV-029`. A single choice rather than an array, matching `date` rather than `themes`: the API
+  // takes a list of levels, but only two combinations of it are a question a traveller asks, and
+  // offering four checkboxes would invite the fifth — `unknown` — which is not a filter, it is the
+  // absence of one.
+  stepFree: 'any'
 });
 
 /**
@@ -68,7 +94,8 @@ export const filtersFromInitial = (initial) => {
     themes: asArray(initial.themes),
     tags: asArray(initial.tags),
     date: initial.date || 'any',
-    minRating: Number.isFinite(rating) && rating > 0 ? rating : 0
+    minRating: Number.isFinite(rating) && rating > 0 ? rating : 0,
+    stepFree: STEP_FREE_CHOICES[initial.stepFree] ? initial.stepFree : 'any'
   };
 };
 
@@ -87,7 +114,11 @@ export const buildCriteria = (filters) => ({
   themes: filters.themes.length ? filters.themes : undefined,
   tags: filters.tags.length ? filters.tags : undefined,
   minRating: filters.minRating > 0 ? filters.minRating : undefined,
-  date: filters.date !== 'any' ? filters.date : undefined
+  date: filters.date !== 'any' ? filters.date : undefined,
+  // The levels the choice expands to. `undefined` for 'any', so the parameter is not sent at all —
+  // sending every level would be a filter that excludes only `unknown`, which is a different and
+  // much stronger claim than "no preference".
+  stepFree: STEP_FREE_CHOICES[filters.stepFree]?.levels
 });
 
 /** True when anything is filtering the catalogue. */
@@ -110,7 +141,8 @@ export const countActiveFilters = (filters) =>
   filters.themes.length +
   filters.tags.length +
   (filters.date !== 'any' ? 1 : 0) +
-  (filters.minRating > 0 ? 1 : 0);
+  (filters.minRating > 0 ? 1 : 0) +
+  (filters.stepFree !== 'any' ? 1 : 0);
 
 /**
  * The query string that describes this filter set, without the leading `?`.
@@ -133,6 +165,7 @@ export const buildQueryString = (filters) => {
   if (filters.state) params.set('state', filters.state);
   if (filters.date !== 'any') params.set('date', filters.date);
   if (filters.minRating > 0) params.set('rating', String(filters.minRating));
+  if (filters.stepFree !== 'any') params.set('access', filters.stepFree);
   filters.themes.forEach((theme) => params.append('theme', theme));
   filters.tags.forEach((tag) => params.append('tag', tag));
 

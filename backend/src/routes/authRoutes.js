@@ -12,6 +12,8 @@ const {
 } = require('../controllers/savedPlaceController');
 const { getMyReviews } = require('../controllers/myReviewController');
 const tripController = require('../controllers/tripController');
+const tripWorkspaceController = require('../controllers/tripWorkspaceController');
+const tripShareController = require('../controllers/tripShareController');
 
 const profileRules = [
   body('name')
@@ -26,6 +28,16 @@ const profileRules = [
     .trim()
     .isLength({ max: 120 })
     .withMessage('Location must be at most 120 characters'),
+  // `FV-029` stage (c). `values: 'null'` rather than `'falsy'`, and the distinction is the whole
+  // point: `false` is a real answer here — it is how somebody *removes* a stated requirement — and
+  // `optional({ values: 'falsy' })` would silently drop it, leaving the requirement set forever.
+  ...['requires_step_free', 'requires_accessible_restroom'].map((field) =>
+    body(field)
+      .optional({ values: 'null' })
+      .isBoolean()
+      .withMessage(`${field} must be true or false`)
+      .toBoolean()
+  ),
   body('dob')
     .optional({ values: 'falsy' })
     .isISO8601()
@@ -127,8 +139,25 @@ const tripBodyRules = (required) => [
   })
 ];
 
-const itemBodyRules = [
+/**
+ * Validation for a trip item.
+ *
+ * **Takes `required` for the same reason `tripBodyRules` does, and it is a fix rather than
+ * symmetry** (`BUG-052`). The last rule — *an item needs a title, or a place to take one from* — is
+ * true when an item is **created** and false when one is **patched**: an item that already has a
+ * title does not have to resend it to change its start time. Shared as a flat array, it made
+ * `PUT /items/:id` with `{ start_time: '10:00' }` a 400 complaining about a title the item already
+ * had.
+ *
+ * Nothing caught it because every existing update test happens to send a title. It surfaced when
+ * `FV-027`'s proposals needed to move an item by day alone.
+ */
+const itemBodyRules = (required) => [
   body('place_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
+  // Moving an item to another day of the same trip (Sprint 8.26). Shape only — that the day belongs
+  // to this trip is enforced in the query, because a validator cannot know and a check here would
+  // be a second source of truth about authorisation.
+  body('trip_day_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
   body('item_type')
     .optional({ values: 'falsy' })
     .isIn(['place', 'transport', 'meal', 'activity', 'note'])
@@ -142,13 +171,18 @@ const itemBodyRules = [
   body('end_time')
     .optional({ values: 'falsy' })
     .matches(/^\d{2}:\d{2}(:\d{2})?$/),
-  // An item with neither a place nor a title has nothing to render.
-  body().custom((value) => {
-    if (!value.place_id && !String(value.title || '').trim()) {
-      throw new Error('An item needs a title, or a place to take one from');
-    }
-    return true;
-  })
+  // An item with neither a place nor a title has nothing to render — on creation. A patch is
+  // allowed to touch one field and leave the rest of the row alone.
+  ...(required
+    ? [
+        body().custom((value) => {
+          if (!value.place_id && !String(value.title || '').trim()) {
+            throw new Error('An item needs a title, or a place to take one from');
+          }
+          return true;
+        })
+      ]
+    : [])
 ];
 
 router.get('/trips', isAuthenticated, tripController.listTrips);
@@ -176,11 +210,27 @@ router.get(
   tripController.getTripFeasibility
 );
 router.get(
+  '/trips/:tripId/replan-suggestion',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.getTripReplanSuggestion
+);
+router.get(
   '/trips/:tripId/days/:dayId/route-suggestion',
   isAuthenticated,
   [idParam('tripId'), idParam('dayId')],
   handleValidationErrors,
   tripController.getDayRouteSuggestion
+);
+// The day as it would be drawn (`FV-026` stage c). Nested identically, so a day that is not
+// yours is a 404 by the same query rather than by a second check that has to remember.
+router.get(
+  '/trips/:tripId/days/:dayId/route',
+  isAuthenticated,
+  [idParam('tripId'), idParam('dayId')],
+  handleValidationErrors,
+  tripController.getDayRoute
 );
 router.put(
   '/trips/:tripId',
@@ -215,7 +265,7 @@ router.delete(
 router.post(
   '/trips/:tripId/days/:dayId/items',
   isAuthenticated,
-  [idParam('tripId'), idParam('dayId'), ...itemBodyRules],
+  [idParam('tripId'), idParam('dayId'), ...itemBodyRules(true)],
   handleValidationErrors,
   tripController.addItem
 );
@@ -234,7 +284,7 @@ router.put(
 router.put(
   '/trips/:tripId/items/:itemId',
   isAuthenticated,
-  [idParam('tripId'), idParam('itemId'), ...itemBodyRules],
+  [idParam('tripId'), idParam('itemId'), ...itemBodyRules(false)],
   handleValidationErrors,
   tripController.updateItem
 );
@@ -244,6 +294,153 @@ router.delete(
   [idParam('tripId'), idParam('itemId')],
   handleValidationErrors,
   tripController.deleteItem
+);
+
+// ---------------------------------------------------------------------------
+// Notes and checklist (`FV-006` stage b)
+// ---------------------------------------------------------------------------
+// Nested under `/trips/:tripId` like every other child collection here, and for the same reason:
+// ownership is proved by the trip id inside the query rather than by a handler remembering to
+// check. Neither table carries a uid of its own, so there is no shape in which one could be read
+// without its trip.
+//
+// The length caps are enforced here **as well as** by the column types, because a `VARCHAR(200)`
+// answers an oversized label with a 500 from the driver while a validator answers it with a 400
+// naming the field. `body` is TEXT and has no such backstop, so its cap exists only here.
+
+// Trimmed before it is stored, so " " cannot become a note the CHECK constraint would then reject
+// with a 500. The validator is where a blank body is a 400.
+const noteBodyRule = body('body')
+  .isString()
+  .withMessage('A note needs a body')
+  .bail()
+  .trim()
+  .isLength({ min: 1, max: 5000 })
+  .withMessage('A note must be between 1 and 5000 characters');
+
+const checklistLabelRule = (required) =>
+  (required ? body('label') : body('label').optional())
+    .isString()
+    .withMessage('A checklist item needs a label')
+    .bail()
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .withMessage('A checklist label must be between 1 and 200 characters');
+
+// `FV-009` stage (c), the owner's half. The public half is NOT here - it is on the unauthenticated
+// router, because the whole point is that the reader is not signed in. POST both creates and
+// **rotates**: somebody who thinks a link has spread further than they meant should not have to find
+// a separate control while worried about it.
+router.get(
+  '/trips/:tripId/share',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripShareController.getShare
+);
+router.post(
+  '/trips/:tripId/share',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripShareController.createShare
+);
+router.delete(
+  '/trips/:tripId/share',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripShareController.revokeShare
+);
+
+// `FV-009` stage (a). A literal segment, declared before nothing that could shadow it, and GET-only
+// because it is a read. Authenticated like the rest: a trip is not public, so neither is its export.
+router.get(
+  '/trips/:tripId/calendar.ics',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripWorkspaceController.exportCalendar
+);
+
+router.get(
+  '/trips/:tripId/notes',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripWorkspaceController.listNotes
+);
+router.post(
+  '/trips/:tripId/notes',
+  isAuthenticated,
+  [idParam('tripId'), noteBodyRule],
+  handleValidationErrors,
+  tripWorkspaceController.createNote
+);
+router.put(
+  '/trips/:tripId/notes/:noteId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('noteId'), noteBodyRule],
+  handleValidationErrors,
+  tripWorkspaceController.updateNote
+);
+router.delete(
+  '/trips/:tripId/notes/:noteId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('noteId')],
+  handleValidationErrors,
+  tripWorkspaceController.deleteNote
+);
+
+router.get(
+  '/trips/:tripId/checklist',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripWorkspaceController.listChecklist
+);
+router.post(
+  '/trips/:tripId/checklist',
+  isAuthenticated,
+  [idParam('tripId'), checklistLabelRule(true)],
+  handleValidationErrors,
+  tripWorkspaceController.createChecklistItem
+);
+// Declared before `/checklist/:itemId`, like every literal segment in this repository - Express
+// matches in declaration order, so a `:itemId` route above this would swallow "order" and hand it
+// to a handler expecting an integer (`BUG C2`, guarded by `routeShadowing.test.js`).
+router.put(
+  '/trips/:tripId/checklist/order',
+  isAuthenticated,
+  [
+    idParam('tripId'),
+    body('item_ids').isArray({ min: 0 }).withMessage('item_ids must be an array'),
+    body('item_ids.*').isInt({ min: 1 }).withMessage('item_ids must contain positive integers')
+  ],
+  handleValidationErrors,
+  tripWorkspaceController.reorderChecklist
+);
+// PATCH rather than PUT: a tick sends `is_done` alone and must not blank the label beside it.
+// `is_done` is validated as a real boolean rather than coerced, so `"maybe"` is a 400 instead of
+// quietly becoming `true`.
+router.patch(
+  '/trips/:tripId/checklist/:itemId',
+  isAuthenticated,
+  [
+    idParam('tripId'),
+    idParam('itemId'),
+    checklistLabelRule(false),
+    body('is_done').optional().isBoolean().withMessage('is_done must be true or false').toBoolean()
+  ],
+  handleValidationErrors,
+  tripWorkspaceController.updateChecklistItem
+);
+router.delete(
+  '/trips/:tripId/checklist/:itemId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('itemId')],
+  handleValidationErrors,
+  tripWorkspaceController.deleteChecklistItem
 );
 
 module.exports = router;

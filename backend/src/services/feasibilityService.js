@@ -62,37 +62,8 @@ const ASSUMPTIONS = {
   backtracking_excess_km: 20
 };
 
-const EARTH_RADIUS_KM = 6371;
-const toRadians = (degrees) => (degrees * Math.PI) / 180;
-
-/**
- * Great-circle distance in kilometres, or `null` when either point is unknown.
- *
- * `null` rather than 0 on missing coordinates, and the difference matters: 0 would mean "these are
- * in the same place", which would silently approve a day whose stops we simply know nothing about.
- * A check that cannot run must say so, not pass.
- */
-const haversineKm = (a, b) => {
-  // `Number(null)` is 0, and 0 is a finite number — so coercing first and checking `isFinite`
-  // afterwards reads a missing longitude as the Greenwich meridian and returns a confident,
-  // nonsensical 8,000 km. Caught by the test that asserts this returns null; the emptiness check
-  // has to come before the coercion, not after it.
-  const present = (value) => value !== null && value !== undefined && value !== '';
-  if (![a?.latitude, a?.longitude, b?.latitude, b?.longitude].every(present)) return null;
-
-  const lat1 = Number(a.latitude);
-  const lon1 = Number(a.longitude);
-  const lat2 = Number(b.latitude);
-  const lon2 = Number(b.longitude);
-  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return null;
-
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
-};
+const { haversineKm } = require('./geoDistance');
+const { checkAccessNeeds } = require('./feasibilityAccess');
 
 /** Estimated minutes to travel a straight-line distance, rounded up to the minute. */
 const travelMinutesForKm = (straightLineKm) =>
@@ -112,6 +83,20 @@ const minutesOfDay = (time) => {
   const minutes = Number(match[2]);
   if (hours > 23 || minutes > 59) return null;
   return hours * 60 + minutes;
+};
+
+/**
+ * `'2026-12-14T06:42'` -> `402`. `null` for anything unparseable.
+ *
+ * The provider returns sunrise and sunset as **local-time** ISO strings under `timezone=auto`, in
+ * the same frame as `trip_items.start_time` — so comparing the wall-clock minutes of the two is
+ * comparing like with like, and no zone database is needed. That is what keeps this file free of a
+ * clock: it never asks what time it is, only what the data says.
+ */
+const minutesOfLocalIso = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = /T(\d{2}):(\d{2})/.exec(value);
+  return match ? minutesOfDay(`${match[1]}:${match[2]}`) : null;
 };
 
 const coordinatesOf = (item) =>
@@ -222,24 +207,40 @@ const checkTravelTime = (day, timedItems) => {
     const distanceKm = haversineKm(coordinatesOf(from.item), coordinatesOf(to.item));
     if (distanceKm === null || distanceKm < ASSUMPTIONS.negligible_distance_km) continue;
 
+    // `FV-026` stage (b). A routed leg, when `tripRoutingService` attached one, is a measurement;
+    // the haversine estimate is an assumption wearing a number. They are never blended — a finding
+    // is one or the other, and says which.
+    const routed = day.road_legs?.[`${from.item.id}->${to.item.id}`];
+
     // Leaving time is the end of the previous item where one is given, its start otherwise.
     const departure = from.end ?? from.start;
     const gapMinutes = to.start - departure;
-    const neededMinutes = travelMinutesForKm(distanceKm);
+    const neededMinutes = routed ? routed.minutes : travelMinutesForKm(distanceKm);
     if (gapMinutes >= neededMinutes) continue;
+
+    // "250 km by road" states a measurement; "about 325 km" states an estimate. The wording
+    // carries the difference, because `estimated: true` is a field a screenshot loses.
+    const howFar = routed
+      ? `${Math.round(routed.km)} km by road`
+      : `about ${Math.round(distanceKm * ASSUMPTIONS.road_factor)} km`;
 
     findings.push(
       finding(
         'insufficient_travel_time',
         'error',
-        `"${from.item.title}" to "${to.item.title}" is about ${Math.round(distanceKm * ASSUMPTIONS.road_factor)} km — roughly ${neededMinutes} minutes — but the plan allows ${gapMinutes}.`,
+        `"${from.item.title}" to "${to.item.title}" is ${howFar} — roughly ${neededMinutes} minutes — but the plan allows ${gapMinutes}.`,
         {
           day_number: day.day_number,
           item_ids: [from.item.id, to.item.id],
           straight_line_km: Number(distanceKm.toFixed(1)),
           estimated_travel_minutes: neededMinutes,
           available_minutes: gapMinutes,
-          estimated: true
+          // The whole point of the upgrade: this flips to `false` when the number was measured,
+          // and `FeasibilityPanel` stops printing the straight-line caveat under it.
+          estimated: !routed,
+          ...(routed
+            ? { road_km: Number(routed.km.toFixed(1)), source: day.routing_source ?? null }
+            : {})
         }
       )
     );
@@ -305,6 +306,107 @@ const checkClustering = (day, orderedItems) => {
   ];
 };
 
+/**
+ * `FV-031` — an outdoor stop scheduled in the dark.
+ *
+ * **Only `outdoor` counts.** `places.setting` defaults to `unknown` and most of the catalogue will
+ * sit there until somebody classifies it; `mixed` is a fort with a museum in it. Warning about
+ * either would be a guess wearing a validator's authority, which is the one thing this engine
+ * exists not to do — so both produce nothing at all. `ADR-041` is the same rule for travel time.
+ *
+ * **It also does nothing without the day's own sunrise and sunset.** Those arrive as data on the
+ * day — `tripForecastService` puts them there from the forecast, which is what keeps the network
+ * out of this file; beyond the provider's seven-day horizon there is no reading, and an absent
+ * reading produces an absent finding rather than an assumed one.
+ *
+ * A warning rather than an error: a sunrise hike and a night market are both things a traveller can
+ * legitimately want. `feasible` stays a statement about what is *possible*.
+ */
+const checkDaylight = (day, timedItems) => {
+  const sunrise = minutesOfLocalIso(day.sunrise);
+  const sunset = minutesOfLocalIso(day.sunset);
+  if (sunrise === null || sunset === null) return [];
+
+  const findings = [];
+  for (const entry of timedItems) {
+    if (entry.item.place_setting !== 'outdoor') continue;
+
+    // The end of the visit is what matters for sunset — an item that starts at 17:00 and runs to
+    // 19:30 is outdoors in the dark even though it began in daylight.
+    const finish = entry.end ?? entry.start;
+    const beforeSunrise = entry.start < sunrise;
+    const afterSunset = finish > sunset;
+    if (!beforeSunrise && !afterSunset) continue;
+
+    findings.push(
+      finding(
+        'outdoor_item_in_darkness',
+        'warning',
+        beforeSunrise
+          ? `"${entry.item.title}" is outdoors and starts at ${entry.item.start_time?.slice(0, 5)}, before sunrise at ${day.sunrise.slice(11, 16)}.`
+          : `"${entry.item.title}" is outdoors and runs to ${(entry.item.end_time || entry.item.start_time)?.slice(0, 5)}, after sunset at ${day.sunset.slice(11, 16)}.`,
+        {
+          day_number: day.day_number,
+          item_ids: [entry.item.id],
+          sunrise: day.sunrise,
+          sunset: day.sunset,
+          // Whoever supplied the reading, carried to the finding rather than left on the day.
+          // Open-Meteo's licence is CC-BY, and a warning that travels as a screenshot has to take
+          // its attribution with it — the same reasoning that puts `estimated` on the finding
+          // instead of only in the panel footer. `null` when nothing attached one.
+          source: day.forecast_source ?? null
+        }
+      )
+    );
+  }
+  return findings;
+};
+
+/**
+ * `FV-027` stage (a) — an outdoor day the forecast says will be wet.
+ *
+ * **This is evidence, not a replan.** `FV-027`'s design is a *diff*: the smallest change that
+ * restores a workable plan, shown before it is applied. Every proposal it eventually makes has to
+ * cite why, and this is the why — stated on its own, where a traveller can act on it by hand today
+ * and where a proposal engine can read it tomorrow. `AI_ROADMAP.md`'s pipeline needs a model only to
+ * *compose* new items; identifying which day is a problem never did.
+ *
+ * **Same three refusals as `checkDaylight`, for the same reason.** Only `outdoor` counts — `unknown`
+ * is the catalogue's default and `mixed` is a fort with a museum in it, so neither is evidence of
+ * anything. No reading produces no finding rather than an assumed one. And it is a warning: rain is
+ * a reason to rethink a day, not a reason the day cannot happen.
+ *
+ * **No start time is required**, unlike daylight. Being outdoors in the rain at no particular hour is
+ * still being outdoors in the rain, and a half-built plan is mostly untimed items.
+ *
+ * One finding per day rather than one per item: three soaked stops on one day are one problem with
+ * one answer, and three warnings saying the same thing is how a panel teaches people to skim it.
+ */
+const checkWetOutdoor = (day, orderedItems) => {
+  if (!day.weather?.is_wet) return [];
+
+  const exposed = orderedItems.filter((item) => item.place_setting === 'outdoor');
+  if (exposed.length === 0) return [];
+
+  const mm = day.weather.precipitation_mm;
+  return [
+    finding(
+      'outdoor_day_likely_wet',
+      'warning',
+      `Day ${day.day_number} is forecast ${String(day.weather.condition).toLowerCase()}${
+        typeof mm === 'number' ? ` (${mm} mm)` : ''
+      }, and ${exposed.length === 1 ? 'one stop is' : `${exposed.length} stops are`} outdoors.`,
+      {
+        day_number: day.day_number,
+        item_ids: exposed.map((item) => item.id),
+        condition: day.weather.condition,
+        precipitation_mm: mm ?? null,
+        source: day.forecast_source ?? null
+      }
+    )
+  ];
+};
+
 /** Stage (a) — the same place twice in one day. */
 const checkDuplicates = (day, orderedItems) => {
   const seen = new Map();
@@ -338,7 +440,7 @@ const checkDuplicates = (day, orderedItems) => {
  * plan that cannot be executed. Collapsing the two would make the engine an opinion about taste,
  * and it would stop being usable as `AI-006`'s scorer.
  */
-const checkTrip = (trip) => {
+const checkTrip = (trip, requirements = null) => {
   const findings = [...checkDayBounds(trip)];
 
   for (const day of trip?.days || []) {
@@ -360,8 +462,11 @@ const checkTrip = (trip) => {
       ...checkOverlaps(day, timedItems),
       ...checkOrdering(day, timedItems),
       ...checkTravelTime(day, timedItems),
+      ...checkDaylight(day, timedItems),
+      ...checkWetOutdoor(day, orderedItems),
       ...checkClustering(day, orderedItems),
-      ...checkDuplicates(day, orderedItems)
+      ...checkDuplicates(day, orderedItems),
+      ...checkAccessNeeds(day, orderedItems, requirements)
     );
   }
 
@@ -379,10 +484,12 @@ const checkTrip = (trip) => {
 module.exports = {
   checkTrip,
   // Exported for tests and for `FV-026`, which will replace `travelMinutesForKm` with a real
-  // routing call and must be able to compare the two.
-  haversineKm,
+  // routing call and must be able to compare the two. `haversineKm` is deliberately **not**
+  // re-exported: it lives in `geoDistance` now, and a pass-through here would leave every caller
+  // still importing geometry from a validator.
   travelMinutesForKm,
   minutesOfDay,
+  minutesOfLocalIso,
   inclusiveDayCount,
   ASSUMPTIONS
 };

@@ -71,6 +71,100 @@ describe('GET /api/places', () => {
     expect(res.body.data.map((p) => p.name)).toEqual(['Coorg']);
   });
 
+  test('a place is unclassified until somebody says otherwise', async () => {
+    // `unknown` is the default and every consumer must read it as "assert nothing", not as a
+    // synonym for indoor. A daylight warning produced from a guess would be fabricated data with a
+    // scheduler's authority.
+    const res = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Unclassified', location: 'Nowhere' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.setting).toBe('unknown');
+  });
+
+  test('a setting is stored when given, and refused when it is not one of the four', async () => {
+    const ok = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Open Ruins', location: 'Hampi', setting: 'outdoor' });
+    expect(ok.status).toBe(201);
+    expect(ok.body.setting).toBe('outdoor');
+
+    const bad = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Bad', location: 'Nowhere', setting: 'outdoorsy' });
+    expect(bad.status).toBe(400);
+    expect(JSON.stringify(bad.body)).toMatch(/setting/);
+  });
+
+  test('an edit that does not mention setting leaves the classification alone', async () => {
+    // `updatePlace` keys on `column in placeData`, so an unconditional pass-through would send
+    // undefined -> NULL and the NOT NULL column would reject the edit. This is that guard.
+    const created = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Keeps Its Setting', location: 'Somewhere', setting: 'mixed' });
+    expect(created.status).toBe(201);
+
+    const edited = await request(app)
+      .put(`/api/admin/places/${created.body.id}`)
+      .set(asAdmin)
+      .send({ name: 'Renamed Only', location: 'Somewhere' });
+
+    expect(edited.status).toBe(200);
+    expect(edited.body.setting).toBe('mixed');
+  });
+
+  test('an empty setting on a multipart edit means "leave it alone", not a 500 (BUG-055)', async () => {
+    // Reachable from an ordinary browser: an HTML <select> with its empty option selected submits
+    // `setting=""`, and a multipart form submits every field it renders whether or not anybody
+    // touched it. The validator is `optional({ values: 'falsy' })` so it never sees the value; the
+    // controller used to pass it through, and `places_setting_known` rejected the whole edit.
+    const res = await request(app)
+      .put('/api/admin/places/2')
+      .set('Authorization', authHeader({ uid: 'seed-admin-uid' }))
+      .field('setting', '')
+      .field('name', 'Renamed With An Empty Setting');
+
+    expect(res.status).toBe(200);
+
+    const { rows } = await pool.query('SELECT name, setting FROM places WHERE id = 2');
+    expect(rows[0].name).toBe('Renamed With An Empty Setting');
+    // Untouched, which is what "said nothing" has to mean.
+    expect(rows[0].setting).toBe('unknown');
+  });
+
+  test('an unknown theme is refused on write, though it is tolerated on a read', async () => {
+    // The asymmetry is deliberate and this pins both halves. `themes` is a closed vocabulary shared
+    // with the browse filter, so storing one nothing offers creates a place no filter can find --
+    // which is how the seed came to carry `heritage` and `spiritual`. But a *query* for an unknown
+    // theme is a stale bookmark, and 200-with-nothing is friendlier there than a 400.
+    const res = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Nowhere', location: 'Nowhere', themes: JSON.stringify(['spiritual']) });
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toMatch(/spiritual/);
+
+    // the same value as a filter is not an error
+    const read = await request(app).get('/api/places?themes=%5B%22spiritual%22%5D');
+    expect(read.status).toBe(200);
+  });
+
+  test('a valid theme is accepted on write', async () => {
+    // Guarding the guard: if the validator rejected everything, the test above would still pass.
+    const res = await request(app)
+      .post('/api/admin/places')
+      .set(asAdmin)
+      .send({ name: 'Somewhere', location: 'Somewhere', themes: JSON.stringify(['historical']) });
+
+    expect(res.status).toBe(201);
+  });
+
   test('an unmatched filter returns an empty list, not an error', async () => {
     const res = await request(app).get('/api/places?themes=%5B%22nonexistent-theme%22%5D');
     expect(res.status).toBe(200);
@@ -182,6 +276,29 @@ describe('GET /api/places/:id', () => {
     const res = await request(app).get('/api/places/1');
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('Hampi');
+  });
+
+  // `TD-023`. `places.setting` had a migration, a validator, a CHECK constraint, an index and two
+  // features reading it — and this query never selected it. The write path accepted a
+  // classification the read path could not return, so the admin form had no way to show what a
+  // place already was, and every unrelated edit would have silently reset it to the default.
+  //
+  // A one-column omission, invisible to every backend test, because nothing asked.
+  test('returns the place’s setting, so an editor can show what it already is', async () => {
+    const res = await request(app).get('/api/places/1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('setting');
+    // Seeded rows carry the column default: nothing in the catalogue is classified yet, which is
+    // the state `TD-023` exists to make changeable.
+    expect(res.body.setting).toBe('unknown');
+  });
+
+  test('and reports a real classification once one is set', async () => {
+    await pool.query("UPDATE places SET setting = 'outdoor' WHERE id = 1");
+
+    const res = await request(app).get('/api/places/1');
+    expect(res.body.setting).toBe('outdoor');
   });
 
   // Found by the E2E suite (IMP-094): this endpoint is public and Next serialises the whole payload

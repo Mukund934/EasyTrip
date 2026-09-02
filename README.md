@@ -111,6 +111,9 @@
 - 🗺️ **Trip Workspace** – Build an itinerary day by day: ordered items, times, notes, and transport legs between stops
 - ✅ **Feasibility check** – A deterministic answer to "can this plan actually be done?": days outside the trip's dates, overlapping times, not enough time to travel between two stops, a day that doubles back on itself. It separates _cannot be done_ from _worth a look_, and every travel figure says it is an estimate — there is no routing service behind it, and the assumptions are printed rather than hidden
 - 🧭 **Route ordering** – For a day of stops, it looks for a shorter way round the same places, shows which ones would move and how much driving that saves, and then waits: it suggests, and never rearranges anything on its own. Days that already have times on them are left alone, because the clock decides that order
+- 🗺️ **The day on a map** – Draws a day's stops in the order you arranged them, so a day that doubles back looks like one. The line is dashed on purpose: it shows the order, not the road. Every leg says whether it was measured or estimated, and a stop with no coordinates is named rather than quietly left off. The map is decorative — the same order, distances and omissions are a list beside it, for readers who cannot see a shape
+- ♿ **Step-free access, with its receipts** – Filter the catalogue to places somebody has actually checked for step-free access, and see the answer on the card **with the date it was checked** — never a bare tick. The place page says who checked and what they found. A place nobody has surveyed shows nothing at all rather than a greyed-out badge, because "not checked" and "not accessible" are different answers and only one of them is safe to guess
+- 🧭 **Your trip, checked against your own needs** – Tell EasyTrip you need step-free access and the feasibility report names the stops that cannot accommodate you, with who checked and when. A place nobody has surveyed says nothing at all — warning on data that does not exist would put a caution on almost every stop and teach you to ignore all of them
 - ☀️ **Real Weather** – A live Open-Meteo forecast on each place page, keyed on that place's own coordinates. When there is no reading it says so rather than showing a number
 - 📴 **Installable & Offline** – A PWA: install it, and pages you have already visited still open with no connection
 - 🔐 **Accounts** – Firebase email/password + Google sign-in, with an editable display name
@@ -126,7 +129,8 @@
 
 ### 🧪 Engineering
 
-- ✅ **1,035 assertions across three layers** – 567 API tests against a real PostgreSQL, 358 component tests, and 110 browser journeys including authenticated ones against the Firebase Auth Emulator. Measured at Sprint 8.11 (the commit that added the last of them); reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,695 assertions across three layers** – 874 API tests against a real PostgreSQL, 680 component tests, and 141 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. The API and component counts were measured at Sprint 8.49; the browser count at Sprint 8.46, which came back 141 passed with nothing flaky and nothing skipped — the second complete run in a row, after three sprints in which the environment could not start the dev server at all (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – six jobs: lint and build, frontend tests, migrations, API tests, end-to-end, and a job that checks the assertion counts above against what the suites actually ran
@@ -229,7 +233,8 @@ EasyTrip/
 ```
 
 `scripts/` holds the checks that keep this file and the codebase honest — module size,
-credential-shaped strings, and the API route table below, which is compared against the real routers
+credential-shaped strings, environment documentation, the theme and translation vocabularies, the
+test counts quoted above, and the API route table below, which is compared against the real routers
 in both directions. They are guards rather than tests: each one fails on a fact about the repository,
 not on behaviour.
 
@@ -545,21 +550,24 @@ The table below is the complete set of Express routes the backend actually regis
 
 ### Places - public reads
 
-| Method | Endpoint                      | Auth | Description                                                                                                                                                |
-| ------ | ----------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/places`                     | -    | List places. Filters: `searchTerm`, `location`, `district`, `state`, `tags`, `themes`, `minRating`, `date`. Paged with `limit`/`offset`, ordered by `sort` |
-| GET    | `/places/search`              | -    | The same handler under a second name                                                                                                                       |
-| GET    | `/places/suggest`             | -    | Typeahead suggestions (`q`, `limit` up to 10)                                                                                                              |
-| GET    | `/places/locations`           | -    | Distinct locations                                                                                                                                         |
-| GET    | `/places/districts`           | -    | Distinct districts                                                                                                                                         |
-| GET    | `/places/states`              | -    | Distinct states                                                                                                                                            |
-| GET    | `/places/tags`                | -    | Distinct tags                                                                                                                                              |
-| GET    | `/places/:id`                 | -    | One place                                                                                                                                                  |
-| GET    | `/places/:id/image`           | -    | Primary image (redirect, with an SVG placeholder fallback)                                                                                                 |
-| GET    | `/places/:id/images`          | -    | Gallery images                                                                                                                                             |
-| GET    | `/places/:id/images/:imageId` | -    | Same handler as `/places/:id/image`                                                                                                                        |
-| GET    | `/places/:id/weather`         | -    | Live forecast for that place's own coordinates. Deliberately **not** `?lat=&lon=`, which would be an open proxy to a third party at our IP                 |
-| GET    | `/places/:id/reviews`         | -    | Reviews. Soft-authenticated: your own review is flagged for the edit UI, but no author id is ever returned                                                 |
+| Method | Endpoint                      | Auth | Description                                                                                                                                                                                                                         |
+| ------ | ----------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/places`                     | -    | List places. Filters: `searchTerm`, `location`, `district`, `state`, `tags`, `themes`, `minRating`, `date`. Paged with `limit`/`offset`, ordered by `sort`                                                                          |
+| GET    | `/places/search`              | -    | The same handler under a second name                                                                                                                                                                                                |
+| GET    | `/places/suggest`             | -    | Typeahead suggestions (`q`, `limit` up to 10)                                                                                                                                                                                       |
+| GET    | `/places/locations`           | -    | Distinct locations                                                                                                                                                                                                                  |
+| GET    | `/places/districts`           | -    | Distinct districts                                                                                                                                                                                                                  |
+| GET    | `/places/states`              | -    | Distinct states                                                                                                                                                                                                                     |
+| GET    | `/places/tags`                | -    | Distinct tags                                                                                                                                                                                                                       |
+| GET    | `/places/:id`                 | -    | One place                                                                                                                                                                                                                           |
+| GET    | `/places/:id/image`           | -    | Primary image (redirect, with an SVG placeholder fallback)                                                                                                                                                                          |
+| GET    | `/places/:id/images`          | -    | Gallery images                                                                                                                                                                                                                      |
+| GET    | `/places/:id/images/:imageId` | -    | Same handler as `/places/:id/image`                                                                                                                                                                                                 |
+| GET    | `/trips/shared/:token`        | -    | A trip by its share token (`FV-009` stage c). The **only** read of a trip without a signed-in owner. Returns the itinerary and never the trip's notes, its checklist, the owner's uid or the token itself; `noindex` and `no-store` |
+| GET    | `/places/:id/fit`             | -    | Explainable fit score for `?month=` and `?interests=`. Returns every factor that counted, every one that could not, and the **coverage** the score was computed over - `score` is `null` when nothing is known (`FV-028` stage d)   |
+| GET    | `/places/:id/quieter-nearby`  | -    | Places nearby that somebody judged **quieter than this one**. Empty unless both ends have a curated crowd level - a comparison needs two known values (`FV-028` stage c)                                                            |
+| GET    | `/places/:id/weather`         | -    | Live forecast for that place's own coordinates. Deliberately **not** `?lat=&lon=`, which would be an open proxy to a third party at our IP                                                                                          |
+| GET    | `/places/:id/reviews`         | -    | Reviews. Soft-authenticated: your own review is flagged for the edit UI, but no author id is ever returned                                                                                                                          |
 
 ### Reviews - writes
 
@@ -586,21 +594,36 @@ The table below is the complete set of Express routes the backend actually regis
 Days and items carry no owner of their own - every query joins up to `trips.user_id`. A second
 account cannot reach them even by addressing a victim's item through its own trip id.
 
-| Method | Endpoint                                           | Auth   | Description                                                                                                                                             |
-| ------ | -------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/auth/trips`                                      | Bearer | Your trips                                                                                                                                              |
-| POST   | `/auth/trips`                                      | Bearer | Create a trip                                                                                                                                           |
-| GET    | `/auth/trips/:tripId`                              | Bearer | One trip, with its days and items                                                                                                                       |
-| GET    | `/auth/trips/:tripId/feasibility`                  | Bearer | Deterministic check that the plan can be executed — day bounds, overlaps, estimated travel time, backtracking, duplicates. Reports; never blocks a save |
-| PUT    | `/auth/trips/:tripId`                              | Bearer | Update a trip                                                                                                                                           |
-| DELETE | `/auth/trips/:tripId`                              | Bearer | Delete a trip                                                                                                                                           |
-| GET    | `/auth/trips/:tripId/days/:dayId/route-suggestion` | Bearer | A shorter order for one day, with the distance saved. Proposes only — applying it goes through the reorder route                                        |
-| POST   | `/auth/trips/:tripId/days`                         | Bearer | Add a day                                                                                                                                               |
-| DELETE | `/auth/trips/:tripId/days/:dayId`                  | Bearer | Remove a day                                                                                                                                            |
-| POST   | `/auth/trips/:tripId/days/:dayId/items`            | Bearer | Add an item to a day                                                                                                                                    |
-| PUT    | `/auth/trips/:tripId/days/:dayId/items/order`      | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied                                                          |
-| PUT    | `/auth/trips/:tripId/items/:itemId`                | Bearer | Update an item                                                                                                                                          |
-| DELETE | `/auth/trips/:tripId/items/:itemId`                | Bearer | Remove an item                                                                                                                                          |
+| Method | Endpoint                                           | Auth   | Description                                                                                                                                                                                                                                                              |
+| ------ | -------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/auth/trips`                                      | Bearer | Your trips                                                                                                                                                                                                                                                               |
+| POST   | `/auth/trips`                                      | Bearer | Create a trip                                                                                                                                                                                                                                                            |
+| GET    | `/auth/trips/:tripId`                              | Bearer | One trip, with its days and items                                                                                                                                                                                                                                        |
+| GET    | `/auth/trips/:tripId/feasibility`                  | Bearer | Deterministic check that the plan can be executed — day bounds, overlaps, ordering, travel time (real road distance when a routing key is configured, otherwise a labelled estimate), daylight, wet outdoor days, backtracking, duplicates. Reports; never blocks a save |
+| PUT    | `/auth/trips/:tripId`                              | Bearer | Update a trip                                                                                                                                                                                                                                                            |
+| DELETE | `/auth/trips/:tripId`                              | Bearer | Delete a trip                                                                                                                                                                                                                                                            |
+| GET    | `/auth/trips/:tripId/replan-suggestion`            | Bearer | What to change when the forecast disagrees with the plan — which outdoor stops to move off a wet day, to which drier day, and why. Every proposal is validated against the whole trip first. Proposes only; applying goes through the item endpoint                      |
+| GET    | `/auth/trips/:tripId/days/:dayId/route-suggestion` | Bearer | A shorter order for one day, with the distance saved. Proposes only — applying it goes through the reorder route                                                                                                                                                         |
+| GET    | `/auth/trips/:tripId/days/:dayId/route`            | Bearer | One day as it would be drawn: its stops in list order, the leg between each pair, and what the map is leaving out. Road distance when a routing key is configured, a labelled estimate otherwise                                                                         |
+| POST   | `/auth/trips/:tripId/days`                         | Bearer | Add a day                                                                                                                                                                                                                                                                |
+| DELETE | `/auth/trips/:tripId/days/:dayId`                  | Bearer | Remove a day                                                                                                                                                                                                                                                             |
+| POST   | `/auth/trips/:tripId/days/:dayId/items`            | Bearer | Add an item to a day                                                                                                                                                                                                                                                     |
+| PUT    | `/auth/trips/:tripId/days/:dayId/items/order`      | Bearer | Reorder a day. Takes the **full** order; a partial list is rejected rather than partly applied                                                                                                                                                                           |
+| PUT    | `/auth/trips/:tripId/items/:itemId`                | Bearer | Update an item                                                                                                                                                                                                                                                           |
+| DELETE | `/auth/trips/:tripId/items/:itemId`                | Bearer | Remove an item                                                                                                                                                                                                                                                           |
+| GET    | `/auth/trips/:tripId/share`                        | Bearer | Whether this trip has a share link, and when it was made (`FV-009` stage c)                                                                                                                                                                                              |
+| POST   | `/auth/trips/:tripId/share`                        | Bearer | Create the link — and **rotate** it when one already exists, which is how a link that spread too far is killed                                                                                                                                                           |
+| DELETE | `/auth/trips/:tripId/share`                        | Bearer | Revoke. There is one token, so this ends every copy of the link at once                                                                                                                                                                                                  |
+| GET    | `/auth/trips/:tripId/calendar.ics`                 | Bearer | The trip as an RFC 5545 calendar file (`FV-009` stage a). Times are **floating** — no `Z`, no `TZID` — because `trip_items.start_time` means local wall clock. A trip with no start date is a 422, not an empty file                                                     |
+| GET    | `/auth/trips/:tripId/notes`                        | Bearer | Notes on this trip, newest first (`FV-006` stage b). An unknown trip is a 404, never an empty list                                                                                                                                                                       |
+| POST   | `/auth/trips/:tripId/notes`                        | Bearer | Add a note. Trimmed and length-checked before it reaches the non-blank `CHECK` constraint                                                                                                                                                                                |
+| PUT    | `/auth/trips/:tripId/notes/:noteId`                | Bearer | Rewrite a note                                                                                                                                                                                                                                                           |
+| DELETE | `/auth/trips/:tripId/notes/:noteId`                | Bearer | Delete a note                                                                                                                                                                                                                                                            |
+| GET    | `/auth/trips/:tripId/checklist`                    | Bearer | The checklist, ordered by `(position, id)`                                                                                                                                                                                                                               |
+| POST   | `/auth/trips/:tripId/checklist`                    | Bearer | Append an item; the server assigns the position                                                                                                                                                                                                                          |
+| PUT    | `/auth/trips/:tripId/checklist/order`              | Bearer | Rewrite the whole order. Declared before `:itemId` so "order" is not read as an id. An id from another trip renumbers **nothing** - a partial reorder is worse than a refused one                                                                                        |
+| PATCH  | `/auth/trips/:tripId/checklist/:itemId`            | Bearer | Change the label, the tick, or both. PATCH rather than PUT so ticking a box cannot blank the label beside it                                                                                                                                                             |
+| DELETE | `/auth/trips/:tripId/checklist/:itemId`            | Bearer | Remove an item                                                                                                                                                                                                                                                           |
 
 ### Admin
 
@@ -817,9 +840,12 @@ commit-hygiene section two headings below it. Corrected 2026-08-16.)_
 
 ## 📄 License
 
-No license file has been added to this repository yet. The `package.json` manifests declare
-`ISC`; a matching `LICENSE` file still needs to be committed before that declaration means anything.
-Until then, treat the code as all-rights-reserved.
+**MIT** — see [`LICENSE`](LICENSE).
+
+All three `package.json` manifests declare `MIT` and the `LICENSE` file is present, so the
+declaration and the file finally agree. They did not until now: the manifests said `ISC`, there was
+no licence file at all, and an earlier version of this README claimed MIT — three different answers
+to one question, which in practice meant nobody could reuse the code with confidence.
 
 ---
 
@@ -844,6 +870,20 @@ longer-term and **not started**.
       before any AI is allowed to generate one: the validator comes first precisely so a generated
       itinerary can be _checked_ rather than trusted. Travel times are estimates until a routing
       provider lands, and they say so
+- [x] **Daylight-aware scheduling** — shipped. An outdoor stop scheduled before sunrise or after
+      sunset is flagged, from the day's own coordinates and date. It stays quiet about a place
+      nobody has classified and about any date past the forecast's seven-day horizon — an absent
+      reading produces an absent finding, never an assumed one
+- [x] **Weather-aware planning, the deterministic half** — shipped. A day the forecast says will be
+      wet, carrying stops that are outdoors, is flagged with the stops named. That is the evidence a
+      replanning proposal has to cite; proposing the move itself is the next stage, and it needs no
+      model either
+- [x] **Real road distances** — shipped, and optional. With an OpenRouteService key the travel-time
+      check reports a measured road distance instead of a straight line inflated by a guess, and
+      stops calling itself an estimate. Without one, nothing changes and nothing is requested
+- [x] **Weather replanning** — shipped, as a proposal. When the forecast says a day will be wet and
+      stops on it are outdoors, the app says which to move and to when, with the forecast either
+      side. It proposes and never applies, and it says why it left things alone
 - [ ] **Route optimisation** — reorder a day's stops to cut the backtracking, and show what changed
 - [ ] **Collaborative trips** — invites, roles, and proposals rather than a shared password
 - [ ] **Budget and expense splitting** — minimal-transaction settlement

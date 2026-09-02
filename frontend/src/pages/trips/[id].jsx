@@ -10,7 +10,8 @@ import {
   FiChevronUp,
   FiChevronDown,
   FiClock,
-  FiMapPin
+  FiMapPin,
+  FiPrinter
 } from 'react-icons/fi';
 
 import { useAuth } from '../../context/AuthContext';
@@ -18,8 +19,18 @@ import { useTripWorkspace } from '../../hooks/useTripWorkspace';
 import { useWishlist } from '../../hooks/useWishlist';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FeasibilityPanel from '../../components/trips/FeasibilityPanel';
+import ReplanPanel from '../../components/trips/ReplanPanel';
 import RouteSuggestion from '../../components/trips/RouteSuggestion';
+import DayRoute from '../../components/trips/DayRoute';
+import TripNotes from '../../components/trips/TripNotes';
+import TripChecklist from '../../components/trips/TripChecklist';
+import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
+import ShareTripPanel from '../../components/trips/ShareTripPanel';
 import { formatDate } from '../../utils/dateFormat';
+// `BUG-058`: the local-time version of this that used to live here rendered every day after a
+// daylight-saving transition as the day before. The arithmetic is done in UTC now, and shared,
+// so the workspace and the printable itinerary cannot disagree about what day it is.
+import { dayDate } from '../../utils/tripDates';
 
 /**
  * One trip's workspace (`IMP-109` / `FV-006`, `ADR-031`).
@@ -33,13 +44,6 @@ import { formatDate } from '../../utils/dateFormat';
  */
 
 /** The calendar date of a day, computed from the trip's start (`ADR-031` — days store an ordinal). */
-const dayDate = (trip, dayNumber) => {
-  if (!trip.start_date) return null;
-  const date = new Date(trip.start_date);
-  date.setDate(date.getDate() + dayNumber - 1);
-  return date.toISOString().slice(0, 10);
-};
-
 const AddItemForm = ({ dayId, savedPlaces, busy, onAdd }) => {
   const [placeId, setPlaceId] = useState('');
   const [title, setTitle] = useState('');
@@ -118,7 +122,7 @@ const AddItemForm = ({ dayId, savedPlaces, busy, onAdd }) => {
 export default function TripWorkspace() {
   const router = useRouter();
   const { id } = router.query;
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, loading: authLoading, getIdToken } = useAuth();
 
   const {
     trip,
@@ -130,15 +134,25 @@ export default function TripWorkspace() {
     feasibility,
     checking,
     feasibilityError,
+    replan,
+    replanning,
+    replanError,
+    suggestReplan,
     checkFeasibility,
     routeSuggestions,
     suggestRoute,
     applyRouteSuggestion,
+    dayRoutes,
+    drawingDay,
+    drawDay,
     addDay,
     removeDay,
     addItem,
     removeItem,
-    moveItem
+    moveItem,
+    // Applying a replan proposal is an ordinary item edit — the same call the workspace makes for
+    // every other change, which is what keeps `FV-027` from having a write path of its own.
+    updateItem
   } = useTripWorkspace(id);
   const { places: savedPlaces } = useWishlist();
 
@@ -230,6 +244,23 @@ export default function TripWorkspace() {
             </div>
           )}
 
+          {/* `FV-009` stage (a). Above the itinerary, because exporting is something a reader does
+              once the plan looks right, and a control below four days is one they scroll past. */}
+          {/* `FV-009`, both stages. Exporting and printing are the same intention — getting the plan
+              out of here — so the two controls sit together rather than at opposite ends of the
+              page. Above the itinerary, because it is what a reader reaches for once the plan
+              looks right, and a control below four days is one they scroll past. */}
+          <div className="mb-6 flex flex-wrap items-start gap-3">
+            <ExportCalendarButton tripId={trip.id} title={trip.title} getToken={getIdToken} />
+            <Link
+              href={`/trips/${trip.id}/print`}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:border-primary-400 hover:text-primary-700"
+            >
+              <FiPrinter className="h-4 w-4" aria-hidden="true" />
+              Printable version
+            </Link>
+          </div>
+
           {/* Above the days, not below them: the report is about the plan as a whole, and a
               verdict a reader has to scroll past four days to find is a verdict they will not
               look for. It shows nothing until asked (`FV-025`). */}
@@ -239,6 +270,24 @@ export default function TripWorkspace() {
               checking={checking}
               error={feasibilityError}
               onCheck={checkFeasibility}
+            />
+          </div>
+
+          {/* Directly beneath the report, because the two are read in that order: *can this be
+              done* and then *what would you change*. `FV-027` stage (b). */}
+          <div className="mb-6">
+            <ReplanPanel
+              replan={replan}
+              replanning={replanning}
+              error={replanError}
+              busy={busy}
+              onSuggest={suggestReplan}
+              // Applying is `updateItem` with a day — the same call dragging the stop yourself
+              // would make. The hook clears the replan afterwards, so the remaining proposals do
+              // not outlive the plan they were computed from.
+              onApply={(proposal) =>
+                updateItem(proposal.item_id, { trip_day_id: proposal.to_day_id })
+              }
             />
           </div>
 
@@ -353,6 +402,16 @@ export default function TripWorkspace() {
                   onSuggest={() => suggestRoute(day.id)}
                   onApply={() => applyRouteSuggestion(day.id)}
                 />
+
+                {/* The drawing, below the proposal that talks about it (`FV-026` stage c). In this
+                    order because they answer different questions and only one of them is ever
+                    declined: a day with times on it gets no suggestion, and still gets a map. */}
+                <DayRoute
+                  route={dayRoutes[day.id]}
+                  dayNumber={day.day_number}
+                  busy={busy || drawingDay === day.id}
+                  onDraw={() => drawDay(day.id)}
+                />
               </section>
             ))}
           </div>
@@ -366,6 +425,26 @@ export default function TripWorkspace() {
             <FiPlus className="mr-2 h-5 w-5" aria-hidden="true" />
             Add day {trip.days.length + 1}
           </button>
+
+          {/* `FV-006` stage (b). Below the itinerary, because the itinerary is what the reader came
+              for and these are what they reach for while building it. Side by side on a wide screen
+              and stacked on a phone: neither is more important than the other, and a checklist that
+              needs scrolling past the notes to reach is a checklist nobody ticks.
+
+              Each fetches its own collection rather than riding on the workspace read. The workspace
+              reloads after every itinerary write (see `useTripWorkspace`), and folding these into it
+              would refetch every note each time somebody dragged a stop. */}
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            <TripChecklist tripId={trip.id} getToken={getIdToken} />
+            <TripNotes tripId={trip.id} getToken={getIdToken} />
+          </div>
+
+          {/* `FV-009` stage (c). Below the notes and checklist on purpose: the panel says those two
+              are *not* shared, and that sentence is easier to believe when the reader has just
+              scrolled past them. */}
+          <div className="mt-6">
+            <ShareTripPanel tripId={trip.id} getToken={getIdToken} />
+          </div>
         </div>
       </div>
     </>

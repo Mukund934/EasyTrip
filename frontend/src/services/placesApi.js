@@ -111,6 +111,34 @@ export const fetchPlaceById = async (id, options = {}) => request(`/places/${id}
 export const fetchPlaceImages = async (id, options = {}) =>
   request(`/places/${id}/images`, options);
 
+/**
+ * Quieter places near this one (`FV-028` stage c).
+ *
+ * Returns `{ data: [] }` for almost every place, and that is the designed answer rather than a
+ * failure: "less crowded" is a relation, so it needs a curated crowd level at both ends.
+ */
+export const fetchQuieterNearby = async (id, options = {}) =>
+  request(`/places/${id}/quieter-nearby`, options);
+
+/**
+ * How well one place fits a month and a set of interests, with the working attached (`FV-028` stage d).
+ *
+ * Returns `{ data: { score, coverage, factors, unavailable, weights } }`. **`score` is `null` for
+ * almost every place** - nothing has been curated, so there is nothing to compute - and `coverage`
+ * says how much of the evidence existed. The two are meant to be rendered together; a caller showing
+ * the score alone is claiming a measurement where there is an opinion over a fraction of the evidence.
+ */
+export const fetchPlaceFit = async (id, { month, interests } = {}, options = {}) =>
+  request(
+    `/places/${id}/fit${buildQuery({
+      month,
+      // A comma-joined string rather than repeated parameters, which is the shape the validator
+      // accepts. An empty list must not become `interests=`, or the server counts a blank interest.
+      interests: interests?.length ? interests.join(',') : undefined
+    })}`,
+    options
+  );
+
 export const fetchPlaceReviews = async (id, options = {}) =>
   request(`/places/${id}/reviews`, options);
 

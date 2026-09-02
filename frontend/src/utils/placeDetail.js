@@ -59,7 +59,33 @@ export const buildEditorialExcerpt = (place) =>
 export const PLACE_SECTIONS = [
   { id: 'about', title: 'About This Place' },
   { id: 'details', title: 'Essential Details' },
+  { id: 'when', title: 'When To Go' },
+  { id: 'access', title: 'Getting In' },
   { id: 'gallery', title: 'Photo Gallery' },
   { id: 'reviews', title: 'Traveler Reviews' },
   { id: 'related', title: 'Similar Places' }
 ];
+
+/**
+ * The sections this particular place actually renders (`BL-139`).
+ *
+ * **The full list was being handed to the table of contents whether or not the sections existed**,
+ * so a place with no images has always carried a "Photo Gallery" link that scrolls nowhere. Nothing
+ * failed and nothing logged; the link simply did not work, which is why it survived.
+ *
+ * It is also what kept `FV-029`'s panel out of the contents. That section is absent far more often
+ * than the gallery — today it is absent for the entire catalogue — so registering it before this
+ * would have turned one rare dead link into a universal one.
+ *
+ * `useActiveSection` needs a **stable reference**, so callers must memoise the result: a fresh array
+ * each render tears down and re-registers the observer every time.
+ */
+export const visiblePlaceSections = ({ hasImages, hasAccessibility, hasSeasonality }) =>
+  PLACE_SECTIONS.filter((section) => {
+    if (section.id === 'gallery') return Boolean(hasImages);
+    if (section.id === 'access') return Boolean(hasAccessibility);
+    // `FV-028`. Absent for the whole catalogue on the day it ships, exactly as `access` was, and
+    // registered here for the same reason: the contents must list what the page renders.
+    if (section.id === 'when') return Boolean(hasSeasonality);
+    return true;
+  });

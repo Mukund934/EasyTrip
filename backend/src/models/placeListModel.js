@@ -19,6 +19,12 @@ const pool = require('../config/db');
 // the only seasonal data places actually carry. This used to have a hand-maintained twin in
 // browse.jsx's client-side filter; that copy is gone (IMP-046), so this is now the only
 // definition of what "summer" means and there is nothing left to keep in sync.
+const { SEASON_MONTHS: CURATED_SEASON_MONTHS } = require('../constants/placeSeasonality');
+
+// The same three seasons in the two shapes the two data sources need: a regex for the free-text
+// fallback, and month numbers for the curated column. Duplicated on purpose and guarded by the
+// tests that assert they agree — one is a way of reading prose, the other is a way of reading an
+// array, and neither can be expressed in the other's terms.
 const SEASON_MONTHS = {
   summer: 'april|may|june',
   monsoon: 'july|august|september',
@@ -38,7 +44,20 @@ const SEASON_MONTHS = {
 const LIST_COLUMNS = `
   places.id, places.name, places.location, places.description, places.district, places.state,
   places.latitude, places.longitude, places.primary_image_url, places.themes, places.tags,
-  places.custom_keys, places.rating_count, places.rating_sum, places.created_at, places.updated_at`;
+  places.custom_keys, places.rating_count, places.rating_sum, places.created_at, places.updated_at,
+  places.step_free_access, places.accessibility_source,
+  places.best_months, places.crowd_level, places.typical_visit_minutes,
+  to_char(places.accessibility_checked_on, 'YYYY-MM-DD') AS accessibility_checked_on`;
+
+// Three of the five accessibility columns, and the omissions follow the rule above rather than
+// laziness. A card carries one badge, so it needs the step-free answer and the two facts that make
+// it readable -- who said so and when. accessible_restroom and accessibility_notes belong to the
+// detail page, where there is room to render them as sentences rather than compress them into an
+// icon, and getPlaceById already returns both.
+//
+// to_char for the same reason placeModel uses it: node-pg turns a DATE into a JS Date at LOCAL
+// midnight, so the serialised value is the previous day east of UTC -- and the date is the whole
+// reason the badge is trustworthy.
 
 // Markers need a pin, a label and a popup — nothing else. Dropping `description`, `tags` and
 // `custom_keys` is what makes "every place with coordinates" an affordable request even though
@@ -102,7 +121,8 @@ const MAX_LIMIT = 100;
  * term for the ORDER BY would be a second source of truth for what the user searched for.
  */
 const buildFilters = (criteria = {}) => {
-  const { searchTerm, location, district, state, tags, themes, minRating, date } = criteria;
+  const { searchTerm, location, district, state, tags, themes, minRating, date, stepFree } =
+    criteria;
   const params = [];
   let where = ' WHERE 1=1';
   let searchParam = null;
@@ -144,6 +164,25 @@ const buildFilters = (criteria = {}) => {
     where += ` AND places.themes && $${params.length}`;
   }
 
+  // Step-free access (`FV-029`). An array of levels rather than a single value, so the caller can
+  // ask for "verified" or "verified or partly" without this module deciding which of those a
+  // traveller wants.
+  //
+  // **`unknown` is excluded, and that is the opposite of what the season filter below does.** That
+  // one deliberately keeps unannotated rows, because a missing "best time" is not evidence of a bad
+  // season and hiding those rows would empty the catalogue. Here the reverse is true: somebody
+  // filtering on step-free access is asking *which places has anyone actually checked* — and an
+  // unsurveyed row is precisely the thing they are trying not to rely on. Keeping it would answer a
+  // different question with the same words.
+  //
+  // Nothing enforces that at this layer: passing 'unknown' would filter for it, which is a coherent
+  // request an admin tool might make. The exclusion is the *caller's* choice, and the browse UI
+  // never offers it.
+  if (stepFree && stepFree.length > 0) {
+    params.push(stepFree);
+    where += ` AND places.step_free_access = ANY($${params.length})`;
+  }
+
   if (minRating > 0) {
     params.push(minRating);
     where +=
@@ -153,12 +192,30 @@ const buildFilters = (criteria = {}) => {
 
   const seasonPattern = SEASON_MONTHS[date];
   if (seasonPattern) {
+    // **Curated months first, prose only as a fallback (`FV-028`, `BUG-056`).**
+    //
+    // The regex below cannot tell a recommendation from a warning: `lower('Avoid April') ~
+    // 'april|may|june'` is TRUE, so a place whose own note says to stay away in April was returned
+    // to somebody filtering for April. Measured, not suspected.
+    //
+    // `best_months` says which months are *good*, so the curated branch has no such failure mode.
+    // The fallback is kept, unchanged and still defective, for the rows nobody has curated —
+    // because the alternative is backfilling months out of the same prose, which is the identical
+    // guess wearing a schema. `FV-028`'s kill criterion: a blank field is acceptable, an invented
+    // one is not.
+    //
+    // A place with no `custom_keys` entry is still kept by the fallback, for the reason that branch
+    // has always given: a missing annotation is not evidence of a bad season.
+    params.push(CURATED_SEASON_MONTHS[date]);
+    const monthsParam = params.length;
     params.push(seasonPattern);
-    // A place with no recorded best time is kept rather than hidden: the filter narrows the
-    // list, it does not exclude everything that has not been annotated yet.
     where +=
-      ` AND (places.custom_keys->>'Best Time to Visit' IS NULL` +
-      ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length})`;
+      ` AND (` +
+      `(array_length(places.best_months, 1) IS NOT NULL AND places.best_months && $${monthsParam}::SMALLINT[])` +
+      ` OR (array_length(places.best_months, 1) IS NULL AND (` +
+      `places.custom_keys->>'Best Time to Visit' IS NULL` +
+      ` OR lower(places.custom_keys->>'Best Time to Visit') ~ $${params.length}))` +
+      `)`;
   }
 
   return { where, params, searchParam };

@@ -10,6 +10,14 @@ const logger = require('../utils/logger');
 const { getCurrentUser } = require('./helpers/currentUser');
 const { criteriaFromQuery } = require('./helpers/placeQuery');
 const { sameCoordinate, resolveCoordinateSource } = require('./helpers/coordinateSource');
+const { accessibilityForCreate, accessibilityPatch } = require('./helpers/placeAccessibility');
+const {
+  seasonalityForCreate,
+  seasonalityPatch,
+  seasonalityBody
+} = require('./helpers/placeSeasonality');
+const { provided, parseJsonField } = require('./helpers/writeFields');
+
 const fs = require('fs');
 const {
   uploadImage,
@@ -19,6 +27,7 @@ const {
 } = require('../config/cloudinary');
 
 // Re-exported so `placeRoutes.js` keeps a single import and the surface stays identical.
+const alternatives = require('./placeAlternativesController');
 const images = require('./placeImageController');
 const reviews = require('./placeReviewController');
 const taxonomy = require('./placeTaxonomyController');
@@ -138,6 +147,7 @@ const createPlace = async (req, res) => {
       latitude,
       longitude,
       coordinates_source,
+      setting,
       themes,
       tags,
       custom_keys
@@ -180,6 +190,11 @@ const createPlace = async (req, res) => {
       themes: parseJsonField(themes, []),
       tags: parseJsonField(tags, []),
       custom_keys: parseJsonField(custom_keys, {}),
+      setting,
+      // An omitted accessibility section creates an unsurveyed row, never an unattributed claim.
+      ...accessibilityForCreate(req.body),
+      // `FV-028`, same contract: an omitted section creates an uncurated row, never a claim.
+      ...seasonalityForCreate(seasonalityBody(req.body)),
       created_by: user,
       updated_by: user
     };
@@ -271,6 +286,7 @@ const updatePlace = async (req, res) => {
       latitude,
       longitude,
       coordinates_source,
+      setting,
       themes,
       tags,
       custom_keys
@@ -345,6 +361,19 @@ const updatePlace = async (req, res) => {
       themes: parseJsonField(themes, currentPlace.themes || []),
       tags: parseJsonField(tags, currentPlace.tags || []),
       custom_keys: parseJsonField(custom_keys, currentPlace.custom_keys || {}),
+      // Spread conditionally, because `updatePlace` keys on `column in placeData` rather than on
+      // the value. Writing `setting,` unconditionally would put the key there with `undefined`,
+      // node-pg would send NULL, and the NOT NULL column would reject the whole edit — the
+      // BUG-048 shape, one column over. Omitted means "leave the classification alone".
+      // `provided`, not `!== undefined`: an untouched <select> submits `setting=""`, the validator
+      // reads that as "said nothing", and passing it through put an empty string against a CHECK
+      // constraint — a 500 on an ordinary edit (`BUG-055`). One predicate for both halves now.
+      ...provided('setting', setting),
+      // Sparse for the same reason `setting` is, and for one more of its own: these five are
+      // checked against each other by the database, so sending NULL for the keys a request omitted
+      // would strip the provenance from a row that still claims step-free access. See the helper.
+      ...accessibilityPatch(req.body),
+      ...seasonalityPatch(seasonalityBody(req.body)),
       updated_by: user
     };
 
@@ -369,19 +398,6 @@ const updatePlace = async (req, res) => {
     });
   }
 };
-
-// Helper function to parse JSON fields
-
-function parseJsonField(field, defaultValue) {
-  if (!field) return defaultValue;
-
-  try {
-    return typeof field === 'string' ? JSON.parse(field) : field;
-  } catch (e) {
-    logger.warn({ err: e }, 'Could not parse JSON field; using raw value');
-    return defaultValue;
-  }
-}
 
 /**
  * Delete a place
@@ -471,6 +487,7 @@ module.exports = {
   createPlace,
   updatePlace,
   deletePlace,
+  ...alternatives,
   ...images,
   ...reviews,
   ...taxonomy

@@ -1,6 +1,14 @@
 const tripModel = require('../models/tripModel');
+const userModel = require('../models/userModel');
+// Items live in their own model: they are the only rows reached through two joins, and that rule
+// is easier to keep true in one file (Sprint 8.26).
+const tripItemModel = require('../models/tripItemModel');
 const feasibilityService = require('../services/feasibilityService');
 const routeOrderService = require('../services/routeOrderService');
+const tripForecastService = require('../services/tripForecastService');
+const tripRoutingService = require('../services/tripRoutingService');
+const replanService = require('../services/replanService');
+const dayRouteService = require('../services/dayRouteService');
 const logger = require('../utils/logger');
 
 /**
@@ -20,6 +28,27 @@ const logger = require('../utils/logger');
 const FOREIGN_KEY_VIOLATION = '23503';
 
 const notFound = (res) => res.status(404).json({ message: 'Trip not found' });
+
+/**
+ * Fold the road legs into the forecast-enriched trip.
+ *
+ * The two enrichments run concurrently and each returns its **own copy**, so they are merged by day
+ * rather than chained. Chaining would mean whichever ran second silently discarded the other's
+ * fields — and the symptom would be daylight warnings vanishing whenever a routing key was
+ * configured, which is a bug nobody would connect to its cause.
+ */
+const mergeEnrichments = (withForecast, roads) => ({
+  ...withForecast,
+  days: withForecast.days.map((day, index) => ({
+    ...day,
+    ...(roads.days?.[index]?.road_legs
+      ? {
+          road_legs: roads.days[index].road_legs,
+          routing_source: roads.days[index].routing_source
+        }
+      : {})
+  }))
+});
 
 /** GET /api/auth/trips */
 const listTrips = async (req, res) => {
@@ -57,15 +86,75 @@ const getTrip = async (req, res) => {
  *
  * Ownership comes from the same `getTripWorkspace` every other trip read uses, so a trip that is
  * not yours is a 404 here for the same reason and by the same query.
+ *
+ * **The one thing here that is not pure arithmetic is the weather** (`FV-031` daylight, `FV-027`
+ * rain). Both rules need a fact about a coordinate on a date rather than anything the plan
+ * contains — so `tripForecastService` fetches it and hands the engine plain data, and the engine
+ * stays a function of its argument. A day with no reading (no outdoor item, no coordinates, or a
+ * date past the provider's seven-day horizon) simply arrives without one, and produces no
+ * weather-derived finding rather than an assumed one.
  */
 const getTripFeasibility = async (req, res) => {
   try {
     const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
     if (!trip) return notFound(res);
 
-    res.status(200).json({ feasibility: feasibilityService.checkTrip(trip) });
+    // Three independent reads, run together rather than in sequence: none of them looks at another's
+    // output. The forecast and the road distances come from different providers; the access needs
+    // come from the caller's own profile and are the one input that is about the traveller rather
+    // than the plan (`FV-029` stage d).
+    const [withForecast, roads, accessNeeds] = await Promise.all([
+      tripForecastService.attachForecast(trip),
+      tripRoutingService.attachRoadLegs(trip),
+      userModel.getAccessNeeds(req.user.uid)
+    ]);
+    res.status(200).json({
+      feasibility: feasibilityService.checkTrip(
+        mergeEnrichments(withForecast, roads),
+        // Passed as data rather than looked up inside the engine, which `ADR-041` requires: the
+        // check has to be replayable, and a validator that consults the world cannot be.
+        accessNeeds
+      )
+    });
   } catch (error) {
     logger.error({ err: error }, 'Error checking trip feasibility');
+    res.status(500).json({ message: 'Error checking this trip' });
+  }
+};
+
+/**
+ * GET /api/auth/trips/:tripId/replan-suggestion
+ *
+ * What to change when the weather disagrees with the plan (`FV-027` stage b).
+ *
+ * **A proposal, never a write** — the same rule `getDayRouteSuggestion` follows and for the same
+ * reason: the item's kill criteria say to stop if the replan cannot be shown as a reviewable diff,
+ * because silently rewriting somebody's trip is worse than not having the feature. Applying a
+ * proposal goes through `PUT /trips/:tripId/items/:itemId`, which already exists, so **this adds no
+ * new way to change a trip**.
+ *
+ * It reads the same enriched workspace the feasibility report does, because a proposal is only as
+ * good as the evidence under it: forecast for *why*, and road legs — when a routing key is
+ * configured — for whether the move it suggests is physically possible.
+ */
+const getTripReplanSuggestion = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
+    if (!trip) return notFound(res);
+
+    // A different question from the feasibility report's, so a different attach: the forecast at
+    // each outdoor stop's own place across the whole horizon, because a move changes when and not
+    // where. Road legs come along so `FV-025` can judge the proposed day against real driving.
+    const [withContext, roads] = await Promise.all([
+      tripForecastService.attachReplanContext(trip),
+      tripRoutingService.attachRoadLegs(trip)
+    ]);
+
+    res
+      .status(200)
+      .json({ replan: replanService.suggestReplan(mergeEnrichments(withContext, roads)) });
+  } catch (error) {
+    logger.error({ err: error }, 'Error suggesting a replan');
     res.status(500).json({ message: 'Error checking this trip' });
   }
 };
@@ -92,6 +181,42 @@ const getDayRouteSuggestion = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Error suggesting a day order');
     res.status(500).json({ message: 'Error checking this day' });
+  }
+};
+
+/**
+ * GET /api/auth/trips/:tripId/days/:dayId/route
+ *
+ * One day as a line on a map (`FV-026` stage c).
+ *
+ * **A read, and the last one this feature needs.** Stages (a), (b) and (d) all produced numbers
+ * about a day; this produces the picture, which is what the item's user problem is actually about —
+ * a zig-zag is obvious as a shape and invisible as a list.
+ *
+ * Per day rather than per trip, matching `getDayRouteSuggestion` beside it: a route is a property
+ * of one day, and drawing six of them on a page load would put six matrix calls behind a screen the
+ * reader may never scroll to. The client asks for the day it is showing.
+ *
+ * The road lookup is the same one the feasibility report makes, in the order this day is **listed**
+ * rather than the order its clock implies — see `dayRouteService`. On a day whose list and clock
+ * agree, that is the identical request, so it comes back off the cache `attachRoadLegs` filled.
+ */
+const getDayRoute = async (req, res) => {
+  try {
+    const trip = await tripModel.getTripWorkspace(req.user.uid, Number(req.params.tripId));
+    if (!trip) return notFound(res);
+
+    const day = trip.days.find((candidate) => candidate.id === Number(req.params.dayId));
+    if (!day) return notFound(res);
+
+    // The service's own ordering, not a second copy of it: the measurement and the drawing have to
+    // describe the same sequence, and two sorts written out twice is how they stop doing so.
+    const roads = await tripRoutingService.roadLegsForItems(dayRouteService.orderedItems(day));
+
+    res.status(200).json({ route: dayRouteService.buildDayRoute(day, roads) });
+  } catch (error) {
+    logger.error({ err: error }, 'Error building a day route');
+    res.status(500).json({ message: 'Error drawing this day' });
   }
 };
 
@@ -165,7 +290,7 @@ const deleteDay = async (req, res) => {
 /** POST /api/auth/trips/:tripId/days/:dayId/items */
 const addItem = async (req, res) => {
   try {
-    const item = await tripModel.addItem(
+    const item = await tripItemModel.addItem(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.dayId),
@@ -188,7 +313,7 @@ const addItem = async (req, res) => {
 /** PUT /api/auth/trips/:tripId/items/:itemId */
 const updateItem = async (req, res) => {
   try {
-    const item = await tripModel.updateItem(
+    const item = await tripItemModel.updateItem(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.itemId),
@@ -206,7 +331,7 @@ const updateItem = async (req, res) => {
 /** DELETE /api/auth/trips/:tripId/items/:itemId */
 const deleteItem = async (req, res) => {
   try {
-    const removed = await tripModel.deleteItem(
+    const removed = await tripItemModel.deleteItem(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.itemId)
@@ -229,7 +354,7 @@ const deleteItem = async (req, res) => {
  */
 const reorderItems = async (req, res) => {
   try {
-    const ok = await tripModel.reorderItems(
+    const ok = await tripItemModel.reorderItems(
       req.user.uid,
       Number(req.params.tripId),
       Number(req.params.dayId),
@@ -253,7 +378,9 @@ module.exports = {
   listTrips,
   getTrip,
   getTripFeasibility,
+  getTripReplanSuggestion,
   getDayRouteSuggestion,
+  getDayRoute,
   createTrip,
   updateTrip,
   deleteTrip,

@@ -3,9 +3,9 @@ const request = require('supertest');
 const app = require('../app');
 const { createSchema, resetData, closeDb, resetRateLimits, pool } = require('./helpers/testDb');
 const { authHeader } = require('./helpers/firebaseMock');
+const { haversineKm } = require('../src/services/geoDistance');
 const {
   checkTrip,
-  haversineKm,
   travelMinutesForKm,
   minutesOfDay,
   inclusiveDayCount,
@@ -491,6 +491,32 @@ describe('GET /api/auth/trips/:tripId/feasibility', () => {
     expect(res.body.feasibility.findings.map((f) => f.code)).toContain('insufficient_travel_time');
   });
 
+  test('a day past the trip’s own dates is reported — which it never used to be', async () => {
+    // `BUG-051`, and the reason it hid for so long: `checkDayBounds` is proved several times over
+    // by the pure tests above, which hand it `'2026-03-01'`. The database hands it a JavaScript
+    // `Date`, `inclusiveDayCount` returned `null` for that, and the whole check quietly did
+    // nothing — **this finding had never once been emitted by the API**.
+    //
+    // A test at this level is the only one that could have caught it, because the defect is not in
+    // the rule, it is in the shape of what the rule is fed. `tripModel` now reads the dates as
+    // text; this asserts the consequence rather than the query.
+    const created = await seedTrip(); // 2026-03-01 to 2026-03-02 — two days
+
+    await request(app).post(`/api/auth/trips/${created.id}/days`).set(asUser).expect(201);
+
+    const res = await request(app)
+      .get(`/api/auth/trips/${created.id}/feasibility`)
+      .set(asUser)
+      .expect(200);
+
+    const bounds = res.body.feasibility.findings.find((f) => f.code === 'day_outside_trip_dates');
+    expect(bounds).toBeTruthy();
+    expect(bounds.day_number).toBe(3);
+    expect(bounds.trip_day_count).toBe(2);
+    // An error, not a warning: a day the trip does not have cannot be executed.
+    expect(res.body.feasibility.feasible).toBe(false);
+  });
+
   it('is a 404 for somebody else’s trip, not a 403', async () => {
     // The same rule the rest of the workspace follows: a trip you do not own does not exist.
     const created = await seedTrip();
@@ -530,5 +556,441 @@ describe('the engine reads what the database really returns', () => {
     );
     expect(typeof row.rows[0].start_time).toBe('string');
     expect(minutesOfDay(row.rows[0].start_time)).toBe(480);
+  });
+});
+
+describe('FV-031 — an outdoor stop scheduled in the dark', () => {
+  /**
+   * Hampi, 15.335N. The sun sets around 18:05 in mid-December and around 18:50 in mid-June, so a
+   * 19:30 finish is after dark in both — the honest seasonal boundary is the *start*: an 06:30
+   * start is before a 06:42 December sunrise and after a 05:55 June one.
+   *
+   * Both figures come from the provider for that coordinate; the engine never computes them.
+   */
+  const dayWith = (sunrise, sunset, items) => ({
+    day_number: 1,
+    sunrise,
+    sunset,
+    items
+  });
+
+  const outdoorItem = (overrides) => ({
+    id: 1,
+    title: 'Sunrise at Matanga Hill',
+    place_setting: 'outdoor',
+    position: 0,
+    ...overrides
+  });
+
+  const codes = (trip) => checkTrip(trip).findings.map((f) => f.code);
+
+  test('the same 06:30 start is flagged in December and clean in June', () => {
+    const december = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [
+        dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+          outdoorItem({ start_time: '06:30', end_time: '08:00' })
+        ])
+      ]
+    };
+    const june = {
+      start_date: '2026-06-14',
+      end_date: '2026-06-14',
+      days: [
+        dayWith('2026-06-14T05:55', '2026-06-14T18:50', [
+          outdoorItem({ start_time: '06:30', end_time: '08:00' })
+        ])
+      ]
+    };
+
+    // Identical plan, identical coordinates, opposite verdicts — decided by the day's own sunrise.
+    expect(codes(december)).toContain('outdoor_item_in_darkness');
+    expect(codes(june)).not.toContain('outdoor_item_in_darkness');
+  });
+
+  test('an outdoor visit that runs past sunset is flagged on its end, not its start', () => {
+    const trip = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [
+        dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+          outdoorItem({ title: 'Sunset point', start_time: '17:00', end_time: '19:30' })
+        ])
+      ]
+    };
+    const finding = checkTrip(trip).findings.find((f) => f.code === 'outdoor_item_in_darkness');
+
+    expect(finding).toBeTruthy();
+    expect(finding.message).toMatch(/after sunset/);
+    // A warning, not an error: a night market is a thing people want.
+    expect(finding.severity).toBe('warning');
+    expect(checkTrip(trip).feasible).toBe(true);
+  });
+
+  test('unknown and mixed produce nothing, because neither is evidence', () => {
+    // `unknown` is the default for the whole catalogue until somebody classifies it, and `mixed` is
+    // a fort with a museum in it. Warning about either would be a guess with a validator's
+    // authority — the defect `IMP-027` exists for.
+    for (const setting of ['unknown', 'mixed', 'indoor', null, undefined]) {
+      const trip = {
+        start_date: '2026-12-14',
+        end_date: '2026-12-14',
+        days: [
+          dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+            outdoorItem({ place_setting: setting, start_time: '05:00', end_time: '05:30' })
+          ])
+        ]
+      };
+      expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+    }
+  });
+
+  test('no sunrise/sunset means no finding, rather than an assumed one', () => {
+    // Beyond the provider's seven-day horizon there is no reading. An absent reading has to produce
+    // an absent finding — the same rule the weather panel follows when it states an absence.
+    const trip = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [dayWith(null, null, [outdoorItem({ start_time: '03:00', end_time: '04:00' })])]
+    };
+    expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+  });
+
+  test('an item with no time cannot be in the dark', () => {
+    const trip = {
+      start_date: '2026-12-14',
+      end_date: '2026-12-14',
+      days: [
+        dayWith('2026-12-14T06:42', '2026-12-14T18:05', [
+          outdoorItem({ start_time: null, end_time: null })
+        ])
+      ]
+    };
+    expect(codes(trip)).not.toContain('outdoor_item_in_darkness');
+  });
+});
+
+describe('FV-027 stage (a) — the refusals, as pure functions', () => {
+  const RAIN = { is_wet: true, condition: 'Rain', precipitation_mm: 12.4 };
+
+  // No default for `weather`: a default parameter treats an explicitly-passed `undefined` as
+  // absent, so the "no reading" case below would have been handed rain and passed for the wrong
+  // reason. It did, on the first run — which is why it is spelled out rather than tidied away.
+  const dayWith = (weather, items) => ({
+    start_date: '2026-03-01',
+    end_date: '2026-03-01',
+    days: [{ day_number: 1, weather, items }]
+  });
+
+  const outdoorStop = (over = {}) => ({
+    id: 1,
+    title: 'Boulders',
+    place_setting: 'outdoor',
+    position: 0,
+    start_time: null,
+    end_time: null,
+    ...over
+  });
+
+  const codes = (trip) => checkTrip(trip).findings.map((f) => f.code);
+
+  test('unknown, mixed and indoor are not evidence of anything', () => {
+    // `unknown` is the catalogue's default until somebody classifies it, and `mixed` is a fort with
+    // a museum in it. Warning about either would be a guess with a validator's authority — which is
+    // the defect `IMP-027` exists for, and the same refusal `checkDaylight` makes.
+    for (const setting of ['unknown', 'mixed', 'indoor', null, undefined]) {
+      expect(codes(dayWith(RAIN, [outdoorStop({ place_setting: setting })]))).not.toContain(
+        'outdoor_day_likely_wet'
+      );
+    }
+  });
+
+  test('no reading means no finding, rather than an assumed one', () => {
+    // Past the provider's seven-day horizon there is no forecast entry, so no `weather` is
+    // attached. Silence is the only honest answer, and it must not be mistaken for a dry day.
+    for (const weather of [undefined, null, {}, { is_wet: false, condition: 'Clear sky' }]) {
+      expect(codes(dayWith(weather, [outdoorStop()]))).not.toContain('outdoor_day_likely_wet');
+    }
+  });
+
+  test('a wet day is a warning, so the trip stays possible', () => {
+    const report = checkTrip(dayWith(RAIN, [outdoorStop()]));
+    const found = report.findings.find((f) => f.code === 'outdoor_day_likely_wet');
+
+    expect(found.severity).toBe('warning');
+    expect(report.feasible).toBe(true);
+    // Nothing attached a source here, and the finding says so rather than borrowing one.
+    expect(found.source).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stops that conflict with what the traveller needs (`FV-029` stage d)
+// ---------------------------------------------------------------------------
+describe('the traveller’s own access needs', () => {
+  /** A one-day trip with a single stop whose place carries the given accessibility answers. */
+  const tripWithStop = (over = {}) => ({
+    start_date: null,
+    end_date: null,
+    days: [
+      {
+        day_number: 1,
+        items: [
+          item({
+            title: 'The Fort',
+            place_id: 1,
+            place_step_free_access: 'unknown',
+            place_accessible_restroom: 'unknown',
+            place_accessibility_source: 'site_visit',
+            place_accessibility_checked_on: '2026-08-01',
+            ...over
+          })
+        ]
+      }
+    ]
+  });
+
+  const codes = (result) => result.findings.map((f) => f.code);
+
+  describe('a traveller who has stated nothing', () => {
+    test.each(['yes', 'no', 'partial', 'unknown'])(
+      'sees no access finding against a %s stop',
+      (answer) => {
+        // The default for every row in `users`. Somebody who has not told us they need step-free
+        // access must not be shown findings about it — they did not ask, and a warning they cannot
+        // act on is noise that teaches them to skim.
+        const result = checkTrip(tripWithStop({ place_step_free_access: answer }));
+        expect(codes(result)).toEqual([]);
+      }
+    );
+
+    test('and `requirements` may be omitted entirely, as every existing caller does', () => {
+      expect(checkTrip(tripWithStop({ place_step_free_access: 'no' })).findings).toEqual([]);
+    });
+  });
+
+  describe('a traveller who needs step-free access', () => {
+    const needs = { requires_step_free: true, requires_accessible_restroom: false };
+
+    test('a verified "no" is an error, because it is a locked door', () => {
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'no' }), needs);
+
+      expect(codes(result)).toEqual(['stop_not_step_free']);
+      expect(result.findings[0].severity).toBe('error');
+      // An error, so the plan is reported as not executable — for this traveller it is not.
+      expect(result.feasible).toBe(false);
+      expect(result.findings[0].message).toContain('The Fort');
+    });
+
+    test('"partial" is a warning, because only a human can read the notes', () => {
+      // "A ramp to the courtyard, eleven steps to the sanctum" is fine for one traveller and
+      // impossible for another. The engine has no business deciding which.
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'partial' }), needs);
+
+      expect(codes(result)).toEqual(['stop_partly_step_free']);
+      expect(result.findings[0].severity).toBe('warning');
+      expect(result.feasible).toBe(true);
+    });
+
+    test('"yes" produces nothing at all', () => {
+      expect(checkTrip(tripWithStop({ place_step_free_access: 'yes' }), needs).findings).toEqual(
+        []
+      );
+    });
+
+    test('**"unknown" is silent**, which is the whole design', () => {
+      // Almost the entire catalogue is unsurveyed. Warning "to be safe" would put a finding on
+      // nearly every stop — training the traveller who most needs these to dismiss them, and doing
+      // it by asserting something nobody checked. `FV-029`'s kill criterion forbids exactly that.
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'unknown' }), needs);
+      expect(result.findings).toEqual([]);
+      expect(result.feasible).toBe(true);
+    });
+
+    test('a stop with no place at all is silent too', () => {
+      // "Lunch somewhere" is not a place and has nothing to check.
+      const result = checkTrip(
+        tripWithStop({
+          place_id: null,
+          place_step_free_access: undefined,
+          place_accessible_restroom: undefined
+        }),
+        needs
+      );
+      expect(result.findings).toEqual([]);
+    });
+
+    test('the finding carries who checked and when', () => {
+      // The same rule the badge follows. A warning that reaches the traveller as a screenshot has
+      // to say who checked and when, or it is the bare assertion this item forbids.
+      //
+      // `checked_by` rather than `source`, and the distinction is load-bearing: `source` already
+      // means "the provider whose data produced this finding" and the panel renders it as the words
+      // *"Forecast from …"*. Reusing it would have shipped "Forecast from site_visit".
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'no' }), needs);
+
+      expect(result.findings[0]).toMatchObject({
+        checked_by: 'site_visit',
+        checked_on: '2026-08-01',
+        day_number: 1
+      });
+      expect(result.findings[0].item_ids).toHaveLength(1);
+      // Never `source`: that key drives a forecast attribution one component over.
+      expect(result.findings[0].source).toBeUndefined();
+    });
+  });
+
+  describe('a traveller who needs an accessible restroom', () => {
+    const needs = { requires_step_free: false, requires_accessible_restroom: true };
+
+    test.each([
+      ['no', 'warning'],
+      ['partial', 'warning']
+    ])('a %s restroom is a %s, not an error', (answer, severity) => {
+      // A restroom decides how long somebody can comfortably stay; step-free access decides whether
+      // they get in at all. Calling both errors would be easier and would flatten a distinction the
+      // person reading this actually needs.
+      const result = checkTrip(tripWithStop({ place_accessible_restroom: answer }), needs);
+
+      expect(codes(result)).toEqual(['stop_without_accessible_restroom']);
+      expect(result.findings[0].severity).toBe(severity);
+      expect(result.feasible).toBe(true);
+    });
+
+    test('a step-free problem is not reported to somebody who did not ask about it', () => {
+      const result = checkTrip(tripWithStop({ place_step_free_access: 'no' }), needs);
+      expect(result.findings).toEqual([]);
+    });
+  });
+
+  describe('both needs at once', () => {
+    const needs = { requires_step_free: true, requires_accessible_restroom: true };
+
+    test('one stop can produce two findings, and the trip is not feasible', () => {
+      const result = checkTrip(
+        tripWithStop({ place_step_free_access: 'no', place_accessible_restroom: 'no' }),
+        needs
+      );
+
+      expect(codes(result).sort()).toEqual([
+        'stop_not_step_free',
+        'stop_without_accessible_restroom'
+      ]);
+      expect(result.feasible).toBe(false);
+      expect(result.counts).toMatchObject({ errors: 1, warnings: 1 });
+    });
+  });
+});
+
+describe('the access needs reach the engine through the real stack', () => {
+  // The pure tests above prove the rule. This proves the wiring: the profile column, the workspace
+  // projection that carries a place's answers onto an item, and the controller that reads the
+  // caller's own needs. Three separate pieces, each of which can be correct while the chain is not.
+  const surveyPlace = async (id, answers) => {
+    const req = request(app)
+      .put(`/api/admin/places/${id}`)
+      .set({ Authorization: authHeader({ uid: 'seed-admin-uid' }) });
+    Object.entries({
+      accessibility_source: 'site_visit',
+      accessibility_checked_on: '2026-08-01',
+      ...answers
+    }).forEach(([key, value]) => req.field(key, String(value)));
+    await req.expect(200);
+  };
+
+  const tripWithPlace = async (placeId) => {
+    const trip = await seedTrip();
+    await request(app)
+      .post(`/api/auth/trips/${trip.id}/days/${trip.days[0].id}/items`)
+      .set(asUser)
+      .send({ place_id: placeId, title: 'The Fort', position: 0 })
+      .expect(201);
+    return trip;
+  };
+
+  const feasibilityOf = async (tripId) =>
+    (await request(app).get(`/api/auth/trips/${tripId}/feasibility`).set(asUser).expect(200)).body
+      .feasibility;
+
+  test('a traveller who has stated nothing sees no access finding', async () => {
+    await surveyPlace(1, { step_free_access: 'no' });
+    const trip = await tripWithPlace(1);
+
+    const feasibility = await feasibilityOf(trip.id);
+    expect(feasibility.findings.map((f) => f.code)).not.toContain('stop_not_step_free');
+  });
+
+  test('stating the requirement makes the same trip report the same stop', async () => {
+    // The whole chain, changed by one field on the profile and nothing else.
+    await surveyPlace(1, { step_free_access: 'no' });
+    const trip = await tripWithPlace(1);
+
+    await request(app)
+      .put('/api/auth/profile')
+      .set(asUser)
+      .send({ name: 'Tom Traveller', requires_step_free: true })
+      .expect(200);
+
+    const feasibility = await feasibilityOf(trip.id);
+    const found = feasibility.findings.find((f) => f.code === 'stop_not_step_free');
+
+    expect(found).toBeTruthy();
+    expect(found.severity).toBe('error');
+    expect(feasibility.feasible).toBe(false);
+    // Provenance survives the round trip, including the date as a string rather than a Date a day
+    // out — the same defect `placeModel` and `placeListModel` each needed `to_char` for.
+    expect(found).toMatchObject({ checked_by: 'site_visit', checked_on: '2026-08-01' });
+  });
+
+  test('an unsurveyed place stays silent even for a traveller who needs it', async () => {
+    // Place 4 is seeded and never surveyed. This is the state the real catalogue is in, so it is
+    // the case that decides whether the feature is usable or is a wall of warnings.
+    const trip = await tripWithPlace(4);
+    await request(app)
+      .put('/api/auth/profile')
+      .set(asUser)
+      .send({ name: 'Tom Traveller', requires_step_free: true })
+      .expect(200);
+
+    const feasibility = await feasibilityOf(trip.id);
+    expect(feasibility.findings.map((f) => f.code)).not.toContain('stop_not_step_free');
+    expect(feasibility.feasible).toBe(true);
+  });
+
+  test('one traveller’s needs never affect another’s report', async () => {
+    await surveyPlace(1, { step_free_access: 'no' });
+    await request(app)
+      .put('/api/auth/profile')
+      .set(asUser)
+      .send({ name: 'Tom Traveller', requires_step_free: true })
+      .expect(200);
+
+    // A second identity with its own trip containing the same place.
+    const asOther = { Authorization: authHeader({ uid: 'seed-other-uid' }) };
+    const created = await request(app)
+      .post('/api/auth/trips')
+      .set(asOther)
+      .send({ title: 'Someone else' })
+      .expect(201);
+    const workspace = await request(app)
+      .get(`/api/auth/trips/${created.body.trip.id}`)
+      .set(asOther)
+      .expect(200);
+    await request(app)
+      .post(`/api/auth/trips/${created.body.trip.id}/days/${workspace.body.trip.days[0].id}/items`)
+      .set(asOther)
+      .send({ place_id: 1, title: 'The Fort', position: 0 })
+      .expect(201);
+
+    const other = (
+      await request(app)
+        .get(`/api/auth/trips/${created.body.trip.id}/feasibility`)
+        .set(asOther)
+        .expect(200)
+    ).body.feasibility;
+
+    expect(other.findings.map((f) => f.code)).not.toContain('stop_not_step_free');
+    expect(other.feasible).toBe(true);
   });
 });

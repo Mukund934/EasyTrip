@@ -168,7 +168,8 @@ describe('the shared-link round trip — the contract that makes a pasted URL wo
       themes: params.getAll('theme'),
       tags: params.getAll('tag'),
       date: params.get('date') || 'any',
-      minRating: Number.parseInt(params.get('rating'), 10) || 0
+      minRating: Number.parseInt(params.get('rating'), 10) || 0,
+      stepFree: params.get('access') || 'any'
     });
   };
 
@@ -181,7 +182,11 @@ describe('the shared-link round trip — the contract that makes a pasted URL wo
       themes: ['heritage', 'ruins'],
       tags: ['unesco'],
       date: 'winter',
-      minRating: 4
+      minRating: 4,
+      // A real value rather than the default, so the trip is genuinely exercised for this filter.
+      // The fixture failing when `FV-029` added `stepFree` is the test working: it asserts the trip
+      // is lossless, and a filter missing from the fixture is a filter nobody proved survives.
+      stepFree: 'partly'
     };
 
     expect(parseAsServerWould(buildQueryString(filters))).toEqual(filters);

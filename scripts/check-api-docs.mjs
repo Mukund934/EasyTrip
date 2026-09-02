@@ -46,6 +46,18 @@ const realRoutes = () => {
   const found = new Set(EXTRA_ROUTES);
 
   for (const file of readdirSync(ROUTES_DIR).filter((f) => f.endsWith('.js'))) {
+    const source = readFileSync(join(ROUTES_DIR, file), 'utf8');
+
+    // **Not every file in `routes/` is a router.** `placeValidators.js` holds the express-validator
+    // chains `placeRoutes.js` applies, extracted when that file outgrew the size limit; it declares
+    // no endpoints, so demanding a mount path for it would mean inventing one.
+    //
+    // The test is what the file *does*, not what it is called. A name pattern — skip anything
+    // matching `*Validators.js` — would be a loophole a real router could be dropped through by
+    // being named carelessly. A router that someone forgets to add to `MOUNTS` still calls
+    // `express.Router()`, so it still throws below, which is the case this guard exists for.
+    if (!source.includes('express.Router()')) continue;
+
     const mount = MOUNTS[file];
     if (mount === undefined) {
       throw new Error(
@@ -53,7 +65,6 @@ const realRoutes = () => {
       );
     }
 
-    const source = readFileSync(join(ROUTES_DIR, file), 'utf8');
     // Multi-line declarations are the norm here — the verb and path are on the first line, the
     // middleware on the ones after — so this matches only up to the path and ignores the rest.
     for (const [, verb, path] of source.matchAll(

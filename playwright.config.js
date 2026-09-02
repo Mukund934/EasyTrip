@@ -26,6 +26,10 @@
  */
 const { defineConfig, devices } = require('@playwright/test');
 
+// The emulator's host and project id, read from the module that owns them rather than copied. A
+// second spelling of `9099` here is how the browser ends up talking to a port nothing is on.
+const authEmulator = require('./e2e/auth-emulator');
+
 // Deliberately not 3000/5000/5432: a developer's own `npm run dev` and their own Postgres must be
 // able to keep running while the E2E suite does. A suite that demands the machine to itself gets
 // run less often.
@@ -98,13 +102,22 @@ module.exports = defineConfig({
       // Read by the browser bundle AND by `getServerSideProps` (the admin gate calls the API from
       // the Next server), so it must be reachable from both.
       NEXT_PUBLIC_API_URL: API_URL,
-      // Deliberately fake. The E2E suite never authenticates through the real Firebase SDK; the
-      // admin journeys drive the `et_id_token` cookie the SSR gate actually reads. See
-      // `e2e/README.md`.
+      // Point the browser's Firebase SDK at the Auth Emulator (`TD-024`). Static, and set whether
+      // or not the emulator turns out to be runnable: `webServer` starts **before** `globalSetup`,
+      // which is where availability is discovered, so this cannot be conditional on it. Nothing is
+      // lost by that — `connectAuthEmulator` only configures, and the journeys that actually sign
+      // in skip themselves when `readState()` reports the emulator did not run.
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: authEmulator.EMULATOR_HOST,
+
+      // The API key stays fake — the emulator accepts any, and `auth-emulator.js` mints tokens with
+      // the literal string `fake-api-key`. **The project id does not get to be fake.** `firebase.json`
+      // runs the emulator in `singleProjectMode`, so a client announcing a different project is
+      // talking to the wrong tenant; and the same id has to reach `firebase-admin` on the server or
+      // `verifyIdToken` rejects the audience. One id, from one place.
       NEXT_PUBLIC_FIREBASE_API_KEY: 'e2e-placeholder-api-key',
-      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'e2e-placeholder.firebaseapp.com',
-      NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'e2e-placeholder',
-      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'e2e-placeholder.appspot.com',
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: `${authEmulator.PROJECT_ID}.firebaseapp.com`,
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: authEmulator.PROJECT_ID,
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: `${authEmulator.PROJECT_ID}.appspot.com`,
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
       NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000'
     }

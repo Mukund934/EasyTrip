@@ -6,12 +6,19 @@ import { toast } from 'react-toastify';
 import { FiUser, FiMapPin, FiCalendar, FiSave } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import MyReviews from '../components/profile/MyReviews';
+import AccessNeeds from '../components/AccessNeeds';
 
 export default function Profile() {
   const { currentUser, loading: authLoading, updateProfile, getIdToken } = useAuth();
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [dob, setDob] = useState('');
+  // `FV-029` stage (c). One object rather than two booleans: they are submitted together, loaded
+  // together, and the profile form sends itself whole — so they behave as one field.
+  const [accessNeeds, setAccessNeeds] = useState({
+    requires_step_free: false,
+    requires_accessible_restroom: false
+  });
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -54,6 +61,13 @@ export default function Profile() {
         setDob(
           (current) => current || (data.dob ? new Date(data.dob).toISOString().split('T')[0] : '')
         );
+        // Assigned rather than `current ||`-ed like the two above. `false` is a real stored value,
+        // and the "keep what the user has already typed" guard those use would make an unchecked
+        // box impossible to distinguish from an unloaded one.
+        setAccessNeeds({
+          requires_step_free: Boolean(data.requires_step_free),
+          requires_accessible_restroom: Boolean(data.requires_accessible_restroom)
+        });
       } catch (error) {
         // Non-fatal: the form still works, it just starts empty. Failing loudly here would block
         // editing over a transient network error.
@@ -76,7 +90,8 @@ export default function Profile() {
       const result = await updateProfile({
         name,
         location,
-        dob
+        dob,
+        ...accessNeeds
       });
 
       if (result.success) {
@@ -111,7 +126,12 @@ export default function Profile() {
           <div className="bg-white shadow-md rounded-lg overflow-hidden">
             <div className="px-4 py-5 sm:px-6 bg-primary-600">
               <h1 className="text-xl font-semibold text-white">My Profile</h1>
-              <p className="mt-1 max-w-2xl text-sm text-primary-100">
+              {/* `primary-50`, not `primary-100`. On `primary-600` (#0277b4) the 100 step measures
+                  4.26:1 — under the 4.5:1 AA needs for normal-size text — and 50 measures
+                  4.58:1 while keeping the muted-subtitle look. Same reasoning and same
+                  precedent as `IMP-084`, which darkened `primary-600` itself for AA; found by
+                  the accessibility gate on `/profile` (`PE-022`). */}
+              <p className="mt-1 max-w-2xl text-sm text-primary-50">
                 Manage your personal information
               </p>
             </div>
@@ -203,6 +223,13 @@ export default function Profile() {
                   </div>
                 </div>
 
+                <AccessNeeds
+                  values={accessNeeds}
+                  onChange={(name, checked) =>
+                    setAccessNeeds((current) => ({ ...current, [name]: checked }))
+                  }
+                />
+
                 {/* Submit Button */}
                 <div className="flex justify-end">
                   <button
@@ -260,7 +287,7 @@ export default function Profile() {
                 <h2 id="my-reviews-heading" className="text-xl font-semibold text-white">
                   Your Reviews
                 </h2>
-                <p className="mt-1 max-w-2xl text-sm text-primary-100">
+                <p className="mt-1 max-w-2xl text-sm text-primary-50">
                   Everything you have written, most recently updated first
                 </p>
               </div>

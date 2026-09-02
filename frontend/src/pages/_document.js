@@ -1,8 +1,14 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
-export default function Document() {
+export default function Document(props) {
+  // The served `lang` must be the served locale (IMP-114). It was hardcoded to "en", which a
+  // screen reader believes: a Hindi page announced as English is read with English phonetics,
+  // which is worse than no translation. Next puts the resolved locale on `__NEXT_DATA__`, so this
+  // follows the routing rather than duplicating the decision.
+  const locale = props?.__NEXT_DATA__?.locale || 'en';
+
   return (
-    <Html lang="en">
+    <Html lang={locale}>
       {/* Fonts are no longer requested here. `next/font` in `_app.jsx` self-hosts Inter and
           Playfair Display from the build output (IMP-041), which removes the render-blocking
           stylesheet request to fonts.googleapis.com, the two preconnects it needed, and the

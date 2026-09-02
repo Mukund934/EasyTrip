@@ -1,3 +1,6 @@
+import { SettingSelector } from '../SettingSelector';
+import { AccessibilitySurvey } from '../AccessibilitySurvey';
+
 export const EditPlaceFields = ({ form }) => {
   const { formData, handleChange } = form;
 
@@ -135,6 +138,15 @@ export const EditPlaceFields = ({ form }) => {
             className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
           ></textarea>
         </div>
+      </div>
+
+      {/* TD-023 — the reason `places.setting` stopped being a column nothing could write to. */}
+      <div className="mt-8">
+        <SettingSelector value={formData.setting} onChange={handleChange} />
+
+        {/* Below the classification, because both are about what a place *is* rather than what it
+            is called — and this one is the longer conversation. */}
+        <AccessibilitySurvey formData={formData} onChange={handleChange} />
       </div>
     </div>
   );

@@ -41,7 +41,9 @@ export const PlaceReviewsSection = ({
             <span className="text-2xl font-bold text-yellow-700">{formatAverageRating(place)}</span>
           </div>
           <div>
-            <h4 className="font-medium text-gray-900">Overall Rating</h4>
+            {/* `h3`: the nearest heading above is "Traveler Reviews" (`h2`), so `h4` skipped a
+                level (`PE-022`). */}
+            <h3 className="font-medium text-gray-900">Overall Rating</h3>
             <div className="mt-1">
               <RatingStars rating={getStarCount(place)} size="medium" />
             </div>

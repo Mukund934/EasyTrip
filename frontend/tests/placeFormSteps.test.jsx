@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { SubmittingSummary } from '../src/components/admin/placeForm/SubmittingSummary';
 import { StepLocation } from '../src/components/admin/placeForm/StepLocation';
 import { StepMediaThemes } from '../src/components/admin/placeForm/StepMediaThemes';
+import { collectErrors, collectStepErrors, emptyPlaceForm } from '../src/utils/placeFormValidation';
 
 /**
  * The add-place wizard's progress copy and step navigation (`IMP-125`).
@@ -130,5 +131,88 @@ describe('the shared step navigation is wired to the right steps (IMP-125)', () 
     // Not a comparison of two empty strings.
     expect(locationRow).toContain('justify-between');
     expect(locationNext).toContain('bg-primary-600');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surveying a place while creating it (`BL-138`)
+// ---------------------------------------------------------------------------
+describe('accessibility on the create wizard', () => {
+  test('a new form starts unsurveyed, and that is a complete answer', () => {
+    // The API has accepted these on create since Sprint 8.33; what was missing was a control. A
+    // create that says nothing must still produce a valid, unsurveyed place.
+    const form = emptyPlaceForm();
+
+    expect(form.step_free_access).toBe('unknown');
+    expect(form.accessible_restroom).toBe('unknown');
+    expect(form.accessibility_source).toBe('');
+    expect(collectErrors({ ...form, name: 'A Place', location: 'Somewhere' }, null)).toEqual({});
+  });
+
+  test('the survey is on the wizard step, not only on the edit form', () => {
+    // `BL-138` is about the control existing here at all — the validation tests below pass whether
+    // or not it is rendered, which a mutation removing it proved.
+    render(<StepMediaThemes form={form({ formData: { ...emptyPlaceForm() } })} />);
+
+    // Presence, not visibility: framer-motion renders this step at `opacity: 0` until an animation
+    // that jsdom never runs, so `toBeVisible` fails for every element on it. The rest of this file
+    // asserts the same way for the same reason.
+    expect(
+      screen.getByRole('heading', { name: /Getting in and getting around/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Step-free access')).toBeInTheDocument();
+  });
+
+  test('a new place starts unsurveyed on screen as well as in the data', () => {
+    render(<StepMediaThemes form={form({ formData: { ...emptyPlaceForm() } })} />);
+
+    // `Not surveyed` selected for both axes, and no provenance asked for — the same restraint the
+    // edit form shows, because an admin nudged out of `unknown` produces guesses.
+    expect(
+      screen.getByLabelText(/Not surveyed/, { selector: '#step_free_access-unknown' })
+    ).toBeChecked();
+    expect(screen.queryByLabelText(/Where did this come from/)).not.toBeInTheDocument();
+  });
+
+  test('an unattributed claim is an error on the step that collects it', () => {
+    // Without `accessibility_source` in `STEP_FIELDS[3]` the wizard would let this past step 3 and
+    // then refuse the final submit with a message keyed to a field no visible step owns — blocked,
+    // with nothing on screen to explain why.
+    const form = {
+      ...emptyPlaceForm(),
+      name: 'A Place',
+      location: 'Somewhere',
+      step_free_access: 'yes'
+    };
+
+    expect(collectStepErrors(3, form, null)).toHaveProperty('accessibility_source');
+  });
+
+  test('and a complete survey clears it', () => {
+    const form = {
+      ...emptyPlaceForm(),
+      name: 'A Place',
+      location: 'Somewhere',
+      step_free_access: 'yes',
+      accessibility_source: 'site_visit',
+      accessibility_checked_on: '2026-08-01'
+    };
+
+    expect(collectStepErrors(3, form, null)).toEqual({});
+    expect(collectErrors(form, null)).toEqual({});
+  });
+
+  test('the earlier steps are not blocked by a later step’s field', () => {
+    // Step 3's error must not leak into steps 1 and 2, or an admin who has not reached the survey
+    // yet cannot advance past the name.
+    const form = {
+      ...emptyPlaceForm(),
+      name: 'A Place',
+      location: 'Somewhere',
+      step_free_access: 'yes'
+    };
+
+    expect(collectStepErrors(1, form, null)).toEqual({});
+    expect(collectStepErrors(2, form, null)).toEqual({});
   });
 });

@@ -43,13 +43,11 @@ import wishlistService from '../services/wishlistService';
  */
 export const LIKES_STORAGE_KEY = 'easytrip_liked_places';
 
-/** Parse the stored value, tolerating anything that is not the shape we wrote. */
-const readStoredIds = () => {
-  if (typeof window === 'undefined') return [];
+/** Parse a stored value, tolerating anything that is not the shape we wrote. */
+const parseStoredIds = (raw) => {
+  if (!raw) return [];
 
   try {
-    const raw = window.localStorage.getItem(LIKES_STORAGE_KEY);
-    if (!raw) return [];
     const parsed = JSON.parse(raw);
     // The UI does `savedIds.includes(id)`, which misbehaves silently rather than throwing if a
     // corrupted value is an object. Guard the shape, not just the parse.
@@ -58,6 +56,18 @@ const readStoredIds = () => {
     return [];
   }
 };
+
+/**
+ * Read and parse in one go.
+ *
+ * Split from the parse so the restore can do **one** read: it needs both the raw string, to record
+ * what it started from, and the ids. Reading twice for one restore is two chances to see different
+ * values, which is the class of bug this whole area of the hook is about.
+ */
+const readStoredIds = () =>
+  typeof window === 'undefined'
+    ? []
+    : parseStoredIds(window.localStorage.getItem(LIKES_STORAGE_KEY));
 
 export function useWishlist() {
   const { currentUser, loading: authLoading, getIdToken } = useAuth();
@@ -83,6 +93,21 @@ export function useWishlist() {
   // must not schedule a render, and because the effect that reads it also sets it.
   const importedFor = useRef(null);
 
+  /**
+   * The raw string this hook last **read from** or **wrote to** the key — `null` when the restore
+   * found no key at all.
+   *
+   * It exists so the write effect can answer one question the state alone cannot: *did this hook
+   * change anything, or is it about to echo back a value it merely read?* Echoing is not harmless.
+   * The write lands after the load that triggered it, on a schedule nothing else can observe, so it
+   * silently overwrites whatever else touched the key in between — another tab, or a test seeding a
+   * fixture. `NOTES` §87 has the trace: a journey seeded four likes on a loaded page and the page's
+   * own echo of `[]` arrived afterwards and won.
+   *
+   * A ref, not state: it must not schedule a render, and the effect that reads it also sets it.
+   */
+  const persisted = useRef(null);
+
   const isSignedIn = Boolean(currentUser);
 
   // ---------------------------------------------------------------------------
@@ -91,15 +116,39 @@ export function useWishlist() {
   useEffect(() => {
     if (authLoading || isSignedIn) return;
 
-    setSavedIds(readStoredIds());
+    // One read, used twice: the raw string is what the write effect compares against, and the ids
+    // are the state. Reading the key a second time here would let the two disagree.
+    const raw =
+      typeof window === 'undefined' ? null : window.localStorage.getItem(LIKES_STORAGE_KEY);
+    persisted.current = raw;
+    setSavedIds(parseStoredIds(raw));
     setPlaces([]);
     setRestored(true);
   }, [authLoading, isSignedIn]);
 
   useEffect(() => {
     if (authLoading || isSignedIn || !restored) return;
+
     // Never write before the restore has run, or the write races it and wins.
-    window.localStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(savedIds));
+    //
+    // **And never write a value this hook did not change.** Every previous version persisted on
+    // each render that reached here, including the first one after the restore — where `savedIds`
+    // is, by construction, exactly what was just read. That write cannot change what a later read
+    // returns, so its only possible effect is to overwrite something else's.
+    //
+    // Compared against `persisted`, not against the key's current contents. Those are different
+    // questions, and the difference is the whole defect: on a first visit the restore finds no key,
+    // and a guard phrased as *"skip when the key is absent"* re-reads a key that something else has
+    // created in the meantime, finds it present, and writes `[]` straight over it.
+    //
+    // An empty list is still written whenever the hook is what emptied it — unliking your last
+    // place has to persist, and `persisted` is `"[1]"` at that point rather than `null`.
+    const next = JSON.stringify(savedIds);
+    if (next === persisted.current) return;
+    if (savedIds.length === 0 && persisted.current === null) return;
+
+    persisted.current = next;
+    window.localStorage.setItem(LIKES_STORAGE_KEY, next);
   }, [savedIds, restored, authLoading, isSignedIn]);
 
   // ---------------------------------------------------------------------------

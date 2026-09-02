@@ -10,6 +10,7 @@ import { useBrowsePlaces } from '../hooks/useBrowsePlaces';
 import { useBrowseFacets, useBrowseMapPlaces } from '../hooks/useBrowseFacets';
 import { useRecentSearches } from '../hooks/useRecentSearches';
 import { usePlaceSuggestions } from '../hooks/usePlaceSuggestions';
+import { buildCriteria, filtersFromInitial } from '../utils/browseFilters';
 import BrowseHero from '../components/browse/BrowseHero';
 import BrowseMobileFilters from '../components/browse/BrowseMobileFilters';
 import BrowseToolbar from '../components/browse/BrowseToolbar';
@@ -70,6 +71,7 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
       setSelectedState: (value) => setFilter('state', value),
       setSelectedDate: (value) => setFilter('date', value),
       setRatingFilter: (value) => setFilter('minRating', value),
+      setStepFree: (value) => setFilter('stepFree', value),
       handleThemeToggle,
       handleTagToggle
     }),
@@ -106,7 +108,8 @@ function Browse({ initialResults, initialFacets, initialFilters, initialError })
     location: false,
     rating: false,
     date: false,
-    tags: false
+    tags: false,
+    access: false
   });
 
   // Relevance needs something to be relevant *to*. See `sortPreference` above.
@@ -381,7 +384,8 @@ export async function getServerSideProps({ query, res }) {
     themes: asArray(query.theme),
     tags: asArray(query.tag),
     date: query.date || 'any',
-    minRating: Number.isFinite(parsedRating) ? parsedRating : 0
+    minRating: Number.isFinite(parsedRating) ? parsedRating : 0,
+    stepFree: query.access || 'any'
   };
 
   // The rendered HTML depends only on the query string, so it is shareable between users, but
@@ -391,14 +395,11 @@ export async function getServerSideProps({ query, res }) {
   try {
     const [results, facets] = await Promise.all([
       fetchPlaces({
-        searchTerm: filters.searchTerm || undefined,
-        location: filters.location || undefined,
-        district: filters.district || undefined,
-        state: filters.state || undefined,
-        themes: filters.themes.length ? filters.themes : undefined,
-        tags: filters.tags.length ? filters.tags : undefined,
-        date: filters.date !== 'any' ? filters.date : undefined,
-        minRating: filters.minRating > 0 ? filters.minRating : undefined,
+        // `buildCriteria`, not a second copy of it. This block used to spell the same eight
+        // conversions out again, which is how a ninth filter ends up applied on the client and not
+        // on the server — and this page's whole contract is that a pasted link server-renders the
+        // same result set the UI produced.
+        ...buildCriteria(filtersFromInitial(filters)),
         sort: 'newest',
         limit: PLACES_PAGE_SIZE,
         offset: 0,

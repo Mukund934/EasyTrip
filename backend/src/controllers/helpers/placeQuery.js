@@ -21,7 +21,11 @@ const criteriaFromQuery = (query) => {
     tags: parseArrayParam(query.tags),
     themes: parseArrayParam(query.themes),
     minRating: Number.isFinite(parsedMinRating) ? parsedMinRating : undefined,
-    date: query.date?.trim() || undefined
+    date: query.date?.trim() || undefined,
+    // `FV-029`. Same array shape as `tags`/`themes`, so `?stepFree=yes&stepFree=partial` and
+    // `?stepFree=["yes","partial"]` both work — the browse UI sends the second, a hand-written
+    // request is likelier to send the first.
+    stepFree: parseArrayParam(query.stepFree)
   };
 };
 

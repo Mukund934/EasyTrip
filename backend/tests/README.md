@@ -104,6 +104,17 @@ how many requests the earlier ones happened to send.
 | `geocode.test.js`               | `IMP-116` / `ADR-035` — the admin gate, the outcome classification, and the two properties no response reveals: the identifying `User-Agent` and the 1 req/s pacing                                              |
 | `search.test.js`                | `IMP-112` — every assertion pins a property `ILIKE` did **not** have (stemming, prefix, weighting, breadth, query-syntax safety), plus the two regressions from it that are deliberate                           |
 | `searchVectorFreshness.test.js` | `TD-022` — the stored `search_vector` values still agree with the expression that generates them. `CREATE OR REPLACE` on `easytrip_text_words` does **not** recompute stored rows, and nothing else would notice |
+| `feasibility.test.js`           | `FV-025` — the engine as a table of hand-built trips and the verdict each must produce; plus the endpoint's ownership, mounting and the shape a client receives                                                  |
+| `tripForecast.test.js`          | `FV-031` + `FV-027`(a) — the _plumbing_, not the rules: every assertion drives `GET /feasibility` with only Open-Meteo faked, because the daylight rule was correct and inert for a whole sprint                 |
+
+**No suite may reach the network.** `setup/env.js` replaces `global.fetch` with one that throws, so
+an un-stubbed outbound call fails loudly instead of quietly calling somebody's free service on every
+run — the abuse `SESSION_PROTOCOL.md` §11.4b names, and which a geocoding suite committed in Sprint
+7.8. A suite that means to exercise a provider assigns its own `global.fetch` in the module body,
+which runs after `setupFiles` and wins (`weather.test.js`, `tripForecast.test.js`), or injects a
+`fetchImpl` (`geocode.test.js`). This became load-bearing with `FV-031`: `GET /feasibility` makes an
+outbound call for any day holding an **outdoor** item, and the only reason no other suite triggers
+one today is that nothing in the seed is classified.
 
 `routeShadowing.test.js` is the odd one out and says so in its own header: it asserts the **shape of
 the mounted route table** rather than the behaviour of a request. That is deliberate, because the

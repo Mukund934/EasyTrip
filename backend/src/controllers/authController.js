@@ -6,7 +6,10 @@ const logger = require('../utils/logger');
 // One list for every profile read/write. It was repeated three times, and the profile form seeds
 // itself from whatever this returns — a column missing from one copy silently blanks that field.
 const USER_COLUMNS =
-  'id, firebase_uid, email, name, location, dob, is_admin, created_at, updated_at';
+  'id, firebase_uid, email, name, location, dob, is_admin, ' +
+  // `FV-029` stage (c). Personal data on the same terms as `dob`: written by the owner, returned
+  // only on this authenticated route, and present in no public payload.
+  'requires_step_free, requires_accessible_restroom, created_at, updated_at';
 
 /**
  * Get current user profile
@@ -61,14 +64,33 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { uid } = req.user;
-    const { name, location, dob } = req.body;
+    const { name, location, dob, requires_step_free, requires_accessible_restroom } = req.body;
 
     // location and dob were accepted by the validator and then dropped here, so the profile form
     // reported success while saving nothing (IMP-008). A cleared field arrives as '', which DATE
     // rejects, so both are normalised to NULL rather than written through.
+    // `COALESCE($n, column)` for the two access needs, which is the opposite of what `updatePlace`
+    // does and right for the opposite reason (`BUG-048`). A place patch is sparse by design — the
+    // image-upload path updates one column and must not wipe the rest. This route is the profile
+    // form submitting itself whole, so an absent key means "this client does not know about the
+    // field" rather than "clear it", and a partial client must not be able to silently reset
+    // somebody's stated access needs to false.
     const result = await pool.query(
-      `UPDATE users SET name = $1, location = $2, dob = $3, updated_at = NOW() WHERE firebase_uid = $4 RETURNING ${USER_COLUMNS}`,
-      [name, location || null, dob || null, uid]
+      `UPDATE users
+       SET name = $1, location = $2, dob = $3,
+           requires_step_free = COALESCE($4, requires_step_free),
+           requires_accessible_restroom = COALESCE($5, requires_accessible_restroom),
+           updated_at = NOW()
+       WHERE firebase_uid = $6
+       RETURNING ${USER_COLUMNS}`,
+      [
+        name,
+        location || null,
+        dob || null,
+        requires_step_free === undefined ? null : Boolean(requires_step_free),
+        requires_accessible_restroom === undefined ? null : Boolean(requires_accessible_restroom),
+        uid
+      ]
     );
 
     if (result.rows.length === 0) {

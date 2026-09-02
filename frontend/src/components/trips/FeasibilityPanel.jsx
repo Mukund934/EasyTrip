@@ -1,4 +1,5 @@
 import { FiAlertTriangle, FiCheckCircle, FiInfo, FiLoader, FiXCircle } from 'react-icons/fi';
+import { formatDateShort } from '../../utils/dateFormat';
 
 /**
  * The feasibility report, shown to the person who has to execute the plan (`FV-025`, `IMP-130`).
@@ -34,6 +35,20 @@ const SEVERITY = {
   }
 };
 
+/**
+ * How an accessibility survey's provenance reads in a warning (`FV-029` stage d).
+ *
+ * The same three values `AccessibilityBadge` renders, worded for a sentence that follows a problem
+ * rather than a label that sits beside an answer. `operator` stays hedged on purpose: it is a claim
+ * by an interested party, and the traveller deciding whether to trust a warning should be able to
+ * see that.
+ */
+const CHECKED_BY = {
+  operator: 'The place says so',
+  site_visit: 'Checked in person',
+  third_party: 'Reported by a third party'
+};
+
 const Finding = ({ finding }) => {
   const style = SEVERITY[finding.severity] ?? SEVERITY.warning;
   const { Icon } = style;
@@ -49,6 +64,40 @@ const Finding = ({ finding }) => {
           // warning has to carry its own caveat, because that is how a warning travels.
           <p className="mt-1 text-xs opacity-75">
             Estimated from straight-line distance — not a routed journey.
+          </p>
+        )}
+        {finding.checked_by && (
+          // The badge's rule, in a warning. An accessibility finding without who checked and when
+          // is the bare assertion `FV-029` exists to prevent — a ramp removed last winter reads
+          // exactly like one confirmed this morning otherwise.
+          //
+          // Deliberately not folded into `finding.source` below: that key means "the provider whose
+          // data produced this", is rendered as the literal words "Forecast from", and is there
+          // because Open-Meteo is CC-BY. A survey's witness is a different thing.
+          <p className="mt-1 text-xs opacity-75">
+            {CHECKED_BY[finding.checked_by] ?? 'Recorded'}
+            {finding.checked_on ? `, ${formatDateShort(finding.checked_on)}` : ''}
+          </p>
+        )}
+        {finding.source && (
+          // The same reasoning, applied to somebody else's licence rather than to our own
+          // estimate. Open-Meteo is CC-BY, and attribution follows the data rather than the page it
+          // first appeared on — which is the gap `IMP-127` found for the geocoder. The provider is
+          // named by the finding, not hardcoded here, so a second source could never be mislabelled.
+          //
+          // The wording is "forecast", not "sunrise and sunset", because two rules now rest on the
+          // same reading: daylight (`FV-031`) and rain (`FV-027`). Naming only one of them would
+          // have made a rain warning cite the sunrise it never consulted.
+          <p className="mt-1 text-xs opacity-75">
+            Forecast from{' '}
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              {finding.source}
+            </a>
           </p>
         )}
       </div>

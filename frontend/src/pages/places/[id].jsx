@@ -22,7 +22,9 @@ import { MagazineSidebar } from '../../components/place/MagazineSidebar';
 import { PlaceArticle } from '../../components/place/PlaceArticle';
 import { PlaceSeoHead } from '../../components/place/PlaceSeoHead';
 import { PlaceLoadingState, PlaceErrorState } from '../../components/place/PlaceDetailStates';
-import { composeGallery, PLACE_SECTIONS } from '../../utils/placeDetail';
+import { composeGallery, visiblePlaceSections } from '../../utils/placeDetail';
+import { hasAccessibilityInfo } from '../../constants/placeAccessibility';
+import { hasSeasonalityInfo } from '../../constants/placeSeasonality';
 import { getAverageRating } from '../../utils/rating';
 
 /**
@@ -67,7 +69,20 @@ export default function PlaceDetails({
     );
 
   const reviewActions = usePlaceReviewActions(id, reviews, auth, { setPlace, setReviews });
-  const [activeSection, setActiveSection] = useActiveSection(PLACE_SECTIONS, [contentLoading]);
+
+  // Only the sections this place actually renders (`BL-139`). Memoised because `useActiveSection`
+  // needs a stable reference — a fresh array each render tears down and re-registers the observer.
+  const sections = useMemo(
+    () =>
+      visiblePlaceSections({
+        hasImages: images.length > 0,
+        hasAccessibility: hasAccessibilityInfo(place),
+        hasSeasonality: hasSeasonalityInfo(place)
+      }),
+    [images.length, place]
+  );
+
+  const [activeSection, setActiveSection] = useActiveSection(sections, [contentLoading]);
   const { share, shareTo } = useSharePlace(place);
 
   // Scroll progress
@@ -109,7 +124,7 @@ export default function PlaceDetails({
         />
 
         <MobileTableOfContents
-          sections={PLACE_SECTIONS}
+          sections={sections}
           activeSection={activeSection}
           isOpen={showTableOfContents}
           onToggle={() => setShowTableOfContents((prev) => !prev)}
@@ -119,10 +134,14 @@ export default function PlaceDetails({
         <MagazineIssueBar currentUser={currentUser} />
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-20">
+        {/* A `div`, not a `main`. `_app.jsx` already opens `<main id="main-content">` around
+            every page, so a second one here produced three axe violations from one cause —
+            duplicate main, non-top-level main, and a non-unique landmark — and left a screen
+            reader with two "main" regions to choose between (`PE-022`). */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-20">
           {/* Table of Contents for larger screens */}
           <div className="hidden md:block mb-12">
-            <TableOfContents sections={PLACE_SECTIONS} />
+            <TableOfContents sections={sections} />
           </div>
 
           <div className="lg:grid lg:grid-cols-3 lg:gap-12">
@@ -145,7 +164,7 @@ export default function PlaceDetails({
               <MagazineSidebar place={place} reviews={reviews} isLoading={contentLoading} />
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </>
   );

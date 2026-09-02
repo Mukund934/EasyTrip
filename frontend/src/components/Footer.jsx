@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { FiArrowRight } from 'react-icons/fi';
 import { subscribeToNewsletter } from '../services/newsletterService';
+import { useTranslation } from '../i18n';
 
 const Footer = () => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -35,10 +37,13 @@ const Footer = () => {
   // Social icons used to be five `href="#"` placeholders. EasyTrip has no social accounts, so the
   // whole row is gone rather than linking nowhere (IMP-025). Restore it when accounts exist.
 
+  // Labels are keys, resolved at render. The destinations below are deliberately NOT keyed:
+  // they carry `?location=Agra`, which matches an English value in the database, so a translated
+  // label would sit on a link that searches for something else (IMP-114).
   const quickLinks = [
-    { name: 'Home', href: '/' },
-    { name: 'Destinations', href: '/browse' },
-    { name: 'About Us', href: '/about' }
+    { key: 'footer.home', href: '/' },
+    { key: 'footer.destinations', href: '/browse' },
+    { key: 'footer.aboutUs', href: '/about' }
   ];
 
   // These were `href="#"`. Browse reads a `location` query param, so they now run a real search
@@ -80,7 +85,7 @@ const Footer = () => {
           {/* Quick Links */}
           <div className="lg:col-span-1">
             <h3 className="text-lg font-semibold mb-6 border-b border-gray-700 pb-2">
-              Quick Links
+              {t('footer.quickLinks')}
             </h3>
             <ul className="space-y-3">
               {quickLinks.map((link, index) => (
@@ -90,7 +95,7 @@ const Footer = () => {
                     className="text-gray-300 hover:text-primary-400 transition-colors flex items-center"
                   >
                     <span className="text-xs mr-2">›</span>
-                    {link.name}
+                    {t(link.key)}
                   </Link>
                 </motion.li>
               ))}
@@ -100,7 +105,7 @@ const Footer = () => {
           {/* Popular Destinations */}
           <div className="lg:col-span-1">
             <h3 className="text-lg font-semibold mb-6 border-b border-gray-700 pb-2">
-              Popular Destinations
+              {t('footer.popularDestinations')}
             </h3>
             <ul className="space-y-3">
               {popularDestinations.map((destination, index) => (

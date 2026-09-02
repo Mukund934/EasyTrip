@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
+import LocaleSwitcher from './LocaleSwitcher';
 import { useDismissable } from '../hooks/useDismissable';
 import {
   FiMenu,
@@ -28,6 +30,7 @@ const Navbar = () => {
   const profileRef = useDismissable(isProfileOpen, () => setIsProfileOpen(false));
   const [scrolled, setScrolled] = useState(false);
   const { currentUser: authUser, isAdmin, logout } = useAuth();
+  const { t } = useTranslation();
   const router = useRouter();
 
   // Only these three render a dark hero image underneath the navbar. Everywhere else the page
@@ -141,7 +144,7 @@ const Navbar = () => {
             >
               <span className="flex items-center">
                 <FiHome className="mr-2" />
-                Home
+                {t('nav.home')}
               </span>
             </Link>
             <Link
@@ -156,7 +159,7 @@ const Navbar = () => {
             >
               <span className="flex items-center">
                 <FiCompass className="mr-2" />
-                Browse
+                {t('nav.browse')}
               </span>
             </Link>
 
@@ -198,7 +201,7 @@ const Navbar = () => {
                       exit="hidden"
                     >
                       <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm text-gray-500">Signed in as</p>
+                        <p className="text-sm text-gray-500">{t('nav.signedInAs')}</p>
                         <p className="text-sm font-medium text-gray-900 truncate">{displayEmail}</p>
                       </div>
                       <div className="py-1">
@@ -208,7 +211,7 @@ const Navbar = () => {
                             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           >
                             <FiUser className="mr-3 h-4 w-4 text-gray-500" />
-                            My Profile
+                            {t('nav.profile')}
                           </Link>
                         </motion.div>
 
@@ -223,7 +226,7 @@ const Navbar = () => {
                             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           >
                             <FiHeart className="mr-3 h-4 w-4 text-gray-500" />
-                            Saved Places
+                            {t('nav.saved')}
                           </Link>
                         </motion.div>
 
@@ -235,7 +238,7 @@ const Navbar = () => {
                             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           >
                             <FiMap className="mr-3 h-4 w-4 text-gray-500" />
-                            My Trips
+                            {t('nav.trips')}
                           </Link>
                         </motion.div>
 
@@ -246,7 +249,7 @@ const Navbar = () => {
                               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                             >
                               <FiSettings className="mr-3 h-4 w-4 text-gray-500" />
-                              Admin Dashboard
+                              {t('nav.admin')}
                             </Link>
                           </motion.div>
                         )}
@@ -259,7 +262,7 @@ const Navbar = () => {
                             className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                           >
                             <FiLogOut className="mr-3 h-4 w-4" />
-                            Sign out
+                            {t('nav.signOut')}
                           </button>
                         </motion.div>
                       </div>
@@ -269,6 +272,7 @@ const Navbar = () => {
               </div>
             ) : (
               <div className="flex items-center space-x-2">
+                <LocaleSwitcher className={solid ? 'text-gray-700' : 'text-white'} />
                 <Link
                   href="/login"
                   className={`px-4 py-2 text-sm font-medium rounded-md ${
@@ -277,7 +281,7 @@ const Navbar = () => {
                       : 'text-white border border-white hover:bg-white/10'
                   } transition-colors`}
                 >
-                  Login
+                  {t('nav.login')}
                 </Link>
                 <Link
                   href="/signup"
@@ -287,7 +291,7 @@ const Navbar = () => {
                       : 'bg-white text-primary-800 hover:bg-primary-50'
                   } shadow-sm transition-colors`}
                 >
-                  Sign Up
+                  {t('nav.signUp')}
                 </Link>
               </div>
             )}
@@ -330,7 +334,7 @@ const Navbar = () => {
                 >
                   <div className="flex items-center">
                     <FiHome className="mr-3 h-5 w-5" />
-                    Home
+                    {t('nav.home')}
                   </div>
                 </Link>
 
@@ -344,7 +348,7 @@ const Navbar = () => {
                 >
                   <div className="flex items-center">
                     <FiCompass className="mr-3 h-5 w-5" />
-                    Browse
+                    {t('nav.browse')}
                   </div>
                 </Link>
               </div>
@@ -353,7 +357,7 @@ const Navbar = () => {
                 {authUser ? (
                   <>
                     <div className="px-3 py-2 border-b border-gray-200 mb-2">
-                      <p className="text-sm text-gray-500">Signed in as</p>
+                      <p className="text-sm text-gray-500">{t('nav.signedInAs')}</p>
                       <p className="text-base font-medium text-gray-900 truncate">{displayEmail}</p>
                     </div>
 
@@ -363,7 +367,7 @@ const Navbar = () => {
                     >
                       <div className="flex items-center">
                         <FiUser className="mr-3 h-5 w-5" />
-                        My Profile
+                        {t('nav.profile')}
                       </div>
                     </Link>
 
@@ -374,7 +378,7 @@ const Navbar = () => {
                       >
                         <div className="flex items-center">
                           <FiSettings className="mr-3 h-5 w-5" />
-                          Admin Dashboard
+                          {t('nav.admin')}
                         </div>
                       </Link>
                     )}
@@ -385,7 +389,7 @@ const Navbar = () => {
                     >
                       <div className="flex items-center">
                         <FiLogOut className="mr-3 h-5 w-5" />
-                        Sign out
+                        {t('nav.signOut')}
                       </div>
                     </button>
                   </>
@@ -397,7 +401,7 @@ const Navbar = () => {
                     >
                       <div className="flex items-center">
                         <FiLogIn className="mr-3 h-5 w-5" />
-                        Login
+                        {t('nav.login')}
                       </div>
                     </Link>
                     <Link
@@ -406,7 +410,7 @@ const Navbar = () => {
                     >
                       <div className="flex items-center">
                         <FiUserPlus className="mr-3 h-5 w-5" />
-                        Sign Up
+                        {t('nav.signUp')}
                       </div>
                     </Link>
                   </>

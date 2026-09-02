@@ -61,8 +61,21 @@ belong to the `lint-and-build` job and to `IMP-113`'s SEO work.
 
 The suite authenticates with the **Firebase Auth Emulator** (`ADR-028`). Tokens it mints are
 verified by the **real** `firebase-admin` `verifyIdToken()` — the same call, on the same code path,
-that production makes. **No production code is modified and no production file knows the emulator
-exists**; the Admin SDK simply honours `FIREBASE_AUTH_EMULATOR_HOST`.
+that production makes. On the **server** side no production code is modified at all; the Admin SDK
+simply honours `FIREBASE_AUTH_EMULATOR_HOST`.
+
+**On the client side that stopped being true in Sprint 8.30, deliberately** (`TD-024`, `ADR-047`).
+`frontend/src/config/firebase.js` now calls `connectAuthEmulator` when
+`NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST` names a **loopback** host, and does nothing whatever when
+it is unset — which is every deployment. Until then the browser could not sign in at all, so every
+page behind `useAuth()` was reachable by no journey and the authenticated specs asserted the SSR
+gate's verdict through a hand-set cookie instead. `signed-in-workspace.spec.js` is what the change
+bought: a real form, a real sign-in, a real token, and a trip that is still there after a reload.
+
+It is not a security boundary and does not need to be. The API verifies every token with the real
+`firebase-admin`, so an emulator token is rejected by a real deployment, and `env.js` refuses to boot
+with the server-side variable set under `NODE_ENV=production`. The switch can break a build's
+sign-in; it cannot let anyone in.
 
 Three deny options were rejected in `ADR-028`: an env-gated test verifier, accepting unsigned JWTs
 outside production, and committing a throwaway service account. The first two are a signature check

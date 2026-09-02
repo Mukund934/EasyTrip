@@ -141,7 +141,12 @@ const normalise = (payload) => {
       precipitation_mm: daily.precipitation_sum?.[index] ?? null,
       code: daily.weather_code?.[index],
       condition: describe(daily.weather_code?.[index]),
-      is_wet: isWet(daily.weather_code?.[index])
+      is_wet: isWet(daily.weather_code?.[index]),
+      // Local-time ISO strings, e.g. `2026-12-14T06:42`. Passed through rather than parsed: the
+      // feasibility engine is a pure function with no clock and no zone database, so it compares
+      // the wall-clock minutes in the string against an item's `TIME` and nothing else.
+      sunrise: daily.sunrise?.[index] ?? null,
+      sunset: daily.sunset?.[index] ?? null
     })),
     timezone: payload.timezone || null,
     source: 'Open-Meteo'
@@ -174,7 +179,11 @@ const getWeather = async (latitude, longitude) => {
   const url =
     `${OPEN_METEO}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
     '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m' +
-    '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum' +
+    // `sunrise,sunset` are here for `FV-031`: the daylight rule needs the day's own boundaries
+    // at the *place's* coordinates, and the provider returns them in the same `timezone=auto`
+    // frame as everything else. `FUTURE_VISION` recorded that Open-Meteo "already returns"
+    // them, which was half true — it can, and this query never asked.
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,sunrise,sunset' +
     // `timezone=auto` makes the provider return times in the *place's* zone. A traveller reading
     // "rain at 15:00" means three in the afternoon where they are standing — the same reasoning
     // that makes `trip_items.start_time` a `TIME` rather than a timestamp (`ADR-031`).

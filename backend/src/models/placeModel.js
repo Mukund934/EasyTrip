@@ -1,3 +1,6 @@
+const { DEFAULT_PLACE_SETTING } = require('../constants/placeSetting');
+const { DEFAULT_ACCESS_LEVEL } = require('../constants/placeAccessibility');
+const { DEFAULT_CROWD_LEVEL } = require('../constants/placeSeasonality');
 const pool = require('../config/db');
 const createPlace = async (placeData) => {
   const {
@@ -15,6 +18,17 @@ const createPlace = async (placeData) => {
     themes,
     tags,
     custom_keys,
+    setting,
+    step_free_access,
+    accessible_restroom,
+    accessibility_notes,
+    accessibility_source,
+    accessibility_checked_on,
+    best_months,
+    crowd_level,
+    typical_visit_minutes,
+    seasonality_source,
+    seasonality_checked_on,
     created_by,
     updated_by
   } = placeData;
@@ -23,8 +37,13 @@ const createPlace = async (placeData) => {
     `INSERT INTO places (
       name, description, location, district, state, locality, pin_code,
       latitude, longitude, coordinates_source, primary_image_url, themes, tags, custom_keys,
-      created_by, updated_by, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+      created_by, updated_by, setting,
+      step_free_access, accessible_restroom, accessibility_notes, accessibility_source,
+      accessibility_checked_on,
+      best_months, crowd_level, typical_visit_minutes, seasonality_source,
+      seasonality_checked_on, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+              $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, NOW(), NOW())
     RETURNING *`,
     [
       name,
@@ -45,7 +64,31 @@ const createPlace = async (placeData) => {
       tags || '{}',
       custom_keys || '{}',
       created_by,
-      updated_by
+      updated_by,
+      // Appended last so every existing placeholder keeps its number. `?? DEFAULT` rather than
+      // relying on the column default: an explicit create that omits the key should still say
+      // "unclassified" in the returned row rather than depending on what the DDL happens to say.
+      setting ?? DEFAULT_PLACE_SETTING,
+      // Appended for the same reason `setting` was, and defaulted for the same reason: a create
+      // that omits accessibility must return "unsurveyed" rather than whatever the DDL happens to
+      // say. Accepted on create as well as update deliberately — an admin who fills these in on the
+      // add form and finds them gone afterwards has met a worse bug than a missing field.
+      step_free_access ?? DEFAULT_ACCESS_LEVEL,
+      accessible_restroom ?? DEFAULT_ACCESS_LEVEL,
+      accessibility_notes ?? null,
+      accessibility_source ?? null,
+      accessibility_checked_on ?? null,
+      // Plain defaults, exactly like the accessibility columns above — **not** a second call to
+      // `seasonalityForCreate`. The controller already normalises the body through it, and running
+      // it twice is not idempotent: it emits `typical_visit_minutes: null` for an absent key, and
+      // `isProvided(null)` is deliberately **true** (null is how a JSON caller clears a column), so
+      // the second pass turned that null into `Number(null)` — zero — which the
+      // `typical_visit_minutes > 0` constraint rightly refused. Every create 500'd.
+      best_months ?? [],
+      crowd_level ?? DEFAULT_CROWD_LEVEL,
+      typical_visit_minutes ?? null,
+      seasonality_source ?? null,
+      seasonality_checked_on ?? null
     ]
   );
   return result.rows[0];
@@ -66,6 +109,15 @@ const getPlaceById = async (id) => {
     // than the JSON and so could see what an API-level assertion could not.
     `SELECT id, name, location, description, district, state, locality, pin_code,
            latitude, longitude, coordinates_source, primary_image_url, themes, tags, custom_keys,
+           setting, step_free_access, accessible_restroom, accessibility_notes,
+           accessibility_source,
+           best_months, crowd_level, typical_visit_minutes, seasonality_source,
+           to_char(seasonality_checked_on, 'YYYY-MM-DD') AS seasonality_checked_on,
+           -- Text, not a DATE. tripModel does the same to trips.start_date for the same reason:
+           -- node-pg turns a DATE into a JS Date at LOCAL midnight, so east of UTC the serialised
+           -- value is the previous day. That is the BUG-046 class one tier lower, on a field whose
+           -- entire job is to say how fresh a safety claim is.
+           to_char(accessibility_checked_on, 'YYYY-MM-DD') AS accessibility_checked_on,
            rating_count, rating_sum, created_at, updated_at,
       CASE
         WHEN rating_count > 0 THEN ROUND(rating_sum::NUMERIC / rating_count, 1)
@@ -120,6 +172,24 @@ const UPDATABLE_COLUMNS = [
   'themes',
   'tags',
   'custom_keys',
+  'setting',
+  // All five, presence-keyed like everything else here. The database enforces that a claim carries
+  // a source and a date (`places_accessibility_is_attributed`), so a patch that sets an axis without
+  // them is rejected rather than half-applied — and a patch that touches neither axis cannot
+  // accidentally strip a provenance it never mentioned.
+  'step_free_access',
+  'accessible_restroom',
+  'accessibility_notes',
+  'accessibility_source',
+  'accessibility_checked_on',
+  // `FV-028`, on the same terms: presence-keyed, checked against each other by
+  // `places_seasonality_is_attributed`, so an edit that mentions none of them cannot strip a
+  // curator's provenance.
+  'best_months',
+  'crowd_level',
+  'typical_visit_minutes',
+  'seasonality_source',
+  'seasonality_checked_on',
   'updated_by'
 ];
 
