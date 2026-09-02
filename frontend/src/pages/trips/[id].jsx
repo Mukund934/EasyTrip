@@ -21,6 +21,8 @@ import FeasibilityPanel from '../../components/trips/FeasibilityPanel';
 import ReplanPanel from '../../components/trips/ReplanPanel';
 import RouteSuggestion from '../../components/trips/RouteSuggestion';
 import DayRoute from '../../components/trips/DayRoute';
+import TripNotes from '../../components/trips/TripNotes';
+import TripChecklist from '../../components/trips/TripChecklist';
 import { formatDate } from '../../utils/dateFormat';
 
 /**
@@ -120,7 +122,7 @@ const AddItemForm = ({ dayId, savedPlaces, busy, onAdd }) => {
 export default function TripWorkspace() {
   const router = useRouter();
   const { id } = router.query;
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, loading: authLoading, getIdToken } = useAuth();
 
   const {
     trip,
@@ -406,6 +408,19 @@ export default function TripWorkspace() {
             <FiPlus className="mr-2 h-5 w-5" aria-hidden="true" />
             Add day {trip.days.length + 1}
           </button>
+
+          {/* `FV-006` stage (b). Below the itinerary, because the itinerary is what the reader came
+              for and these are what they reach for while building it. Side by side on a wide screen
+              and stacked on a phone: neither is more important than the other, and a checklist that
+              needs scrolling past the notes to reach is a checklist nobody ticks.
+
+              Each fetches its own collection rather than riding on the workspace read. The workspace
+              reloads after every itinerary write (see `useTripWorkspace`), and folding these into it
+              would refetch every note each time somebody dragged a stop. */}
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            <TripChecklist tripId={trip.id} getToken={getIdToken} />
+            <TripNotes tripId={trip.id} getToken={getIdToken} />
+          </div>
         </div>
       </div>
     </>

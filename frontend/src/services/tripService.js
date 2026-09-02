@@ -205,6 +205,102 @@ const reorderItems = async (tripId, dayId, itemIds, token) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Notes and checklist (`FV-006` stage b)
+// ---------------------------------------------------------------------------
+// Nested under the trip like everything else here. A note carries no owner of its own and is only
+// ever addressable through the trip that owns it — the same shape the server enforces in SQL.
+
+const listNotes = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/notes`, authed(token));
+    return data?.notes ?? [];
+  } catch (error) {
+    throw withFallback(error, 'Could not load the notes for this trip');
+  }
+};
+
+const addNote = async (tripId, body, token) => {
+  try {
+    const { data } = await apiClient.post(`/auth/trips/${tripId}/notes`, { body }, authed(token));
+    return data?.note ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not save this note');
+  }
+};
+
+const updateNote = async (tripId, noteId, body, token) => {
+  try {
+    const { data } = await apiClient.put(
+      `/auth/trips/${tripId}/notes/${noteId}`,
+      { body },
+      authed(token)
+    );
+    return data?.note ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not update this note');
+  }
+};
+
+const deleteNote = async (tripId, noteId, token) => {
+  try {
+    await apiClient.delete(`/auth/trips/${tripId}/notes/${noteId}`, authed(token));
+    return true;
+  } catch (error) {
+    throw withFallback(error, 'Could not delete this note');
+  }
+};
+
+const listChecklist = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/checklist`, authed(token));
+    return data?.items ?? [];
+  } catch (error) {
+    throw withFallback(error, 'Could not load the checklist for this trip');
+  }
+};
+
+const addChecklistItem = async (tripId, label, token) => {
+  try {
+    const { data } = await apiClient.post(
+      `/auth/trips/${tripId}/checklist`,
+      { label },
+      authed(token)
+    );
+    return data?.item ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not add this checklist item');
+  }
+};
+
+/**
+ * PATCH, and the patch carries only what changed.
+ *
+ * Sending `{ is_done }` alone is the point: a PUT with the whole item would need the label too, and
+ * a caller that forgot it would blank the label every time somebody ticked a box.
+ */
+const updateChecklistItem = async (tripId, itemId, patch, token) => {
+  try {
+    const { data } = await apiClient.patch(
+      `/auth/trips/${tripId}/checklist/${itemId}`,
+      patch,
+      authed(token)
+    );
+    return data?.item ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not update this checklist item');
+  }
+};
+
+const deleteChecklistItem = async (tripId, itemId, token) => {
+  try {
+    await apiClient.delete(`/auth/trips/${tripId}/checklist/${itemId}`, authed(token));
+    return true;
+  } catch (error) {
+    throw withFallback(error, 'Could not delete this checklist item');
+  }
+};
+
 const tripService = {
   listTrips,
   getTrip,
@@ -220,7 +316,15 @@ const tripService = {
   addItem,
   updateItem,
   deleteItem,
-  reorderItems
+  reorderItems,
+  listNotes,
+  addNote,
+  updateNote,
+  deleteNote,
+  listChecklist,
+  addChecklistItem,
+  updateChecklistItem,
+  deleteChecklistItem
 };
 
 export default tripService;
