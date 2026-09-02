@@ -10,7 +10,8 @@ import {
   FiChevronUp,
   FiChevronDown,
   FiClock,
-  FiMapPin
+  FiMapPin,
+  FiPrinter
 } from 'react-icons/fi';
 
 import { useAuth } from '../../context/AuthContext';
@@ -25,6 +26,10 @@ import TripNotes from '../../components/trips/TripNotes';
 import TripChecklist from '../../components/trips/TripChecklist';
 import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
 import { formatDate } from '../../utils/dateFormat';
+// `BUG-058`: the local-time version of this that used to live here rendered every day after a
+// daylight-saving transition as the day before. The arithmetic is done in UTC now, and shared,
+// so the workspace and the printable itinerary cannot disagree about what day it is.
+import { dayDate } from '../../utils/tripDates';
 
 /**
  * One trip's workspace (`IMP-109` / `FV-006`, `ADR-031`).
@@ -38,13 +43,6 @@ import { formatDate } from '../../utils/dateFormat';
  */
 
 /** The calendar date of a day, computed from the trip's start (`ADR-031` — days store an ordinal). */
-const dayDate = (trip, dayNumber) => {
-  if (!trip.start_date) return null;
-  const date = new Date(trip.start_date);
-  date.setDate(date.getDate() + dayNumber - 1);
-  return date.toISOString().slice(0, 10);
-};
-
 const AddItemForm = ({ dayId, savedPlaces, busy, onAdd }) => {
   const [placeId, setPlaceId] = useState('');
   const [title, setTitle] = useState('');
@@ -247,8 +245,19 @@ export default function TripWorkspace() {
 
           {/* `FV-009` stage (a). Above the itinerary, because exporting is something a reader does
               once the plan looks right, and a control below four days is one they scroll past. */}
-          <div className="mb-6">
+          {/* `FV-009`, both stages. Exporting and printing are the same intention — getting the plan
+              out of here — so the two controls sit together rather than at opposite ends of the
+              page. Above the itinerary, because it is what a reader reaches for once the plan
+              looks right, and a control below four days is one they scroll past. */}
+          <div className="mb-6 flex flex-wrap items-start gap-3">
             <ExportCalendarButton tripId={trip.id} title={trip.title} getToken={getIdToken} />
+            <Link
+              href={`/trips/${trip.id}/print`}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:border-primary-400 hover:text-primary-700"
+            >
+              <FiPrinter className="h-4 w-4" aria-hidden="true" />
+              Printable version
+            </Link>
           </div>
 
           {/* Above the days, not below them: the report is about the plan as a whole, and a
