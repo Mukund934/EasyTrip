@@ -56,7 +56,52 @@ const expectRouterIntrospection = (app) => {
  * Express keeps no copy of the original string; `layer.regexp.source` is the only record of it.
  * `fast_slash` marks a router mounted at `/`, which contributes no prefix.
  */
+/**
+ * The prefixes this app mounts routers at.
+ *
+ * **A fixture, not a re-implementation of Express's mounting rules.** Express 5 keeps no static
+ * record of a mount path - `layer.regexp` is gone and the pattern survives only inside a matcher
+ * closure - so a prefix can no longer be *derived* from the structure. It can still be
+ * *confirmed*: a matcher answers "is this path under me, and how much of it did I consume".
+ *
+ * So this list is probed against the live routers rather than trusted. `prefixOf` throws when a
+ * mounted router matches none of it, which is what stops a new mount point from silently
+ * producing routes with no prefix - the failure mode that would make this whole check vacuous.
+ * Adding a mount means adding a line here, and forgetting to is a loud failure.
+ */
+const MOUNT_CANDIDATES = ['/api/auth', '/api/admin', '/api/newsletter', '/api', ''];
+
+/**
+ * Recover a mount prefix from an Express 5 layer by probing its matchers.
+ *
+ * A matcher returns `{ path }` naming the portion it consumed, so a candidate both tests the guess
+ * and reads the answer back. Longest candidate first, because `/api` also matches a router mounted
+ * at `/api/auth` and the more specific mount is the true one.
+ */
+const prefixFromMatchers = (layer) => {
+  const matchers = Array.isArray(layer.matchers) ? layer.matchers : [];
+  if (matchers.length === 0) return '';
+
+  for (const candidate of MOUNT_CANDIDATES) {
+    for (const match of matchers) {
+      const result = match(candidate || '/');
+      if (result && typeof result.path === 'string') {
+        // A router mounted at `/` consumes `/` and contributes no prefix.
+        return result.path === '/' ? '' : result.path;
+      }
+    }
+  }
+
+  throw new Error(
+    'routeTable: a mounted router matched none of MOUNT_CANDIDATES. A new mount point was added ' +
+      'without updating that list, and every route under it would be recorded with no prefix - ' +
+      'which would make the shadowing check pass while enumerating the wrong paths.'
+  );
+};
+
 const prefixOf = (layer) => {
+  // Express 5 removed `layer.regexp`; the mount pattern lives in a matcher closure instead.
+  if (!layer.regexp) return prefixFromMatchers(layer);
   if (layer.regexp && layer.regexp.fast_slash) return '';
   const source = layer.regexp && layer.regexp.source;
   if (!source) return '';

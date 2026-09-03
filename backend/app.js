@@ -300,8 +300,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 
-// 404 handler
-app.use('*', (req, res) => {
+// 404 handler.
+//
+// **No path argument, deliberately.** Express 5 moved to path-to-regexp v8, which rejects a bare
+// `'*'` — it would have to become `'/{*splat}'`. A pathless `app.use` matches everything that
+// reached here without being handled, which is the same thing this always meant and does not depend
+// on a wildcard dialect that has now changed twice. `platform.test.js` asserts the behaviour ("an
+// unknown route 404s as JSON rather than an HTML stack page"), so a regression here fails by name.
+app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
