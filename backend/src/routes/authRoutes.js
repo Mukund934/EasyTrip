@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const { isAuthenticated, isAuthenticatedStrict } = require('../utils/authMiddleware');
 const { handleValidationErrors } = require('../utils/errorHandler');
 
@@ -14,6 +14,7 @@ const { getMyReviews } = require('../controllers/myReviewController');
 const tripController = require('../controllers/tripController');
 const tripWorkspaceController = require('../controllers/tripWorkspaceController');
 const tripShareController = require('../controllers/tripShareController');
+const recommendationController = require('../controllers/recommendationController');
 
 const profileRules = [
   body('name')
@@ -184,6 +185,20 @@ const itemBodyRules = (required) => [
       ]
     : [])
 ];
+
+// `FV-019`. Authenticated because the answer is derived entirely from this traveller's saved
+// places, which are private - there is no public version of the question. `limit` is capped rather
+// than trusted: an unbounded one would let a caller ask for the whole catalogue sorted.
+router.get(
+  '/recommendations',
+  isAuthenticated,
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 24 })
+    .withMessage('limit must be between 1 and 24'),
+  handleValidationErrors,
+  recommendationController.getRecommendations
+);
 
 router.get('/trips', isAuthenticated, tripController.listTrips);
 router.post(

@@ -139,6 +139,17 @@ export const fetchPlaceFit = async (id, { month, interests } = {}, options = {})
     options
   );
 
+/**
+ * Personalised recommendations (`FV-019`).
+ *
+ * Authenticated, because the answer is derived entirely from this traveller's saved places. Returns
+ * `{ recommendations, basis, excluded }` — and **the last two are not optional decoration**: `basis`
+ * is what the answer was computed from and `excluded` is what could not be considered, without which
+ * a recommendation is indistinguishable from an arbitrary one.
+ */
+export const fetchRecommendations = async (token, options = {}) =>
+  request('/auth/recommendations', { ...options, authToken: token, requireAuth: true });
+
 export const fetchPlaceReviews = async (id, options = {}) =>
   request(`/places/${id}/reviews`, options);
 

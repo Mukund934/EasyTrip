@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { FiHeart, FiCompass, FiAlertCircle } from 'react-icons/fi';
 
 import { useAuth } from '../context/AuthContext';
+import RecommendedForYou from '../components/RecommendedForYou';
 import { useWishlist } from '../hooks/useWishlist';
 import PlaceCard from '../components/PlaceCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -23,7 +24,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
  * open and return to is the one the server holds.
  */
 export default function SavedPlaces() {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, loading: authLoading, getIdToken } = useAuth();
   const { places, loading, error, refresh, ready } = useWishlist();
   const router = useRouter();
 
@@ -117,6 +118,16 @@ export default function SavedPlaces() {
                 ))}
               </div>
             </>
+          )}
+
+          {/* `FV-019`. On this page rather than browse, because this is where the signal it is built
+              from lives: a reader looking at what they saved is exactly the reader for whom "picked
+              from what you save" is a checkable claim rather than a mysterious one. It renders
+              nothing when a fetch fails, and an actionable sentence when nothing is saved. */}
+          {!showSpinner && (
+            <div className="mt-10">
+              <RecommendedForYou getToken={getIdToken} />
+            </div>
           )}
         </div>
       </div>
