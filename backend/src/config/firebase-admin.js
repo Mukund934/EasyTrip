@@ -1,8 +1,13 @@
-const admin = require('firebase-admin');
+// `firebase-admin` v13 removed the old single-namespace export: `admin.auth()`,
+// `admin.credential` and `admin.apps` no longer exist, and the package root now *is* the modular
+// app API. So this file imports the functions it needs rather than a namespace object, and callers
+// reach the Auth service through `getAuth()` from `firebase-admin/auth` rather than through an
+// `admin` re-export from here.
+const { initializeApp, getApp, getApps, cert } = require('firebase-admin/app');
 const logger = require('../utils/logger');
 
 // The single Firebase Admin initialization site for the server process.
-// `admin.auth()` throws unless `initializeApp()` has run in the same process,
+// `getAuth()` throws unless `initializeApp()` has run in the same process,
 // so app.js must require this module before mounting any route.
 
 const REQUIRED_ENV_VARS = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
@@ -17,8 +22,8 @@ const failFast = (message, detail) => {
 };
 
 const initializeFirebaseAdmin = () => {
-  if (admin.apps.length > 0) {
-    return admin.app();
+  if (getApps().length > 0) {
+    return getApp();
   }
 
   const missing = REQUIRED_ENV_VARS.filter((name) => !process.env[name]);
@@ -27,8 +32,8 @@ const initializeFirebaseAdmin = () => {
   }
 
   try {
-    const app = admin.initializeApp({
-      credential: admin.credential.cert({
+    const app = initializeApp({
+      credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         // Service-account keys carried in env vars arrive with literal "\n" sequences.
@@ -47,4 +52,4 @@ const initializeFirebaseAdmin = () => {
 
 const firebaseAdmin = initializeFirebaseAdmin();
 
-module.exports = { admin, firebaseAdmin, initializeFirebaseAdmin };
+module.exports = { firebaseAdmin, initializeFirebaseAdmin };

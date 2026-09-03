@@ -88,18 +88,33 @@ const auth = () => ({
 });
 
 /**
- * A non-empty `apps` plus a working `app()` is what makes `initializeFirebaseAdmin` short-circuit:
- * it returns the existing app rather than reading the three service-account variables and calling
- * `process.exit(1)` when they are absent.
+ * A non-empty `getApps()` plus a working `getApp()` is what makes `initializeFirebaseAdmin`
+ * short-circuit: it returns the existing app rather than reading the three service-account
+ * variables and calling `process.exit(1)` when they are absent.
  */
 const fakeApp = { name: '[DEFAULT]', options: {} };
 
-module.exports = {
-  auth,
-  apps: [fakeApp],
-  app: jest.fn(() => fakeApp),
+/**
+ * **Two shapes, because `firebase-admin` v13 split into subpaths.** The old single namespace
+ * (`admin.auth()`, `admin.apps`, `admin.credential`) is gone; the package root is now the modular
+ * app API and Auth lives at `firebase-admin/auth`. `tests/setup/env.js` mocks both paths from this
+ * one module, so the fake user store below is shared between them rather than duplicated.
+ */
+const appModule = {
   initializeApp: jest.fn(() => fakeApp),
-  credential: { cert: jest.fn(() => ({})) },
+  getApp: jest.fn(() => fakeApp),
+  getApps: jest.fn(() => [fakeApp]),
+  cert: jest.fn(() => ({}))
+};
+
+const authModule = {
+  getAuth: jest.fn(() => auth())
+};
+
+module.exports = {
+  appModule,
+  authModule,
+  auth,
   // Test-only exports
   __mock: {
     verifyIdToken,

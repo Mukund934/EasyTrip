@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const admin = require('firebase-admin');
+const { getAuth } = require('firebase-admin/auth');
 const logger = require('../utils/logger');
 
 /**
@@ -17,7 +17,7 @@ const logger = require('../utils/logger');
 const syncAdminClaim = async (userRecord, isAdmin) => {
   const existingClaims = userRecord.customClaims || {};
 
-  await admin.auth().setCustomUserClaims(userRecord.uid, {
+  await getAuth().setCustomUserClaims(userRecord.uid, {
     ...existingClaims,
     admin: isAdmin
   });
@@ -52,7 +52,7 @@ const addAdmin = async (req, res) => {
     // Check if user exists in Firebase
     let userRecord;
     try {
-      userRecord = await admin.auth().getUserByEmail(email);
+      userRecord = await getAuth().getUserByEmail(email);
     } catch (error) {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
@@ -102,7 +102,7 @@ const removeAdmin = async (req, res) => {
     // Check if user exists in Firebase
     let userRecord;
     try {
-      userRecord = await admin.auth().getUserByEmail(email);
+      userRecord = await getAuth().getUserByEmail(email);
     } catch (error) {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }

@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const admin = require('firebase-admin');
+const { getAuth } = require('firebase-admin/auth');
 const { resolveAdminStatus } = require('../utils/authMiddleware');
 const logger = require('../utils/logger');
 
@@ -25,7 +25,7 @@ const getProfile = async (req, res) => {
 
     if (result.rows.length === 0) {
       // User not in database yet, get from Firebase
-      const userRecord = await admin.auth().getUser(uid);
+      const userRecord = await getAuth().getUser(uid);
 
       // Create user in database
       const newUser = await pool.query(

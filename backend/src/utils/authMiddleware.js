@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const admin = require('firebase-admin');
+const { getAuth } = require('firebase-admin/auth');
 const logger = require('./logger');
 
 const extractToken = (req) => {
@@ -71,7 +71,7 @@ const authenticateRequest = async (req, res, { checkRevoked = false } = {}) => {
 
   let decodedToken;
   try {
-    decodedToken = await admin.auth().verifyIdToken(token, checkRevoked);
+    decodedToken = await getAuth().verifyIdToken(token, checkRevoked);
   } catch (error) {
     logger.warn({ code: error.code }, 'Token verification failed');
     res.status(401).json({ message: 'Invalid or expired token' });
@@ -138,7 +138,7 @@ const attachUserIfPresent = async (req, res, next) => {
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
 
     req.user = {
       uid: decodedToken.uid,

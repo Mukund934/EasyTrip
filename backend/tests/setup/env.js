@@ -68,4 +68,7 @@ global.fetch = async (input) => {
   );
 };
 
-jest.mock('firebase-admin', () => require('../helpers/firebaseMock'));
+// `firebase-admin` v13 split the single namespace into subpaths, so both are mocked — from the same
+// helper, so the fake user store is shared rather than duplicated across two mocks that could drift.
+jest.mock('firebase-admin/app', () => require('../helpers/firebaseMock').appModule);
+jest.mock('firebase-admin/auth', () => require('../helpers/firebaseMock').authModule);
