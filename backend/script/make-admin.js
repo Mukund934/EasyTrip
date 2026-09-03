@@ -1,5 +1,9 @@
 require('dotenv').config({ path: '../.env' });
-const admin = require('firebase-admin');
+// `firebase-admin` v13 removed the single-namespace export, so this operator script imports the
+// modular API like the server does. No test covers this file — it is a CLI — which is exactly why
+// it is worth migrating deliberately rather than leaving it to fail in somebody's hands later.
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
@@ -21,8 +25,8 @@ try {
   if (fileExists(serviceAccountPath)) {
     // Use service account file if it exists
     const serviceAccount = require(serviceAccountPath);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+    initializeApp({
+      credential: cert(serviceAccount)
     });
     console.log('Firebase initialized with service account file.');
   } else if (
@@ -31,8 +35,8 @@ try {
     process.env.FIREBASE_PRIVATE_KEY
   ) {
     // Use environment variables if service account file doesn't exist
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    initializeApp({
+      credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
@@ -97,7 +101,7 @@ async function makeAdmin() {
     // Get user from Firebase
     let userRecord;
     try {
-      userRecord = await admin.auth().getUserByEmail(email);
+      userRecord = await getAuth().getUserByEmail(email);
       console.log(`Found user in Firebase: ${userRecord.uid}`);
     } catch (error) {
       console.error(`Error: User with email ${email} not found in Firebase.`);
@@ -159,7 +163,7 @@ async function makeAdmin() {
 
     // Also set custom claims in Firebase (optional but recommended)
     try {
-      await admin.auth().setCustomUserClaims(userRecord.uid, { admin: true });
+      await getAuth().setCustomUserClaims(userRecord.uid, { admin: true });
       console.log('Set admin custom claim in Firebase Authentication.');
     } catch (error) {
       console.warn('Warning: Could not set Firebase custom claims:', error.message);

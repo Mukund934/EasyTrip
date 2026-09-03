@@ -25,6 +25,8 @@ const { spawn, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+// Resolves `firebase-admin` subpaths from the backend's package, honouring its `exports` map.
+const { createRequire } = require('node:module');
 
 const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend');
@@ -199,10 +201,22 @@ const start = async (cli) => {
  * seeding a fixed uid is what keeps them in step.
  */
 const provisionIdentities = async (pool) => {
-  const admin = require(path.join(BACKEND, 'node_modules', 'firebase-admin'));
-  const app = admin.apps.length
-    ? admin.apps[0]
-    : admin.initializeApp({ projectId: PROJECT_ID }, 'e2e-auth');
+  // `firebase-admin` v13 removed the single-namespace export: `admin.apps` and `app.auth()` are
+  // gone, and the package root is now the modular app API. This harness resolves the SDK out of the
+  // backend's own `node_modules` deliberately — the point is to mint tokens with the *same* library
+  // that will verify them — so it moves with the backend's version.
+  // `createRequire`, not `path.join`. The old single-namespace export could be reached by joining a
+  // filesystem path to the package directory, because Node falls back to its `main`. A **subpath**
+  // like `firebase-admin/app` is resolved through the package's `exports` map, which only applies to
+  // a bare specifier — a joined path resolves as a file and is simply not found. Requiring from the
+  // backend's own `package.json` keeps the intent (use the SDK that will verify these tokens) while
+  // letting Node do the resolution properly.
+  const backendRequire = createRequire(path.join(BACKEND, 'package.json'));
+  const { initializeApp, getApps } = backendRequire('firebase-admin/app');
+  const { getAuth } = backendRequire('firebase-admin/auth');
+
+  const existing = getApps().find((candidate) => candidate.name === 'e2e-auth');
+  const app = existing || initializeApp({ projectId: PROJECT_ID }, 'e2e-auth');
 
   const tokens = {};
 
@@ -217,7 +231,7 @@ const provisionIdentities = async (pool) => {
     if (identity.claim) {
       // Set the claim through the real Admin SDK, then sign in again — a token only carries the
       // claims that existed when it was issued.
-      await app.auth().setCustomUserClaims(uid, identity.claim);
+      await getAuth(app).setCustomUserClaims(uid, identity.claim);
     }
 
     const signedIn = await post('accounts:signInWithPassword', {
