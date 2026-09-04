@@ -222,7 +222,12 @@ export const HeroDesktop = ({ home }) => {
                             href={`/browse?location=${places[currentPlaceIndex]?.location}`}
                             passHref
                           >
-                            <button className="text-primary-600 hover:text-primary-800 text-sm underline underline-offset-2">
+                            {/* `py-1` for a 24px-tall target (`PE-022`, WCAG 2.5.8). At `text-sm`
+                                with no padding this box was 20px, and the exception for links
+                                inline in a sentence does not reach it: it sits on its own beside
+                                the primary action, which is what makes it a target rather than
+                                prose. The underline and colour are untouched. */}
+                            <button className="py-1 text-primary-600 hover:text-primary-800 text-sm underline underline-offset-2">
                               More destinations
                             </button>
                           </Link>
