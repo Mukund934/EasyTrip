@@ -100,6 +100,22 @@ export const PlaceWeather = ({ placeId }) => {
   }
 
   const { current, forecast = [], source } = state.data;
+
+  /**
+   * `react-hooks/static-components` flags the line below, and it is **wrong here** - recorded
+   * rather than silenced, because the difference matters (`BL-146`).
+   *
+   * The rule exists to catch a component *defined* during render, which gets a new identity every
+   * time and so remounts its subtree and discards its state. `iconFor` defines nothing: it is a
+   * lookup that returns one of five `react-icons` components imported at module scope, so the
+   * identity is stable for a given weather code and changes only when the code moves between
+   * categories - which is exactly when a different icon *should* mount.
+   *
+   * The rule cannot see that, because a capitalised local assigned during render is
+   * indistinguishable from a created one without following the callee. `const Icon = pick(x)` is
+   * the idiomatic way to render a dynamically chosen component, so the disable is on this line
+   * only and the rule stays on everywhere else, where it would catch the real thing.
+   */
   const CurrentIcon = iconFor(current.code);
 
   return (
@@ -111,6 +127,7 @@ export const PlaceWeather = ({ placeId }) => {
         id="place-weather"
         className="flex items-center font-serif text-lg font-bold text-gray-900"
       >
+        {/* eslint-disable-next-line react-hooks/static-components -- see the note on `CurrentIcon` */}
         <CurrentIcon className="mr-2 h-5 w-5 text-primary-600" aria-hidden="true" />
         Weather
       </h3>

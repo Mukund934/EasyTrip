@@ -1,4 +1,9 @@
-import { formatDate, formatDateShort, formatDateTime } from '../src/utils/dateFormat';
+import {
+  formatDate,
+  formatDateShort,
+  formatDateTime,
+  formatRelativeOrShort
+} from '../src/utils/dateFormat';
 
 /**
  * Date formatting (IMP-122, closing the first item of TD-018).
@@ -119,5 +124,86 @@ describe('accepts what the API actually sends', () => {
 
   test('a Date instance', () => {
     expect(formatDate(new Date(UTC_MIDNIGHT_NEW_YEAR))).toBe('January 1, 2026');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The relative label, and the reason it takes a clock instead of reading one
+// ---------------------------------------------------------------------------
+describe('formatRelativeOrShort is pure, which is the fix for BUG-059', () => {
+  /**
+   * This logic used to sit in `PlaceCard.jsx` and call `Date.now()` **during render**, so a
+   * server-rendered card's output depended on *when* it rendered. On an ISR page cached for five
+   * minutes, that is a hydration mismatch waiting for a day boundary.
+   *
+   * A test that pinned one fixture to one expected string would have passed against the old code
+   * too, as long as the fixture was nowhere near a boundary. So these assert the property instead:
+   * **the same input under two different clocks either agrees, or disagrees for a stated reason.**
+   */
+  const AUG_30 = '2026-08-30T12:00:00.000Z';
+  const at = (iso) => new Date(iso).getTime();
+
+  test('with no clock it is the absolute date — the server and first-render answer', () => {
+    expect(formatRelativeOrShort(AUG_30, null)).toBe('Aug 30, 2026');
+    expect(formatRelativeOrShort(AUG_30, undefined)).toBe('Aug 30, 2026');
+    expect(formatRelativeOrShort(AUG_30, NaN)).toBe('Aug 30, 2026');
+  });
+
+  test('two clocks two minutes apart across midnight UTC give the same answer', () => {
+    // The exact window the old code could disagree with itself in: the server renders at 23:59 and
+    // the browser hydrates at 00:01. Both are 2 days after the 30th by the day-count this uses.
+    const before = formatRelativeOrShort(AUG_30, at('2026-09-01T23:59:00.000Z'));
+    const after = formatRelativeOrShort(AUG_30, at('2026-09-02T00:01:00.000Z'));
+    expect(after).toBe(before);
+  });
+
+  test('the labels themselves, at each boundary', () => {
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-31T12:00:00.000Z'))).toBe('Yesterday');
+    expect(formatRelativeOrShort(AUG_30, at('2026-09-01T12:00:00.000Z'))).toBe('2 days ago');
+    expect(formatRelativeOrShort(AUG_30, at('2026-09-05T12:00:00.000Z'))).toBe('6 days ago');
+  });
+
+  test('the rounding is `ceil`, so a few hours old already reads "Yesterday" (BUG-060)', () => {
+    // **Asserting a defect, on purpose.** `Math.ceil` over a millisecond difference means any
+    // non-zero elapsed time rounds up to a whole day, so a row created six hours ago is labelled
+    // "Yesterday" and the `'Today'` branch is unreachable except at the exact same millisecond.
+    //
+    // Preserved rather than fixed here: this commit moves the logic and removes its clock read
+    // (`BUG-059`), and changing what a card *says* at the same time would hide a product change
+    // inside a refactor. Filed as `BUG-060`. This test is what makes the current behaviour a
+    // stated position instead of an accident, and it will fail loudly when that item is taken.
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T18:00:00.000Z'))).toBe('Yesterday');
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T12:00:00.001Z'))).toBe('Yesterday');
+    // The only input that reaches 'Today' is the timestamp itself.
+    expect(formatRelativeOrShort(AUG_30, at(AUG_30))).toBe('Today');
+  });
+
+  test('at exactly a week it hands over to the absolute date, and stays there', () => {
+    // The handover is the one place a fencepost error hides: `>= 7` rather than `> 7`, or the
+    // reverse, changes what a seven-day-old row says without changing anything else.
+    expect(formatRelativeOrShort(AUG_30, at('2026-09-06T12:00:00.000Z'))).toBe('Aug 30, 2026');
+    expect(formatRelativeOrShort(AUG_30, at('2027-09-06T12:00:00.000Z'))).toBe('Aug 30, 2026');
+  });
+
+  test('missing and invalid input give the shared answers, not a relative one', () => {
+    // `new Date(null)` is the epoch, so a careless version reports "20000 days ago" for a row that
+    // simply has no timestamp — which is the defect `formatDateShort`'s 'N/A' exists to avoid.
+    const now = at('2026-09-01T12:00:00.000Z');
+    expect(formatRelativeOrShort(null, now)).toBe('N/A');
+    expect(formatRelativeOrShort('', now)).toBe('N/A');
+    expect(formatRelativeOrShort('not-a-date', now)).toBe('Invalid Date');
+  });
+
+  test('it never reads the clock itself', () => {
+    // The property, asserted directly: if the function consults `Date.now`, this fails. That is
+    // what `PlaceCard` depends on for its server and client renders to agree.
+    const spy = jest.spyOn(Date, 'now');
+    try {
+      formatRelativeOrShort(AUG_30, at('2026-09-01T12:00:00.000Z'));
+      formatRelativeOrShort(AUG_30, null);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

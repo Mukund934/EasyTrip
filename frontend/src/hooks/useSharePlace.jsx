@@ -10,12 +10,25 @@ import { FiCheckCircle } from 'react-icons/fi';
  * @returns {{share: Function, shareTo: Function}}
  */
 export function useSharePlace(place) {
+  // **The name, read once, so the dependency arrays below name the same thing the bodies use.**
+  //
+  // Both callbacks used to read the place's name directly while declaring the *optional* form as
+  // their dependency, and the mismatch had two consequences. The small one is that
+  // `react-hooks/preserve-manual-memoization` cannot reconcile the two and skips the component
+  // (`BL-146`) - it infers a dependency on the whole place where the source named one property.
+  //
+  // The real one is that the optional chaining was the correct half: `places/[id].jsx` calls this
+  // hook **above** its `if (loading && !place) return` guard, so the place genuinely is null on the
+  // first render. Nothing has ever thrown only because neither callback is invoked until a click,
+  // by which time the place has arrived - a live hazard resting on a timing coincidence.
+  const name = place?.name;
+
   const share = useCallback(() => {
     if (navigator.share && navigator.canShare?.()) {
       navigator
         .share({
-          title: place.name,
-          text: `Check out ${place.name} on EasyTrip!`,
+          title: name,
+          text: `Check out ${name} on EasyTrip!`,
           url: window.location.href
         })
         .catch(console.error);
@@ -31,12 +44,12 @@ export function useSharePlace(place) {
           toast.error('Failed to copy link');
         });
     }
-  }, [place?.name]);
+  }, [name]);
 
   const shareTo = useCallback(
     (platform) => {
       const url = encodeURIComponent(window.location.href);
-      const text = encodeURIComponent(`Check out ${place.name} on EasyTrip!`);
+      const text = encodeURIComponent(`Check out ${name} on EasyTrip!`);
       let shareUrl = '';
 
       switch (platform) {
@@ -54,7 +67,7 @@ export function useSharePlace(place) {
       }
       window.open(shareUrl, '_blank', 'noopener,noreferrer');
     },
-    [place?.name]
+    [name]
   );
 
   return { share, shareTo };

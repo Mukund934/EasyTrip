@@ -82,6 +82,51 @@ export const formatDateShort = (dateString) => {
 };
 
 /**
+ * "Today", "Yesterday", "3 days ago" — or the compact date, once it is a week old.
+ *
+ * ---------------------------------------------------------------------------
+ * `now` is a parameter, and that is the whole point (`BUG-059`)
+ * ---------------------------------------------------------------------------
+ * This logic lived inside `PlaceCard.jsx` and read `Date.now()` **during render**, which made a
+ * server-rendered component's output a function of *when* it rendered. The card ships on an ISR
+ * page (`revalidate: 300`), so cached markup could say "Yesterday" while the hydrating browser
+ * computed "Today" — the `BUG-044` / `BUG-046` hydration family a third time. Those two were the
+ * locale and the time zone inherited from the runtime, and the rule in `eslint.config.mjs` now
+ * prevents both; this one is the **clock**, which that rule cannot see.
+ *
+ * Taking `now` as an argument makes the function pure, which is what makes it testable at a
+ * boundary instead of only near one. The caller decides where the clock comes from, and
+ * `PlaceCard` reads it after mount so that the server and the first client render agree.
+ *
+ * ---------------------------------------------------------------------------
+ * Why the fallback is `formatDateShort` and not a second opinion
+ * ---------------------------------------------------------------------------
+ * Anything older than a week is the shared formatter's answer, unchanged. `dateFormat.js`'s header
+ * named `PlaceCard.jsx` as one of two modules still carrying their own date logic — *"the rest of
+ * `IMP-122`"*. This is half of that debt paid: the relative branch is here now, next to the
+ * absolute one, pinned to the same locale and the same zone.
+ *
+ * @param {String|null|undefined} dateString
+ * @param {Number} now - epoch milliseconds; injected, never read from the clock in here
+ * @returns {String}
+ */
+export const formatRelativeOrShort = (dateString, now) => {
+  if (!dateString) return formatDateShort(dateString);
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return formatDateShort(dateString);
+
+  // No clock supplied — the server, or a client that has not mounted yet. The absolute date is the
+  // honest answer for both, and it is what makes the two renders identical.
+  if (typeof now !== 'number' || Number.isNaN(now)) return formatDateShort(dateString);
+
+  const diffDays = Math.ceil(Math.abs(now - parsed.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays >= 7) return formatDateShort(dateString);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return `${diffDays} days ago`;
+};
+
+/**
  * A timestamp with its time — "January 1, 2026 at 10:30 AM UTC".
  *
  * Separate from `formatDate` rather than an option, because the two differ in what they return

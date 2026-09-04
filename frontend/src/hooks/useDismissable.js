@@ -20,7 +20,20 @@ export function useDismissable(isOpen, onClose) {
   // Held in a ref so the effect does not need to re-subscribe every time the caller passes a new
   // inline function — which is every render, for most callers.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+
+  // **Written in an effect, not during render** (`BL-146`). `onCloseRef.current = onClose` used to
+  // sit in the render body, which is the latest-ref pattern as it is usually written and as React's
+  // own documentation warns against: a render can be started, thrown away and never committed, and
+  // a render that mutates a ref has already changed something by then. It is correct today because
+  // this project renders synchronously; it is correct *by accident*, and the accident is exactly
+  // what `react-hooks/refs` is pointing at.
+  //
+  // No dependency array on purpose - this must run after **every** commit, since the whole point is
+  // to track the newest `onClose`. `useRef(onClose)` above still seeds it for the first render, so
+  // there is no window in which the ref is empty.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return undefined;

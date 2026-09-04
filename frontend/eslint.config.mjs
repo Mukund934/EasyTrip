@@ -70,40 +70,63 @@ export default [
       '@next/next/no-img-element': 'off',
 
       /**
-       * The React Compiler rules, off — **tracked, not dismissed** (`BL-146`).
+       * The React Compiler rules — **worked through, not switched off** (`BL-146`, Sprint 8.56).
        *
-       * `eslint-plugin-react-hooks` v6 ships with Next 16 and turns on a family of rules that check
-       * a codebase for *React Compiler* readiness. This project does not use the compiler. They are
-       * not upgrade breakage either: every one of the 37 findings is pre-existing, in code that
-       * passes 699 component assertions and 141 browser journeys.
+       * `eslint-plugin-react-hooks` v6 arrived with Next 16 and reported **37** findings across
+       * seven rules. All were pre-existing; none was upgrade breakage. They were parked here for one
+       * commit with the whole list written down, on the ground that a refactor of working code does
+       * not belong inside a dependency upgrade. That work is now done, and **six of the seven rules
+       * are back on**, so what was fixed cannot come back:
        *
-       * They are recorded here rather than lost, because four of them are worth a look on their own
-       * merits and one is arguably a live bug:
+       *   - **`purity`** — `PlaceCard.jsx` called `Date.now()` during render, which made a
+       *     server-rendered component's output depend on *when* it rendered. On an ISR page cached
+       *     for five minutes that is a hydration mismatch waiting for a day boundary: the
+       *     `BUG-044`/`BUG-046` family a third time, on the axis `no-restricted-syntax` below cannot
+       *     see. Fixed as `BUG-059` — the logic moved into `dateFormat.js` as a pure function
+       *     taking `now`, which also pays off half of what that module's header calls "the rest of
+       *     `IMP-122`".
+       *   - **`immutability` ×2** — `ExploreMap.jsx` called `useMarkerLayer` *below* the two effects
+       *     that used it, so both had to omit it from their dependency arrays and carry an
+       *     `exhaustive-deps` waiver explaining why the rule was wrong. It was not wrong; the
+       *     ordering was. Moving one call up deleted two waivers.
+       *   - **`refs`** — `useDismissable.js` wrote a ref during render. The latest-ref pattern as it
+       *     is usually written, correct today because this project renders synchronously, and
+       *     correct *by accident*. The write is now in an effect.
+       *   - **`preserve-manual-memoization` ×2** — `useSharePlace.jsx` read a property while
+       *     declaring its optional form as the dependency. The optional half was the correct one:
+       *     the caller invokes the hook above its own null guard, so this was a live null-dereference
+       *     resting on the callbacks not firing until a click.
+       *   - **`static-components`** — the one finding that was a **false positive**, and it has an
+       *     inline disable at the single line it fires on rather than the rule being left off for the
+       *     whole codebase. `PlaceWeather.jsx` selects one of five module-scope icons; the rule
+       *     cannot tell selecting from creating.
+       *   - **`globals`** — fired only in a test probe that writes to an outer variable to capture
+       *     what a context published. That is what a probe is for, so the rule is on for `src` and
+       *     off for `tests/` in the block below — scoped, not disabled.
+       */
+      'react-hooks/purity': 'error',
+      'react-hooks/static-components': 'error',
+      'react-hooks/refs': 'error',
+      'react-hooks/immutability': 'error',
+      'react-hooks/preserve-manual-memoization': 'error',
+      'react-hooks/globals': 'error',
+
+      /**
+       * The one that stays off, and the reason is architectural rather than an appetite question.
        *
-       *   - **29 × `set-state-in-effect`** — `setState` called synchronously inside an effect. The
-       *     common React idiom, and the bulk of the count.
-       *   - **`purity` — `PlaceCard.jsx:76` calls `Date.now()` during render.** Genuinely
-       *     non-deterministic: the server and the browser can compute a different "days ago" across
-       *     a midnight boundary, which is the `BUG-044` hydration-mismatch family this repository
-       *     has already been bitten by twice.
-       *   - **`static-components` — `PlaceWeather.jsx:114` defines a component during render**,
-       *     which remounts its subtree on every parent render.
-       *   - **`refs` — `useDismissable.js:23` writes a ref during render.** The standard latest-ref
-       *     pattern; correct today, and the thing the compiler cannot prove.
-       *   - **`immutability` ×2 in `ExploreMap.jsx`**, `preserve-manual-memoization` ×2 in
-       *     `useSharePlace.jsx`, `globals` ×1 in a test probe.
+       * **29 findings across 28 files**, every one of them the same shape: an effect that fetches
+       * and calls `setState` with the result. That is not an oversight, it is `ADR-027` — which
+       * measured the alternative and **decided against a data-fetching library**, because seven
+       * pages already fetch their primary data in `getServerSideProps`/`getStaticProps` and a client
+       * cache would sit behind an `s-maxage` contract rather than replace it.
        *
-       * Fixing them is a refactor of working, tested code and does not belong inside a dependency
-       * upgrade — `FRAMEWORK_UPGRADE_PLAN` §5 rule 1 is one step per commit. `BL-146` carries the
-       * list; turning this block back on is how that work gets verified.
+       * Clearing this rule means either adopting the library that ADR rejected, or moving to
+       * `use()` and Suspense, which is an App Router shape this project deliberately does not have.
+       * Turning it on today would mean 29 `eslint-disable` comments, which is a lint rule nobody
+       * reads plus a diff nobody can review. Off, with the count stated, is the honest position —
+       * and revisiting it means reopening `ADR-027`, not editing this line.
        */
       'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/purity': 'off',
-      'react-hooks/static-components': 'off',
-      'react-hooks/refs': 'off',
-      'react-hooks/immutability': 'off',
-      'react-hooks/preserve-manual-memoization': 'off',
-      'react-hooks/globals': 'off',
 
       /**
        * One date policy, enforced rather than agreed (`IMP-122`).
@@ -157,6 +180,22 @@ export default [
         ...globals.jest,
         ...globals.node
       }
+    },
+    rules: {
+      /**
+       * Off **here only** (`BL-146`). `react-hooks/globals` forbids a component reassigning a
+       * variable declared outside it, because in application code that is a render side effect
+       * whose timing nobody controls.
+       *
+       * In a test it is the instrument. `AuthContext.test.jsx` renders a probe whose entire job is
+       * to capture what the real provider published, and the only way out of a component is a
+       * variable in the enclosing scope. Rewriting the probe to satisfy the rule would mean
+       * building state plumbing to observe state plumbing.
+       *
+       * Scoped rather than disabled: the rule is an error across `src`, which is where the
+       * behaviour it describes would actually be a defect.
+       */
+      'react-hooks/globals': 'off'
     }
   }
 ];

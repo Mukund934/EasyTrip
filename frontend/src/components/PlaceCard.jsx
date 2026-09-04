@@ -17,7 +17,7 @@ import {
 import { getPlaceImageUrl } from '../utils/placeImage';
 import { formatAverageRating, getRatingCount, getAverageRating } from '../utils/rating';
 import AccessibilityBadge from './AccessibilityBadge';
-import { formatDateShort } from '../utils/dateFormat';
+import { formatRelativeOrShort } from '../utils/dateFormat';
 
 const PlaceCard = ({ place, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -26,6 +26,26 @@ const PlaceCard = ({ place, priority = false }) => {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef(null);
   const defaultImage = '/images/placeholder.jpg';
+
+  /**
+   * The clock, read after mount rather than during render (`BUG-059`).
+   *
+   * `formatDate` below called `Date.now()` while rendering, which made this component's output a
+   * function of *when* it rendered. The card is server-rendered on both surfaces that use it and
+   * the home page is ISR with `revalidate: 300`, so cached markup could say "Yesterday" where the
+   * hydrating browser computed "Today" — the `BUG-044` / `BUG-046` hydration family a third time,
+   * on the one axis `IMP-122`'s lint rule cannot cover. Not the locale, not the zone: the clock.
+   *
+   * `null` until the effect runs, so **the server and the first client render produce identical
+   * markup by construction** rather than because a day boundary is unlikely to fall between them.
+   *
+   * This trades a `react-hooks/purity` violation for a `set-state-in-effect` one, deliberately and
+   * favourably: the first is a real hydration hazard, the second is the idiom this codebase already
+   * uses in 29 other places (`BL-146`). The visible cost is that a row less than seven days old
+   * shows its absolute date for one frame before the relative label replaces it.
+   */
+  const [now, setNow] = useState(null);
+  useEffect(() => setNow(Date.now()), []);
 
   // Image loading statuses
   const [loadStatus, setLoadStatus] = useState('pending'); // 'pending', 'loading', 'loaded', 'error'
@@ -64,33 +84,11 @@ const PlaceCard = ({ place, priority = false }) => {
     setLoadStatus('loaded');
   };
 
-  // Relative time for recent items; the shared formatter for everything else (IMP-122).
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-
-    // Missing or unparseable input is the shared helper's answer, not this component's. `new
-    // Date(null)` is the epoch, so the previous version rendered a confident date — "Dec 31, 1969"
-    // in any zone behind UTC — for a row that simply had no timestamp.
-    if (!dateString || Number.isNaN(date.getTime())) return formatDateShort(dateString);
-
-    const diffDays = Math.ceil(Math.abs(Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-    // This part is genuinely the card's own — no other caller wants it — so it stays here.
-    if (diffDays < 7) {
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      return `${diffDays} days ago`;
-    }
-
-    // The locale was already named here, and the comment that used to sit at this spot recorded
-    // why: since IMP-040 the card renders in Node *and* in the browser, and letting the runtime
-    // choose meant "1 Jan 2026" server-side against "Jan 1, 2026" client-side, failing hydration
-    // for every card. **The time zone was left to the runtime, which is the identical fault on the
-    // other axis** — `BUG-046`. A UTC-midnight timestamp rendered as the previous day for every
-    // visitor behind UTC, and differently on the server than in their browser. The shared helper
-    // pins both, which is the whole point of there being one.
-    return formatDateShort(dateString);
-  };
+  // Dates, all of them, from the module that owns dates (`IMP-122`). The relative branch used to
+  // live here and read the clock during render; it is now `formatRelativeOrShort`, which takes
+  // `now` as an argument and is therefore a pure function that can be tested at a boundary rather
+  // than merely near one (`BUG-059`).
+  const formatDate = (dateString) => formatRelativeOrShort(dateString, now);
 
   // Colour coding compares numbers, not strings. The previous version compared the *formatted*
   // value ("4.5" >= 4.5), which JavaScript coerces — so it happened to work, and would have

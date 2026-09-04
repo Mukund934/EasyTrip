@@ -134,6 +134,25 @@ const ExploreMap = ({
     setError
   });
 
+  // The markers, and the two operations over them. The index lives in the hook so this component
+  // does not have to hold state it never reads.
+  //
+  // **Declared here, above the effects that call it, and that position is load-bearing.** It used
+  // to sit below them, so both effects named it inside their bodies while leaving it out of their
+  // dependency arrays - a dependency array is evaluated during render, and naming a `const` from
+  // below would read it in its temporal dead zone and throw. Each effect therefore carried an
+  // `eslint-disable-next-line react-hooks/exhaustive-deps` and a paragraph explaining why the lint
+  // rule was wrong. It was not wrong; the ordering was. Moving one call up deletes two waivers and
+  // lets both effects state their real dependencies (`BL-146`).
+  const { updateMarkers, updateSelectedMarker } = useMarkerLayer({
+    mapRef,
+    markersLayerRef,
+    clusterLayerRef,
+    selectedMarkerRef,
+    clusterMode,
+    onSelectPlace
+  });
+
   // The user's position and radius circle, as layers on the existing map rather than a reason to
   // rebuild it. Both are removed before being re-added so a second geolocation fix does not
   // leave the first one behind.
@@ -171,19 +190,11 @@ const ExploreMap = ({
   }, [userLocation, radiusMode, nearbyPlaces.length, mapLoaded]);
 
   // Update markers when places or selected place changes.
-  //
-  // `updateMarkers` is intentionally absent from the deps: it is declared below this effect, and
-  // a dependency array is evaluated during render, so naming it here would read a `const` in its
-  // temporal dead zone and throw. `clusterMode` — the only thing that changes its identity in
-  // practice — is listed, so the effect still re-runs with a current closure.
   useEffect(() => {
     if (mapRef.current && mapLoaded) {
       updateMarkers(filteredPlaces, selectedPlace);
     }
-    // updateMarkers is declared below; naming it here would read it in its temporal dead zone.
-    // See the note above this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredPlaces, selectedPlace, mapLoaded, clusterMode]);
+  }, [filteredPlaces, selectedPlace, mapLoaded, updateMarkers]);
 
   // Update tile layer when it changes
   useEffect(() => {
@@ -230,19 +241,7 @@ const ExploreMap = ({
     } catch (err) {
       console.error('Error flying to selected place:', err);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateSelectedMarker is declared below.
-  }, [selectedPlace, mapLoaded]);
-
-  // The markers, and the two operations over them. The index lives in the hook so this component
-  // does not have to hold state it never reads.
-  const { updateMarkers, updateSelectedMarker } = useMarkerLayer({
-    mapRef,
-    markersLayerRef,
-    clusterLayerRef,
-    selectedMarkerRef,
-    clusterMode,
-    onSelectPlace
-  });
+  }, [selectedPlace, mapLoaded, updateSelectedMarker]);
 
   // Function to toggle fullscreen mode
   // The verbs the control cluster asks for. They live here because this is what holds the Leaflet
