@@ -1,4 +1,8 @@
 const pool = require('../config/db');
+// The one place "who may read this trip" is written down (`FV-007` stage (a)). Imported rather
+// than restated, because the header below is about a rule that cannot be forgotten - and a rule
+// spelled out separately in each query is one that can be spelled out slightly differently.
+const { READABLE_BY } = require('./tripAccessModel');
 
 /**
  * The trip workspace (`IMP-109` / `FV-006`, `ADR-031`).
@@ -60,10 +64,18 @@ const listTrips = async (userId) => {
   return result.rows;
 };
 
-/** One trip, scoped to its owner. Returns null when it does not exist *or* is not theirs. */
+/**
+ * One trip, scoped to the people who may open it. Returns null when it does not exist *or* is not
+ * readable by this caller - the two answer alike on purpose, because telling them apart is a
+ * membership oracle.
+ *
+ * `READABLE_BY` widened this from the owner to the owner **and any collaborator** (`FV-007` stage
+ * (a)). Reading only: every write below still says `WHERE trips.user_id = $1`, which is what keeps
+ * the schema's single `'viewer'` role honest.
+ */
 const getTrip = async (userId, tripId) => {
   const result = await pool.query(
-    `SELECT ${TRIP_COLUMNS} FROM trips WHERE trips.id = $1 AND trips.user_id = $2`,
+    `SELECT ${TRIP_COLUMNS} FROM trips WHERE trips.id = $1 AND ${READABLE_BY}`,
     [tripId, userId]
   );
 
@@ -88,9 +100,11 @@ const getTripWorkspace = async (userId, tripId) => {
     [tripId]
   );
 
-  // The items query joins back up to `trips` and re-checks the uid. Redundant, since `getTrip`
-  // already proved ownership two lines up — and kept, because this is the query that would be
-  // copied into a future endpoint where nothing had proved it.
+  // The items query joins back up to `trips` and re-checks access. Redundant, since `getTrip`
+  // already proved it two lines up — and kept, because this is the query that would be copied into
+  // a future endpoint where nothing had proved it. It uses the same `READABLE_BY` for the same
+  // reason: a copy that checked ownership while `getTrip` checked readability would quietly show a
+  // collaborator a trip with no days in it.
   const items = await pool.query(
     `SELECT trip_items.id, trip_items.trip_day_id, trip_items.place_id, trip_items.item_type,
             trip_items.title, trip_items.notes, trip_items.start_time, trip_items.end_time,
@@ -112,7 +126,7 @@ const getTripWorkspace = async (userId, tripId) => {
      JOIN trip_days ON trip_days.id = trip_items.trip_day_id
      JOIN trips ON trips.id = trip_days.trip_id
      LEFT JOIN places ON places.id = trip_items.place_id
-     WHERE trips.id = $1 AND trips.user_id = $2
+     WHERE trips.id = $1 AND ${READABLE_BY}
      ORDER BY trip_days.day_number, trip_items.position, trip_items.id`,
     [tripId, userId]
   );
