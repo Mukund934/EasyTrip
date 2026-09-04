@@ -38,7 +38,8 @@ import TripWorkspace from '../src/pages/trips/[id]';
  *   - **documents and tickets** — `BL-145`. A boarding pass is an identity document; defaulting to
  *     Cloudinary because it is already wired would choose a store for somebody's passport scan by
  *     convenience. Needs a privacy decision and an ADR, not a schema.
- *   - **expenses** — `FV-008`.
+ *
+ * **Expenses joined the surface too** (`FV-008`), leaving one: documents.
  *
  * **Collaborators used to be on that list and no longer are** (`FV-007` stage (b)), which is the
  * shape this file was written for: a child arrives, and the assertion moves from "deliberately
@@ -139,6 +140,10 @@ jest.mock('../src/components/trips/TripCollaborators', () => ({
   __esModule: true,
   default: ({ tripId }) => <div data-testid="collaborators">people for {tripId}</div>
 }));
+jest.mock('../src/components/trips/TripExpenses', () => ({
+  __esModule: true,
+  default: ({ tripId }) => <div data-testid="expenses">cost of {tripId}</div>
+}));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -156,8 +161,9 @@ describe('a trip is one workspace, not a list with satellites', () => {
     expect(screen.getByTestId('trip-checklist')).toBeInTheDocument();
     expect(screen.getByTestId('trip-notes')).toBeInTheDocument();
 
-    // And the fifth child, as of `FV-007` stage (b).
+    // And the fifth and sixth children, as of `FV-007` stage (b) and `FV-008`.
     expect(screen.getByTestId('collaborators')).toBeInTheDocument();
+    expect(screen.getByTestId('expenses')).toBeInTheDocument();
   });
 
   test('each of them is bound to this trip, not to a trip', () => {
@@ -176,6 +182,7 @@ describe('a trip is one workspace, not a list with satellites', () => {
     expect(screen.getByTestId('trip-notes')).toHaveTextContent(/^notes for 7$/);
     expect(screen.getByTestId('share-panel')).toHaveTextContent(/^share for 7$/);
     expect(screen.getByTestId('collaborators')).toHaveTextContent(/^people for 7$/);
+    expect(screen.getByTestId('expenses')).toHaveTextContent(/^cost of 7$/);
   });
 
   test('saved places are offered as the source for a new stop, on every day', () => {
