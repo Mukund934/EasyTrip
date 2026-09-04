@@ -1,4 +1,6 @@
 const pool = require('../config/db');
+// The write rule, written once (`FV-007` stage (c)). Every predicate below is the same one.
+const { editableBy } = require('./tripAccessModel');
 
 /**
  * Everything that writes a `trip_items` row (`IMP-109`, `ADR-031`).
@@ -32,7 +34,7 @@ const addItem = async (userId, tripId, dayId, item) => {
     const day = await client.query(
       `SELECT trip_days.id FROM trip_days
        JOIN trips ON trips.id = trip_days.trip_id
-       WHERE trip_days.id = $1 AND trips.id = $2 AND trips.user_id = $3`,
+       WHERE trip_days.id = $1 AND trips.id = $2 AND ${editableBy('$3')}`,
       [dayId, tripId, userId]
     );
 
@@ -134,7 +136,7 @@ const updateItem = async (userId, tripId, itemId, patch) => {
        AND trip_items.trip_day_id = trip_days.id
        AND trip_days.trip_id = trips.id
        AND trips.id = $${values.length + 2}
-       AND trips.user_id = $${values.length + 3}
+       AND ${editableBy(`$${values.length + 3}`)}
        ${
          movingDay
            ? `AND destination.id = $${values.length + 4}
@@ -161,7 +163,7 @@ const deleteItem = async (userId, tripId, itemId) => {
        AND trip_items.trip_day_id = trip_days.id
        AND trip_days.trip_id = trips.id
        AND trips.id = $2
-       AND trips.user_id = $3`,
+       AND ${editableBy('$3')}`,
     [itemId, tripId, userId]
   );
 
@@ -188,7 +190,7 @@ const reorderItems = async (userId, tripId, dayId, orderedItemIds) => {
       `SELECT trip_items.id FROM trip_items
        JOIN trip_days ON trip_days.id = trip_items.trip_day_id
        JOIN trips ON trips.id = trip_days.trip_id
-       WHERE trip_days.id = $1 AND trips.id = $2 AND trips.user_id = $3`,
+       WHERE trip_days.id = $1 AND trips.id = $2 AND ${editableBy('$3')}`,
       [dayId, tripId, userId]
     );
 

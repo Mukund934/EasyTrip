@@ -2,7 +2,7 @@ const pool = require('../config/db');
 // The one place "who may read this trip" is written down (`FV-007` stage (a)). Imported rather
 // than restated, because the header below is about a rule that cannot be forgotten - and a rule
 // spelled out separately in each query is one that can be spelled out slightly differently.
-const { READABLE_BY } = require('./tripAccessModel');
+const { READABLE_BY, editableBy } = require('./tripAccessModel');
 
 /**
  * The trip workspace (`IMP-109` / `FV-006`, `ADR-031`).
@@ -70,8 +70,8 @@ const listTrips = async (userId) => {
  * membership oracle.
  *
  * `READABLE_BY` widened this from the owner to the owner **and any collaborator** (`FV-007` stage
- * (a)). Reading only: every write below still says `WHERE trips.user_id = $1`, which is what keeps
- * the schema's single `'viewer'` role honest.
+ * (a)). The itinerary writes moved to `editableBy` at stage (c); the trip's own identity, existence
+ * and audience did not — see `018_trip_editors.sql` for where that line is drawn and why.
  */
 const getTrip = async (userId, tripId) => {
   const result = await pool.query(
@@ -242,8 +242,11 @@ const addDay = async (userId, tripId) => {
     // `FOR UPDATE` on the trip row serialises concurrent day-adds for this trip. Without it, two
     // requests both read max(day_number) = 3 and both try to insert 4; the UNIQUE constraint turns
     // the loser into a 500 rather than a second day.
+    // `editableBy` rather than `user_id = $2`: an editor may add a day (`FV-007` stage (c)).
+    // `FOR UPDATE` still locks the *trip* row, which is what serialises concurrent adds — the
+    // EXISTS against `trip_collaborators` is a predicate, not a second lock.
     const owned = await client.query(
-      'SELECT id FROM trips WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      `SELECT id FROM trips WHERE id = $1 AND ${editableBy('$2')} FOR UPDATE`,
       [tripId, userId]
     );
     if (owned.rowCount === 0) {
@@ -291,7 +294,7 @@ const deleteDay = async (userId, tripId, dayId) => {
        WHERE trip_days.id = $1
          AND trip_days.trip_id = trips.id
          AND trips.id = $2
-         AND trips.user_id = $3
+         AND ${editableBy('$3')}
        RETURNING trip_days.day_number`,
       [dayId, tripId, userId]
     );
