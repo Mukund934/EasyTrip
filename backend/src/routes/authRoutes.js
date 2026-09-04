@@ -3,6 +3,9 @@ const router = express.Router();
 const { body, param, query } = require('express-validator');
 const { isAuthenticated, isAuthenticatedStrict } = require('../utils/authMiddleware');
 const { handleValidationErrors } = require('../utils/errorHandler');
+// PE-007. Opt-in per request: without an `Idempotency-Key` header it does nothing at all, which is
+// what makes it safe to put in front of every mutation at once.
+const { idempotent } = require('../utils/idempotency');
 
 const { getProfile, updateProfile, checkAdmin } = require('../controllers/authController');
 const {
@@ -130,6 +133,7 @@ router.get('/trips', isAuthenticated, tripController.listTrips);
 router.post(
   '/trips',
   isAuthenticated,
+  idempotent,
   tripBodyRules(true),
   handleValidationErrors,
   tripController.createTrip
@@ -161,6 +165,7 @@ router.get(
 router.post(
   '/trips/:tripId/collaborators',
   isAuthenticated,
+  idempotent,
   collaboratorBodyRules,
   handleValidationErrors,
   tripCollaboratorController.addCollaborator
@@ -195,6 +200,7 @@ router.get(
 router.post(
   '/trips/:tripId/expenses',
   isAuthenticated,
+  idempotent,
   expenseBodyRules,
   handleValidationErrors,
   tripExpenseController.createExpense
@@ -262,6 +268,7 @@ router.delete(
 router.post(
   '/trips/:tripId/days',
   isAuthenticated,
+  idempotent,
   idParam('tripId'),
   handleValidationErrors,
   tripController.addDay
@@ -345,6 +352,7 @@ const checklistLabelRule = (required) =>
 router.post(
   '/trips/:tripId/duplicate',
   isAuthenticated,
+  idempotent,
   [
     idParam('tripId'),
     body('title')
