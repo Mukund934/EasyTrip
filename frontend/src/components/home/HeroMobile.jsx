@@ -228,20 +228,26 @@ export const HeroMobile = ({ home }) => {
                 </AnimatePresence>
               </div>
 
-              {/* Indicator Dots */}
-              <div className="absolute -bottom-6 left-0 right-0 flex justify-center space-x-2">
+              {/* Indicator dots — same `PE-022` fix as `HeroDesktop`, and this is the copy that
+                  mattered more: 8x8 targets, on the touch layout. The button is 24x24 per WCAG
+                  2.5.8 and the visible dot stays 8x8, so nothing about the design moves. */}
+              <div className="absolute -bottom-6 left-0 right-0 flex justify-center">
                 {places.map((_, index) => (
                   <motion.button
                     key={index}
                     onClick={() => goToPlace(index)}
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
-                    className={`rounded-full w-2 h-2 transition-all duration-300 ${
-                      index === currentPlaceIndex ? 'bg-white scale-125 shadow-lg' : 'bg-white/50'
-                    }`}
+                    className="flex h-6 w-6 items-center justify-center"
                     disabled={isTransitioning}
                     aria-label={`View destination ${index + 1}`}
-                  />
+                  >
+                    <span
+                      className={`block rounded-full w-2 h-2 transition-all duration-300 ${
+                        index === currentPlaceIndex ? 'bg-white scale-125 shadow-lg' : 'bg-white/50'
+                      }`}
+                    />
+                  </motion.button>
                 ))}
               </div>
             </>

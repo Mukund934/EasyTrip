@@ -257,22 +257,34 @@ export const HeroDesktop = ({ home }) => {
                 </motion.button>
               </div>
 
-              {/* Indicator Dots */}
-              <div className="absolute -bottom-10 left-0 right-0 flex justify-center space-x-3">
+              {/* Indicator dots.
+
+                  The button is 24x24 and the dot inside it is 12x12 (`PE-022`). WCAG 2.5.8 sets
+                  24x24 CSS px as the minimum target, and these were 12x12 — a quarter of the area,
+                  on the control that moves the hero. Growing the *target* rather than the dot keeps
+                  the design identical and is what the success criterion actually asks for.
+
+                  `space-x-3` became `space-x-1` so the visible gap is unchanged now that each
+                  button carries its own padding. */}
+              <div className="absolute -bottom-10 left-0 right-0 flex justify-center space-x-1">
                 {places.map((_, index) => (
                   <motion.button
                     key={index}
                     onClick={() => goToPlace(index)}
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
-                    className={`rounded-full w-3 h-3 transition-all duration-300 ${
-                      index === currentPlaceIndex
-                        ? 'bg-white scale-125 shadow-lg'
-                        : 'bg-white/50 hover:bg-white/70'
-                    }`}
+                    className="flex h-6 w-6 items-center justify-center"
                     disabled={isTransitioning}
                     aria-label={`View destination ${index + 1}`}
-                  />
+                  >
+                    <span
+                      className={`block rounded-full w-3 h-3 transition-all duration-300 ${
+                        index === currentPlaceIndex
+                          ? 'bg-white scale-125 shadow-lg'
+                          : 'bg-white/50 hover:bg-white/70'
+                      }`}
+                    />
+                  </motion.button>
                 ))}
               </div>
             </>
