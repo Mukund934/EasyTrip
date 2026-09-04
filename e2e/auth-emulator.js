@@ -37,6 +37,15 @@ const PROJECT_ID = 'easytrip-e2e';
 const EMULATOR_HOST = `${HOST}:${PORT}`;
 const BASE = `http://${EMULATOR_HOST}/identitytoolkit.googleapis.com/v1`;
 
+/**
+ * Where the Firebase CLI records the running hub, so a second `firebase` command can find it.
+ *
+ * The path is the CLI's, not ours — it writes `hub-<projectId>.json` into the OS temp directory and
+ * does **not** remove it when it is killed rather than asked to stop. `releaseStalePorts` deletes it
+ * for the same reason it frees the ports: what a previous run left behind is this run's problem.
+ */
+const HUB_LOCATOR = path.join(os.tmpdir(), `hub-${PROJECT_ID}.json`);
+
 /** Written for the specs and for teardown, both of which run in other processes. */
 const AUTH_STATE_FILE = path.join(os.tmpdir(), 'easytrip-e2e-auth.json');
 
@@ -98,14 +107,30 @@ const isAvailable = () => {
 };
 
 /**
- * Release the emulator ports if a previous run left them held.
+ * Release whatever a previous run left behind: the ports, and the CLI's own hub locator.
  *
  * The Firebase CLI supervises child processes, so killing the CLI alone can orphan whatever is
  * bound to 9099 — and the next run then sits silently retrying a port it will never get, which is
  * exactly how this integration failed the first time it was wired up. Cleaning up first turns a
  * confusing hang into a non-event.
+ *
+ * **The locator is the half this used to miss (`TD-025`).** Freeing a port does not remove
+ * `hub-easytrip-e2e.json`, so the next `firebase emulators:start` could read a file naming a process
+ * that no longer exists. Observed on 2026-09-04: a locator pointing at a dead pid on port 4401, and
+ * an emulator that printed one line and exited `-1`.
+ *
+ * **That causal claim is deliberately weak and is not the reason this line is here.** Deleting the
+ * locator preceded the run that worked, which is n = 1, and it was never isolated from the other
+ * change made at the same time. What is not in doubt is that a file naming a dead process is
+ * garbage from a previous run, and this function is where a previous run's garbage is dealt with.
  */
 const releaseStalePorts = () => {
+  try {
+    fs.rmSync(HUB_LOCATOR, { force: true });
+  } catch {
+    /* not there, or not ours to delete — either way nothing to release */
+  }
+
   for (const port of [PORT, 4400, 4500]) {
     try {
       if (process.platform === 'win32') {
@@ -146,6 +171,50 @@ const post = async (endpoint, body) => {
   return json;
 };
 
+/**
+ * Kill the CLI **and** whatever it spawned.
+ *
+ * On Windows this module spawns with `shell: true`, so `child` is `cmd.exe` and the Firebase CLI is
+ * its grandchild; the CLI in turn supervises a JVM. `child.kill()` reaches only the first of those,
+ * which is how a failed start used to leave a live emulator holding 4400 for the next run to trip
+ * over (`TD-025`). `taskkill /T` takes the tree, and a process-group kill does the same elsewhere.
+ *
+ * Best-effort by construction: every branch here is racing a process that may already be gone, and
+ * "it was already dead" is the outcome this function wants anyway.
+ */
+const killTree = (child) => {
+  if (!child || child.pid === undefined) return;
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      process.kill(-child.pid);
+    }
+  } catch {
+    try {
+      child.kill();
+    } catch {
+      /* already gone */
+    }
+  }
+};
+
+/**
+ * Describe what the child printed, including when it printed nothing.
+ *
+ * **"Nothing" is a finding and it used to render as a blank line.** The 2026-09-04 failure that
+ * opened `TD-025` reported `The auth emulator never became ready on 127.0.0.1:9099:` followed by
+ * emptiness, which reads as a truncated message rather than as evidence — and it is evidence: a
+ * process that produced no output in ninety seconds never got as far as starting, which points
+ * somewhere completely different from one that printed an error and exited.
+ */
+const describe = (output) =>
+  output.trim() === ''
+    ? '  (the process printed nothing at all on stdout or stderr, which usually means it never got\n' +
+      '   as far as running — check that `npx firebase --version` works and that no other emulator\n' +
+      `   is holding ${EMULATOR_HOST}, 4400 or 4500)`
+    : output;
+
 /** Start the emulator and wait until it answers. Returns the child process. */
 const start = async (cli) => {
   releaseStalePorts();
@@ -176,7 +245,9 @@ const start = async (cli) => {
 
   for (let attempt = 0; attempt < 90; attempt++) {
     if (child.exitCode !== null) {
-      throw new Error(`The auth emulator exited during startup (${child.exitCode}):\n${output}`);
+      throw new Error(
+        `The auth emulator exited during startup (${child.exitCode}):\n${describe(output)}`
+      );
     }
     try {
       const response = await fetch(`http://${EMULATOR_HOST}/`);
@@ -189,8 +260,16 @@ const start = async (cli) => {
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  child.kill();
-  throw new Error(`The auth emulator never became ready on ${EMULATOR_HOST}:\n${output}`);
+
+  // `child.kill()` was here, and on Windows `shell: true` means `child` is **cmd.exe** rather
+  // than the CLI. Killing it left the emulator running and holding 4400 for the next run to trip
+  // over (`TD-025`) — the exact orphan `releaseStalePorts` above then has to clean up.
+  // `global-teardown` already took the tree with `taskkill /T`; this path did not, and it is the
+  // path that runs when something has already gone wrong.
+  killTree(child);
+  throw new Error(
+    `The auth emulator never became ready on ${EMULATOR_HOST} after 90s:\n${describe(output)}`
+  );
 };
 
 /**
