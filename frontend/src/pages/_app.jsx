@@ -48,8 +48,15 @@ function MyApp({ Component, pageProps }) {
     /* One switch for all 403 framer-motion elements (IMP-082). Their animations are JS-driven
        inline styles, so the CSS media query in globals.css cannot reach them; `reducedMotion="user"`
        makes every motion component below honour the OS setting without touching a single call site.
-       Transforms and opacity fades are suppressed while layout animations still settle instantly,
-       which is the behaviour vestibular-disorder guidance actually asks for. */
+       Transform and layout animations are suppressed and settle instantly, which is the behaviour
+       vestibular-disorder guidance actually asks for.
+
+       **Opacity fades keep running, and that is the library's deliberate choice, not an oversight
+       here.** framer-motion exempts opacity and colour from `reducedMotion` because a fade does not
+       provoke vestibular symptoms. This comment used to claim fades were suppressed too; they are
+       not, and believing otherwise cost `BUG-057` twenty sprints of wrong diagnoses — the
+       accessibility gate was measuring text against a half-faded background and recording the result
+       as a fact about the palette. `e2e/tests/axe.spec.js` now settles animations before it scans. */
     <MotionConfig reducedMotion="user">
       {/* Installability (IMP-115). These live here rather than in a `_document` because there is
           no `_document` in this project, and adding one to hold four tags would be a new file whose

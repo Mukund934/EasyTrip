@@ -120,6 +120,15 @@ Authenticated specs therefore ask the gate directly with `maxRedirects: 0` and a
 - **One worker, no retries.** The journeys share one seeded database and several write to it, so
   parallelism would let a delete race a read. Retries would hide a flake rather than fix it, and a
   flaky E2E suite is how a team learns to re-run red builds.
+- **Wait for the page to stop changing, not for a timer.** A measurement taken while something is
+  still animating is a sample of a moving value. `axe.spec.js` spent four sprints and two wrong
+  diagnoses on this (`BUG-057`): `color-contrast` was reading text against a background that was
+  mid-fade, so the same unchanged page reported 0, 1 and 2 violations across identical runs, and the
+  number got written down as a fact about the palette. `settleAnimations()` there is the general
+  shape — finish what is running, then assert nothing still is.
+- **Instrument before hypothesising.** That same bug carried two plausible causes for twenty sprints,
+  and both were wrong. Dumping what the tool actually measured — axe's own `fgColor`/`bgColor`
+  payload — named the mechanism in one run.
 - **Assert against the card, not the page.** `getByText('Hampi')` also matches a hidden
   `<option value="Hampi">` in the filter panel — it passed with zero results rendered until the
   locator was scoped. Prefer a scoped locator over a global text match.

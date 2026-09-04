@@ -71,25 +71,115 @@ const ROUTES = ['/', '/browse', '/places/1', '/login', '/signup', '/about'];
  * The number is a **ceiling, not a target**. Lower it when a route improves.
  */
 const ACCEPTED = {
-  '/': { 'color-contrast': 1 },
   '/browse': { 'color-contrast': 2 },
   '/places/1': { 'color-contrast': 9 }
 };
 
-// `/login`, `/signup` and `/about` are **absent because they are clean**, not because they are
-// unchecked — they are in `ROUTES` and gated at zero. `/login` had one contrast violation in the
-// first measurement and none once the fonts were allowed to settle, which is the artefact described
-// in `scan`.
+// `/`, `/login`, `/signup` and `/about` are **absent because they are clean**, not because they are
+// unchecked — they are in `ROUTES` and gated at zero.
+//
+// **`/` used to carry `{ 'color-contrast': 1 }` and that waiver was wrong** (`BUG-057`, fixed in
+// Sprint 8.55). It was never describing the page. Both nodes it covered were caught *mid-fade*: the
+// "Start Exploring" button is white on `bg-primary-600`, which passes at rest, and axe was measuring
+// its background as `#99c8e1`, `#a4cee4`, `#78b6d7` — a different shade on every run, because
+// `#0277b4` composited at partial opacity is a different colour every frame. The settled page has no
+// contrast violations at all. `scan` now waits for the animation, and the ceiling is zero.
+//
+// The two that remain are real, and were stable all along: `text-yellow-500` at 1.91:1 and
+// `text-gray-400` at 2.53:1 on `/browse`, measured identically across eight consecutive scans.
+
+/**
+ * Fast-forward every running animation to its end state (`BUG-057`).
+ *
+ * ---------------------------------------------------------------------------
+ * What was actually wrong, after two wrong answers
+ * ---------------------------------------------------------------------------
+ * `color-contrast` samples the colour that is *painted behind* the text at the instant it runs. An
+ * element in the middle of an opacity fade is composited against whatever is under it, so its
+ * background is **a different colour on every frame** — and the gate was sampling at a random point
+ * in that fade.
+ *
+ * Measured on `/`, eight consecutive scans: **0, 1, 0, 2, 1, 0, 1, 1**, with the offending
+ * background reported as `#99c8e1`, `#a4cee4`, `#8cc1dd`, `#84bddb`, `#78b6d7`, `#b7d8ea` — never
+ * twice the same, all of them `bg-primary-600` (`#0277b4`) part-way through a fade to opaque. The
+ * same eight scans after this function: **0, 0, 0, 0, 0, 0, 0, 0**.
+ *
+ * `BUG-057` had recorded two other causes and **both were wrong**, which is why they are named here
+ * rather than quietly dropped:
+ *
+ *   - *"Unsettled images"* — the seeded Cloudinary URLs do 404, but `document.images` reported
+ *     `complete` with `naturalWidth: 0` in **all ten** measurement runs, including the ones that
+ *     came back clean. The images had finished failing before every single scan.
+ *   - *"Shared database state"* — the flapping reproduces with `axe.spec.js` running **alone**, with
+ *     nothing else having touched the catalogue.
+ *
+ * ---------------------------------------------------------------------------
+ * Why `prefers-reduced-motion` was not enough, though the app honours it
+ * ---------------------------------------------------------------------------
+ * `_app.jsx` wraps the tree in `<MotionConfig reducedMotion="user">` (`IMP-082`) and this file
+ * emulates the preference below, so that is not the gap. **framer-motion's `reducedMotion="user"`
+ * suppresses transform and layout animations and deliberately keeps opacity ones**, on the reasoning
+ * that a fade does not provoke vestibular symptoms. Correct for a reader; useless for a measurement,
+ * because opacity is exactly the property that changes what `color-contrast` sees.
+ *
+ * `FeaturesSection` is the concrete case: `whileInView` with `staggerChildren: 0.2` over
+ * `duration: 0.5`, so its button starts fading roughly 600 ms after the section scrolls into view and
+ * is still fading 500 ms later — straddling exactly the window `networkidle` + `fonts.ready` +
+ * 300 ms lands in.
+ *
+ * ---------------------------------------------------------------------------
+ * Two passes, and a loud failure rather than a quiet one
+ * ---------------------------------------------------------------------------
+ * Twice, because a `whileInView` animation does not exist until its element intersects, so the first
+ * pass can finish everything and a second animation still begin afterwards.
+ *
+ * Finite animations are fast-forwarded and infinite ones cancelled to their initial state — the same
+ * rule Playwright applies for `screenshot({ animations: 'disabled' })`, adopted rather than invented.
+ *
+ * And if anything is still running after both passes this **throws**. A gate that cannot get a
+ * settled page should say so; measuring anyway is what produced a waiver that described an animation
+ * frame and then survived twenty sprints as a fact about the palette.
+ */
+const settleAnimations = async (page) => {
+  for (let pass = 0; pass < 2; pass++) {
+    await page.evaluate(() => {
+      for (const animation of document.getAnimations()) {
+        try {
+          animation.finish();
+        } catch {
+          // Infinite: it has no end to jump to.
+          animation.cancel();
+        }
+      }
+    });
+    // Let anything a completed animation triggered — an `onComplete` that sets state, a re-render —
+    // reach the DOM before the next pass looks.
+    await page.waitForTimeout(150);
+  }
+
+  const running = await page.evaluate(
+    () => document.getAnimations().filter((animation) => animation.playState === 'running').length
+  );
+  if (running > 0) {
+    throw new Error(
+      `${running} animation(s) still running after two settle passes. A contrast reading taken ` +
+        'here is a coin toss, which is the whole of BUG-057 — fix the page or teach this function ' +
+        'about it, but do not record the number.'
+    );
+  }
+};
 
 const scan = async (page, route) => {
-  // **Reduced motion, and it is what makes this suite deterministic rather than a nicety.** `/`
-  // reported 1, 8, 4 and 8 contrast violations across four identical scans, because the hero
-  // carousel advances every five seconds and each run measured whichever slide was up. Asking for
-  // reduced motion stops it — once `useHomeCarousel` was taught to honour the request, which it did
-  // not do until this sprint.
+  // **Reduced motion.** It is what stopped the hero carousel, which used to advance every five
+  // seconds so that each scan measured whichever slide happened to be up: `/` reported 1, 8, 4 and 8
+  // violations across four identical runs until `useHomeCarousel` was taught to honour the request.
   //
-  // It is also the right thing to measure. A reader who has asked the platform to stop moving
-  // things is the reader most likely to be using assistive technology on this page.
+  // It is also the right thing to measure. A reader who has asked the platform to stop moving things
+  // is the reader most likely to be using assistive technology on this page.
+  //
+  // What it is **not** is sufficient on its own — see `settleAnimations`. This line was recorded as
+  // "what makes this suite deterministic", and that sentence is why nobody looked further for
+  // twenty sprints.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(route);
   // `domcontentloaded` is already done by `goto`; this waits for the client render that adds most of
@@ -101,13 +191,16 @@ const scan = async (page, route) => {
   // from the same node once the webfont lands. Before this line `/` reported 1, 8, 4 and 8
   // violations across four identical scans; after it, 1, 1, 1 and 1.
   //
-  // That also settles something the project had written down and never re-derived. Sprint 6.17
-  // recorded a contrast finding that *"appeared once, absent on re-run with no change — reported as
-  // unstable, not real"*. **The page was never unstable; the measurement was**, and it stayed
-  // recorded as a property of the UI for twenty sprints. §45 of `NOTES` warns about exactly this —
-  // a number attached to a claim makes it read as settled.
+  // Fonts first, animations second: a webfont landing changes layout, and changed layout is what
+  // brings a `whileInView` section into view and starts its animation.
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
+
+  // The part `fonts.ready` could not do. Four sprints of this file's history are four attempts to
+  // find the source of the same variance — the carousel (real, fixed), the fonts (real, fixed), then
+  // images and database state (both measured, both wrong). §45 of `NOTES` warns about exactly this:
+  // *a number attached to a claim makes it read as settled*, and `1, 1, 1, 1` did precisely that.
+  await settleAnimations(page);
 
   await page.addScriptTag({ content: AXE });
 
