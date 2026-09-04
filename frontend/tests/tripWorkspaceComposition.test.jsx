@@ -39,10 +39,10 @@ import TripWorkspace from '../src/pages/trips/[id]';
  *     Cloudinary because it is already wired would choose a store for somebody's passport scan by
  *     convenience. Needs a privacy decision and an ADR, not a schema.
  *   - **expenses** — `FV-008`.
- *   - **collaborators** — `FV-007`.
  *
- * Asserting their absence would be worse than useless: it would fail the day somebody builds them,
- * which is the opposite of what a guard is for.
+ * **Collaborators used to be on that list and no longer are** (`FV-007` stage (b)), which is the
+ * shape this file was written for: a child arrives, and the assertion moves from "deliberately
+ * absent" to "on the surface" in the same commit that puts it there. Five of the scope's seven.
  */
 
 const mockRouter = { query: { id: '7' }, isReady: true, push: jest.fn() };
@@ -135,6 +135,10 @@ jest.mock('../src/components/trips/ShareTripPanel', () => ({
   __esModule: true,
   default: ({ tripId }) => <div data-testid="share-panel">share for {tripId}</div>
 }));
+jest.mock('../src/components/trips/TripCollaborators', () => ({
+  __esModule: true,
+  default: ({ tripId }) => <div data-testid="collaborators">people for {tripId}</div>
+}));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -151,6 +155,9 @@ describe('a trip is one workspace, not a list with satellites', () => {
     // Stage (b)'s two children, on the same surface rather than behind a tab or another route.
     expect(screen.getByTestId('trip-checklist')).toBeInTheDocument();
     expect(screen.getByTestId('trip-notes')).toBeInTheDocument();
+
+    // And the fifth child, as of `FV-007` stage (b).
+    expect(screen.getByTestId('collaborators')).toBeInTheDocument();
   });
 
   test('each of them is bound to this trip, not to a trip', () => {
@@ -168,6 +175,7 @@ describe('a trip is one workspace, not a list with satellites', () => {
     expect(screen.getByTestId('trip-checklist')).toHaveTextContent(/^checklist for 7$/);
     expect(screen.getByTestId('trip-notes')).toHaveTextContent(/^notes for 7$/);
     expect(screen.getByTestId('share-panel')).toHaveTextContent(/^share for 7$/);
+    expect(screen.getByTestId('collaborators')).toHaveTextContent(/^people for 7$/);
   });
 
   test('saved places are offered as the source for a new stop, on every day', () => {
@@ -196,6 +204,10 @@ describe('a trip is one workspace, not a list with satellites', () => {
       'href',
       '/trips/7/print'
     );
+
+    // The two ways a trip reaches somebody else, together, because choosing between them is one
+    // decision: add a person, or hand out a link anybody holding can read.
+    expect(screen.getByTestId('collaborators')).toBeInTheDocument();
     expect(screen.getByTestId('share-panel')).toBeInTheDocument();
   });
 
