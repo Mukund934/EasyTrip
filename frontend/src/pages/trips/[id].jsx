@@ -26,6 +26,7 @@ import TripNotes from '../../components/trips/TripNotes';
 import TripChecklist from '../../components/trips/TripChecklist';
 import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
 import ShareTripPanel from '../../components/trips/ShareTripPanel';
+import TripCollaborators from '../../components/trips/TripCollaborators';
 import DuplicateTripButton from '../../components/trips/DuplicateTripButton';
 import { formatDate } from '../../utils/dateFormat';
 // `BUG-058`: the local-time version of this that used to live here rendered every day after a
@@ -443,10 +444,19 @@ export default function TripWorkspace() {
             <TripNotes tripId={trip.id} getToken={getIdToken} />
           </div>
 
-          {/* `FV-009` stage (c). Below the notes and checklist on purpose: the panel says those two
-              are *not* shared, and that sentence is easier to believe when the reader has just
-              scrolled past them. */}
-          <div className="mt-6">
+          {/* The two ways this trip reaches somebody else, together, because a reader deciding how
+              to share is choosing between them (`FV-007` stage (b), `FV-009` stage (c)).
+
+              People first: adding somebody is the answer to "my friend is coming too", and the
+              link is the answer to "my parents want to see the plan". Offering the link first
+              would make the weaker guarantee the obvious one - a URL that anyone holding can read,
+              chosen by somebody who wanted to add one person. */}
+          <div className="mt-6 space-y-6">
+            <TripCollaborators tripId={trip.id} getToken={getIdToken} />
+
+            {/* Below the notes, the checklist and the collaborator list on purpose: this panel says
+                those are *not* shared by the link, and that sentence is easier to believe when the
+                reader has just scrolled past them. */}
             <ShareTripPanel tripId={trip.id} getToken={getIdToken} />
           </div>
         </div>
