@@ -14,6 +14,7 @@ const { getMyReviews } = require('../controllers/myReviewController');
 const tripController = require('../controllers/tripController');
 const tripWorkspaceController = require('../controllers/tripWorkspaceController');
 const tripShareController = require('../controllers/tripShareController');
+const tripCollaboratorController = require('../controllers/tripCollaboratorController');
 const recommendationController = require('../controllers/recommendationController');
 
 const profileRules = [
@@ -102,89 +103,7 @@ router.get('/reviews', isAuthenticated, getMyReviews);
  * that owns them, and the URL says so. `/api/auth/items/:id` would be a shape where forgetting the
  * ownership join is one careless handler away — this one cannot be written without the trip id.
  */
-const idParam = (name) =>
-  param(name).isInt({ min: 1 }).withMessage(`${name} must be a positive integer`).bail().toInt();
-
-const tripBodyRules = (required) => [
-  required
-    ? body('title')
-        .trim()
-        .notEmpty()
-        .withMessage('A trip needs a title')
-        .bail()
-        .isLength({ max: 200 })
-    : body('title')
-        .optional()
-        .trim()
-        .notEmpty()
-        .withMessage('A trip needs a title')
-        .bail()
-        .isLength({ max: 200 }),
-  body('description').optional({ values: 'null' }).isLength({ max: 5000 }),
-  body('start_date')
-    .optional({ values: 'falsy' })
-    .isISO8601()
-    .withMessage('start_date must be a date'),
-  body('end_date').optional({ values: 'falsy' }).isISO8601().withMessage('end_date must be a date'),
-  body('status')
-    .optional({ values: 'falsy' })
-    .isIn(['draft', 'upcoming', 'completed'])
-    .withMessage('status must be draft, upcoming or completed'),
-  // The database has the same CHECK; this exists so a typo is a readable 400 rather than a 500
-  // carrying a constraint name the user cannot act on.
-  body().custom((value) => {
-    if (value.start_date && value.end_date && value.end_date < value.start_date) {
-      throw new Error('A trip cannot end before it starts');
-    }
-    return true;
-  })
-];
-
-/**
- * Validation for a trip item.
- *
- * **Takes `required` for the same reason `tripBodyRules` does, and it is a fix rather than
- * symmetry** (`BUG-052`). The last rule — *an item needs a title, or a place to take one from* — is
- * true when an item is **created** and false when one is **patched**: an item that already has a
- * title does not have to resend it to change its start time. Shared as a flat array, it made
- * `PUT /items/:id` with `{ start_time: '10:00' }` a 400 complaining about a title the item already
- * had.
- *
- * Nothing caught it because every existing update test happens to send a title. It surfaced when
- * `FV-027`'s proposals needed to move an item by day alone.
- */
-const itemBodyRules = (required) => [
-  body('place_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
-  // Moving an item to another day of the same trip (Sprint 8.26). Shape only — that the day belongs
-  // to this trip is enforced in the query, because a validator cannot know and a check here would
-  // be a second source of truth about authorisation.
-  body('trip_day_id').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
-  body('item_type')
-    .optional({ values: 'falsy' })
-    .isIn(['place', 'transport', 'meal', 'activity', 'note'])
-    .withMessage('item_type must be place, transport, meal, activity or note'),
-  body('title').optional().trim().isLength({ max: 200 }),
-  body('notes').optional({ values: 'null' }).isLength({ max: 2000 }),
-  // HH:MM or HH:MM:SS. A TIME column would reject anything else anyway; this makes it a 400.
-  body('start_time')
-    .optional({ values: 'falsy' })
-    .matches(/^\d{2}:\d{2}(:\d{2})?$/),
-  body('end_time')
-    .optional({ values: 'falsy' })
-    .matches(/^\d{2}:\d{2}(:\d{2})?$/),
-  // An item with neither a place nor a title has nothing to render — on creation. A patch is
-  // allowed to touch one field and leave the rest of the row alone.
-  ...(required
-    ? [
-        body().custom((value) => {
-          if (!value.place_id && !String(value.title || '').trim()) {
-            throw new Error('An item needs a title, or a place to take one from');
-          }
-          return true;
-        })
-      ]
-    : [])
-];
+const { idParam, tripBodyRules, itemBodyRules } = require('./validators/tripValidators');
 
 // `FV-019`. Authenticated because the answer is derived entirely from this traveller's saved
 // places, which are private - there is no public version of the question. `limit` is capped rather
@@ -217,6 +136,53 @@ router.get(
 );
 // Read-only, and nested like every other trip route so ownership is proved by the trip id rather
 // than by a handler remembering to check (`FV-025`).
+/**
+ * The people who can open a trip (`FV-007` stage (a)).
+ *
+ * Nested under the trip id like every other trip route, so the caller's relationship to the trip is
+ * proved from the path rather than by a handler remembering to check. The handlers distinguish
+ * *owner* from *reader* themselves, because listing needs only read access while adding and removing
+ * are the owner's alone.
+ */
+router.get(
+  '/trips/:tripId/collaborators',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripCollaboratorController.listCollaborators
+);
+router.post(
+  '/trips/:tripId/collaborators',
+  isAuthenticated,
+  [
+    idParam('tripId'),
+    // `isEmail` and then `normalizeEmail: false` — the address is a lookup key against
+    // `users.email`, and normalisation would rewrite it (stripping Gmail dots, lowercasing) into
+    // something that no longer matches what somebody registered with. The model compares with
+    // `lower()` on both sides, which is the whole of the case-insensitivity this needs.
+    body('email')
+      .isEmail()
+      .withMessage('A valid email address is required')
+      .bail()
+      .isLength({ max: 255 })
+      .withMessage('That email address is too long')
+  ],
+  handleValidationErrors,
+  tripCollaboratorController.addCollaborator
+);
+router.delete(
+  '/trips/:tripId/collaborators/:userId',
+  isAuthenticated,
+  [
+    idParam('tripId'),
+    // A Firebase uid, not an integer, so `idParam` does not apply. Bounded and non-empty is the
+    // whole contract: it is compared against a stored value, never interpolated.
+    param('userId').isString().trim().isLength({ min: 1, max: 255 })
+  ],
+  handleValidationErrors,
+  tripCollaboratorController.removeCollaborator
+);
+
 router.get(
   '/trips/:tripId/feasibility',
   isAuthenticated,
