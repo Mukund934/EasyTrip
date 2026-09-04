@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TripCollaborators from '../src/components/trips/TripCollaborators';
 import tripService from '../src/services/tripService';
@@ -47,18 +47,55 @@ beforeEach(() => {
 });
 
 describe('the panel says what sharing actually does', () => {
-  test('it tells the owner that people added can read but not change', async () => {
+  test('it tells the owner what each of the two roles actually allows', async () => {
+    // Both halves matter. "Everyone can read" is the floor; "an editor can also change the plan,
+    // but not its name, dates, audience or sharing" is the ceiling — and the ceiling is the part
+    // somebody would otherwise assume, because "editor" sounds unlimited.
     render(<TripCollaborators tripId={7} getToken={getToken} />);
 
-    expect(await screen.findByText(/can read this trip/i)).toBeInTheDocument();
-    expect(screen.getByText(/cannot change it/i)).toBeInTheDocument();
+    expect(await screen.findByText(/everyone you add can read this trip/i)).toBeInTheDocument();
+    expect(screen.getByText(/an editor can also change the plan/i)).toBeInTheDocument();
+    expect(screen.getByText(/not its name, its dates, who else is on it/i)).toBeInTheDocument();
+  });
+
+  test('an editor is told what they can and cannot do, which is neither of the other two', async () => {
+    tripService.listCollaborators.mockResolvedValue({ ...OWNER_VIEW, your_role: 'editor' });
+
+    render(<TripCollaborators tripId={7} getToken={getToken} />);
+
+    expect(await screen.findByText(/read this trip and change its plan/i)).toBeInTheDocument();
+    expect(screen.getByText(/only its owner can rename it/i)).toBeInTheDocument();
+    // An editor is still not an owner: no add field, no remove buttons.
+    expect(screen.queryByLabelText(/add somebody by email/i)).not.toBeInTheDocument();
   });
 
   test('each person is labelled with what they can do, not just listed', async () => {
     render(<TripCollaborators tripId={7} getToken={getToken} />);
 
-    expect(await screen.findByText('Otto Other')).toBeInTheDocument();
-    expect(screen.getByText(/^can read$/i)).toBeInTheDocument();
+    // Scoped to the row, because the role <select> offers the same words on purpose — the badge and
+    // the choice that produced it should read alike, so an unscoped query matches both.
+    const row = (await screen.findByText('Otto Other')).closest('li');
+    expect(within(row).getByText(/^can read$/i)).toBeInTheDocument();
+  });
+
+  test('an editor is labelled differently from a viewer', async () => {
+    // Two people with different powers that render identically is the failure this guards: an owner
+    // scanning the list must be able to tell who can change the plan.
+    tripService.listCollaborators.mockResolvedValue({
+      your_role: 'owner',
+      collaborators: [
+        { user_id: 'u-a', email: 'a@easytrip.test', name: 'Ann', role: 'viewer' },
+        { user_id: 'u-b', email: 'b@easytrip.test', name: 'Ben', role: 'editor' }
+      ]
+    });
+
+    render(<TripCollaborators tripId={7} getToken={getToken} />);
+
+    const ann = (await screen.findByText('Ann')).closest('li');
+    const ben = screen.getByText('Ben').closest('li');
+
+    expect(within(ann).getByText(/^can read$/i)).toBeInTheDocument();
+    expect(within(ben).getByText(/^can edit$/i)).toBeInTheDocument();
   });
 
   test('the no-email limitation is stated before somebody meets it as an error', async () => {
@@ -99,7 +136,13 @@ describe('adding somebody', () => {
     await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     await waitFor(() =>
-      expect(tripService.addCollaborator).toHaveBeenCalledWith(7, 'new@easytrip.test', 'token')
+      expect(tripService.addCollaborator).toHaveBeenCalledWith(
+        7,
+        'new@easytrip.test',
+        'token',
+        // The role travels with the address, and defaults to the weaker one.
+        'viewer'
+      )
     );
     // Re-read rather than pushed into local state: the server decides what the list is, and an
     // optimistic row would show somebody as having access before they do.
@@ -203,5 +246,41 @@ describe('the two absences it is careful about', () => {
     render(<TripCollaborators tripId={7} getToken={getToken} />);
 
     expect(await screen.findByText('x@easytrip.test')).toBeInTheDocument();
+  });
+});
+
+describe('choosing what somebody may do', () => {
+  test('the default is the weaker role', async () => {
+    render(<TripCollaborators tripId={7} getToken={getToken} />);
+
+    const select = await screen.findByLabelText(/what they can do/i);
+    expect(select).toHaveValue('viewer');
+  });
+
+  test('choosing editor sends editor', async () => {
+    const user = userEvent.setup();
+    render(<TripCollaborators tripId={7} getToken={getToken} />);
+
+    await user.type(await screen.findByLabelText(/add somebody by email/i), 'new@easytrip.test');
+    await user.selectOptions(screen.getByLabelText(/what they can do/i), 'editor');
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
+
+    await waitFor(() =>
+      expect(tripService.addCollaborator).toHaveBeenCalledWith(
+        7,
+        'new@easytrip.test',
+        'token',
+        'editor'
+      )
+    );
+  });
+
+  test('a viewer is offered no choice at all', async () => {
+    tripService.listCollaborators.mockResolvedValue({ ...OWNER_VIEW, your_role: 'viewer' });
+
+    render(<TripCollaborators tripId={7} getToken={getToken} />);
+
+    await screen.findByText(/you can read this trip/i);
+    expect(screen.queryByLabelText(/what they can do/i)).not.toBeInTheDocument();
   });
 });
