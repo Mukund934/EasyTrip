@@ -27,6 +27,7 @@ import TripChecklist from '../../components/trips/TripChecklist';
 import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
 import ShareTripPanel from '../../components/trips/ShareTripPanel';
 import TripCollaborators from '../../components/trips/TripCollaborators';
+import TripExpenses from '../../components/trips/TripExpenses';
 import DuplicateTripButton from '../../components/trips/DuplicateTripButton';
 import { formatDate } from '../../utils/dateFormat';
 // `BUG-058`: the local-time version of this that used to live here rendered every day after a
@@ -451,6 +452,14 @@ export default function TripWorkspace() {
               link is the answer to "my parents want to see the plan". Offering the link first
               would make the weaker guarantee the obvious one - a URL that anyone holding can read,
               chosen by somebody who wanted to add one person. */}
+          {/* What it cost, below the plan and above the people (`FV-008`). It is about the trip
+              rather than about its audience, so it belongs with the notes and checklist rather than
+              with sharing — and a reader who has just seen the itinerary is the one who wants to
+              know what it added up to. */}
+          <div className="mt-6">
+            <TripExpenses tripId={trip.id} getToken={getIdToken} />
+          </div>
+
           <div className="mt-6 space-y-6">
             <TripCollaborators tripId={trip.id} getToken={getIdToken} />
 
