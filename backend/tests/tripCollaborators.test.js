@@ -59,8 +59,14 @@ const makeTrip = async () => {
   return trip;
 };
 
-const share = (tripId, headers = asOwner, email = OTHER_EMAIL) =>
-  request(app).post(`/api/auth/trips/${tripId}/collaborators`).set(headers).send({ email });
+const share = (tripId, headers = asOwner, email = OTHER_EMAIL, role) =>
+  request(app)
+    .post(`/api/auth/trips/${tripId}/collaborators`)
+    .set(headers)
+    .send(role ? { email, role } : { email });
+
+/** Add somebody as an editor, which is the whole of `FV-007` stage (c). */
+const shareAsEditor = (tripId) => share(tripId, asOwner, OTHER_EMAIL, 'editor');
 
 beforeAll(async () => {
   await createSchema();
@@ -326,5 +332,131 @@ describe('a shared trip does not become one of your own', () => {
 
     expect(mine.status).toBe(200);
     expect(mine.body.trips.map((t) => t.id)).not.toContain(trip.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The editor role (`FV-007` stage c)
+// ---------------------------------------------------------------------------
+describe('an editor edits the plan, and only the plan', () => {
+  test('the role is stored and reported', async () => {
+    const trip = await makeTrip();
+
+    const added = await shareAsEditor(trip.id);
+
+    expect(added.status).toBe(200);
+    expect(added.body.collaborator.role).toBe('editor');
+  });
+
+  test('omitting the role gives the weaker one', async () => {
+    // The safe end of the vocabulary is what you get by not choosing — including from a client that
+    // predates stage (c) and sends only an email.
+    const trip = await makeTrip();
+
+    const added = await share(trip.id);
+
+    expect(added.body.collaborator.role).toBe('viewer');
+  });
+
+  test('a role outside the vocabulary is refused', async () => {
+    const trip = await makeTrip();
+
+    const res = await share(trip.id, asOwner, OTHER_EMAIL, 'owner');
+
+    expect(res.status).toBe(400);
+  });
+
+  test('posting the same person with a different role promotes them', async () => {
+    // The insert upserts, so this endpoint is also how a role changes. A separate PATCH would be a
+    // second way to write one column, and the two would eventually disagree about who may do it.
+    const trip = await makeTrip();
+
+    await share(trip.id);
+    const promoted = await shareAsEditor(trip.id);
+
+    expect(promoted.body.collaborator.role).toBe('editor');
+
+    const listed = await request(app).get(`/api/auth/trips/${trip.id}/collaborators`).set(asOwner);
+    expect(listed.body.collaborators).toHaveLength(1);
+    expect(listed.body.collaborators[0].role).toBe('editor');
+  });
+
+  test('an editor can add a day, and a viewer still cannot', async () => {
+    const trip = await makeTrip();
+    await shareAsEditor(trip.id);
+
+    const added = await request(app).post(`/api/auth/trips/${trip.id}/days`).set(asOther).send({});
+    expect([200, 201]).toContain(added.status);
+  });
+
+  test('an editor can add, edit and remove a stop', async () => {
+    const trip = await makeTrip();
+    await shareAsEditor(trip.id);
+
+    const added = await request(app)
+      .post(`/api/auth/trips/${trip.id}/days/${trip.days[0].id}/items`)
+      .set(asOther)
+      .send({ title: 'Their suggestion', item_type: 'activity' });
+    expect([200, 201]).toContain(added.status);
+
+    const itemId = added.body.item.id;
+
+    const edited = await request(app)
+      .put(`/api/auth/trips/${trip.id}/items/${itemId}`)
+      .set(asOther)
+      .send({ title: 'Their better suggestion' });
+    expect(edited.status).toBe(200);
+
+    const removed = await request(app)
+      .delete(`/api/auth/trips/${trip.id}/items/${itemId}`)
+      .set(asOther);
+    expect(removed.status).toBe(204);
+  });
+
+  test('an editor can delete a day', async () => {
+    const trip = await makeTrip();
+    await shareAsEditor(trip.id);
+
+    const res = await request(app)
+      .delete(`/api/auth/trips/${trip.id}/days/${trip.days[1].id}`)
+      .set(asOther);
+
+    expect(res.status).toBe(204);
+  });
+
+  test('an editor still cannot rename, delete, duplicate, share or add people', async () => {
+    // The line `018_trip_editors.sql` draws: an editor changes the plan, never what the trip *is*
+    // or who can see it. "Help me plan this" implies neither.
+    const trip = await makeTrip();
+    await shareAsEditor(trip.id);
+
+    const attempts = await Promise.all([
+      request(app).put(`/api/auth/trips/${trip.id}`).set(asOther).send({ title: 'Mine now' }),
+      request(app).delete(`/api/auth/trips/${trip.id}`).set(asOther),
+      request(app).post(`/api/auth/trips/${trip.id}/duplicate`).set(asOther).send({}),
+      request(app).post(`/api/auth/trips/${trip.id}/share`).set(asOther).send({}),
+      share(trip.id, asOther, 'admin@easytrip.test')
+    ]);
+
+    expect(attempts.map((res) => res.status)).toEqual([404, 404, 404, 404, 404]);
+  });
+
+  test('demoting an editor takes the write access away again', async () => {
+    const trip = await makeTrip();
+    await shareAsEditor(trip.id);
+    await share(trip.id);
+
+    const res = await request(app).post(`/api/auth/trips/${trip.id}/days`).set(asOther).send({});
+
+    expect(res.status).toBe(404);
+  });
+
+  test('a stranger is refused by the widened write path exactly as before', async () => {
+    // The predicate grew an OR; the thing it must still refuse is somebody with no row at all.
+    const trip = await makeTrip();
+
+    const res = await request(app).post(`/api/auth/trips/${trip.id}/days`).set(asStranger).send({});
+
+    expect(res.status).toBe(404);
   });
 });
