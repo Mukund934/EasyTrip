@@ -217,7 +217,11 @@ export const HeroMobile = ({ home }) => {
                             href={`/browse?location=${places[currentPlaceIndex]?.location}`}
                             passHref
                           >
-                            <button className="text-primary-600 hover:text-primary-800 text-xs underline underline-offset-2">
+                            {/* `py-1` for a 24px target (`PE-022`, WCAG 2.5.8). `text-xs` with no
+                                padding is a 16px box — the twin of "More destinations" in
+                                `HeroDesktop`, and the reason the guard measures a phone viewport
+                                as well as a desktop one. */}
+                            <button className="py-1 text-primary-600 hover:text-primary-800 text-xs underline underline-offset-2">
                               More places
                             </button>
                           </Link>
