@@ -347,6 +347,50 @@ const duplicateTrip = async (tripId, token, title) => {
 };
 
 // ---------------------------------------------------------------------------
+// The people who can open the trip (`FV-007` stage a)
+// ---------------------------------------------------------------------------
+
+/** Also returns `your_role`, which is how the panel knows whether to offer the owner's controls. */
+const listCollaborators = async (tripId, token) => {
+  try {
+    const { data } = await apiClient.get(`/auth/trips/${tripId}/collaborators`, authed(token));
+    return data ?? { collaborators: [], your_role: null };
+  } catch (error) {
+    throw withFallback(error, 'Could not load the people on this trip');
+  }
+};
+
+/**
+ * Add by the email somebody registered with. **Nothing is emailed** - the address is a lookup key
+ * (`017_trip_collaborators.sql`).
+ *
+ * The 422 for an unregistered address carries a sentence written for a reader, and `withFallback`
+ * preserves it: an `ApiClientError` that already has a status is rethrown untouched, so the panel
+ * shows *"they need an EasyTrip account"* rather than this function's generic fallback.
+ */
+const addCollaborator = async (tripId, email, token) => {
+  try {
+    const { data } = await apiClient.post(
+      `/auth/trips/${tripId}/collaborators`,
+      { email },
+      authed(token)
+    );
+    return data?.collaborator ?? null;
+  } catch (error) {
+    throw withFallback(error, 'Could not add that person to this trip');
+  }
+};
+
+const removeCollaborator = async (tripId, userId, token) => {
+  try {
+    await apiClient.delete(`/auth/trips/${tripId}/collaborators/${userId}`, authed(token));
+    return true;
+  } catch (error) {
+    throw withFallback(error, 'Could not remove that person from this trip');
+  }
+};
+
+// ---------------------------------------------------------------------------
 // The read-only share link (`FV-009` stage c)
 // ---------------------------------------------------------------------------
 
@@ -417,6 +461,9 @@ const tripService = {
   deleteChecklistItem,
   exportCalendar,
   duplicateTrip,
+  listCollaborators,
+  addCollaborator,
+  removeCollaborator,
   getShare,
   createShare,
   revokeShare,
