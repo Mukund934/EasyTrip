@@ -198,6 +198,39 @@ Built-but-incomplete or not started. Listed here so the feature list above stays
 
 ## 🏗️ Project Architecture
 
+Three packages, three `package.json` files, one `concurrently` command — not an npm workspace, on
+purpose (`ADR-010`): each tier resolves its own dependencies, so a frontend upgrade cannot silently
+move a backend version.
+
+```mermaid
+flowchart LR
+    subgraph browser["Browser"]
+        UI["Next.js 16 · Pages Router<br/>React 19"]
+    end
+    subgraph next["Next server :3000"]
+        SSR["getServerSideProps / getStaticProps<br/>ISR revalidate 300"]
+    end
+    subgraph api["Express 5 API :5000"]
+        RT["routes"] --> CT["controllers"] --> MD["models<br/>parameterized SQL only"]
+        MW["authMiddleware<br/>verifyIdToken then DB lookup"]
+    end
+    DB[("PostgreSQL<br/>plpgsql rating trigger")]
+    FB["Firebase Auth<br/>identity only"]
+    CL["Cloudinary<br/>images"]
+
+    UI -->|"axios + Bearer token"| RT
+    UI -->|"sign in"| FB
+    SSR -->|"server-side fetch"| RT
+    RT --> MW
+    MW -->|"verify signature"| FB
+    MW -->|"is_admin lookup"| DB
+    MD --> DB
+    CT -->|"upload"| CL
+```
+
+**The arrow that matters is `MW -> DB`.** Firebase answers _who_ this is; the database answers _what
+they may do_. Those were the same question once, and that was the original defect (`IMP-002`).
+
 ```bash
 EasyTrip/
 ├── backend/                    # Node.js + Express API
