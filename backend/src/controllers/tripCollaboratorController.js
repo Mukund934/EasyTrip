@@ -58,6 +58,13 @@ const listCollaborators = async (req, res) => {
  * `tripAccessModel`. The consequence is a real limitation and it gets its own status code: adding
  * somebody with no EasyTrip account is a **422 with a sentence that says exactly that**, not a
  * silent success that leaves the owner believing a stranger can see their trip.
+ *
+ * **This is also how a role is changed**, because the insert upserts: posting the same address with
+ * a different `role` promotes or demotes them. A separate PATCH would be a second way to write one
+ * column, and the two would eventually disagree about who may do it.
+ *
+ * `role` is optional and defaults to `viewer` — the safe end of the vocabulary is what you get by
+ * not choosing.
  */
 const addCollaborator = async (req, res) => {
   try {
@@ -72,7 +79,11 @@ const addCollaborator = async (req, res) => {
     const result = await tripAccessModel.addCollaborator({
       tripId,
       ownerId: req.user.uid,
-      email: req.body.email
+      email: req.body.email,
+      // Defaults to the weaker role. Somebody adding a person in a hurry, or a client that has not
+      // been updated for `FV-007` stage (c), grants read access rather than write — the safe end of
+      // the vocabulary is the one you get by not choosing (`018_trip_editors.sql`).
+      role: req.body.role || 'viewer'
     });
 
     if (!result.ok && result.reason === 'not_found') {
@@ -85,6 +96,10 @@ const addCollaborator = async (req, res) => {
 
     if (!result.ok && result.reason === 'is_owner') {
       return res.status(422).json({ message: 'That is you — this is already your trip.' });
+    }
+
+    if (!result.ok && result.reason === 'bad_role') {
+      return res.status(400).json({ message: 'A collaborator is either a viewer or an editor.' });
     }
 
     // 200 rather than 201 even on the first add, because the endpoint is idempotent: adding the

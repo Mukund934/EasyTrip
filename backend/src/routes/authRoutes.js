@@ -165,7 +165,13 @@ router.post(
       .withMessage('A valid email address is required')
       .bail()
       .isLength({ max: 255 })
-      .withMessage('That email address is too long')
+      .withMessage('That email address is too long'),
+    // Optional, because omitting it means `viewer` — the model defends the vocabulary as well, since
+    // it is the only path to the table and a CHECK violation would surface as an unactionable 500.
+    body('role')
+      .optional()
+      .isIn(['viewer', 'editor'])
+      .withMessage('A collaborator is either a viewer or an editor')
   ],
   handleValidationErrors,
   tripCollaboratorController.addCollaborator
