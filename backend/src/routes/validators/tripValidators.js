@@ -100,4 +100,70 @@ const itemBodyRules = (required) => [
     : [])
 ];
 
-module.exports = { idParam, tripBodyRules, itemBodyRules };
+/**
+ * Adding somebody to a trip (`FV-007`).
+ *
+ * `isEmail` **without** `normalizeEmail` — the address is a lookup key against `users.email`, and
+ * normalising would rewrite it (stripping Gmail dots, lower-casing) into something that no longer
+ * matches what somebody registered with. The model compares with `lower()` on both sides, which is
+ * all the case-insensitivity this needs.
+ *
+ * `role` is optional because omitting it means `viewer`. The model defends the vocabulary too: it is
+ * the only path to the table, and a CHECK violation surfaces as an unactionable 500.
+ */
+const collaboratorBodyRules = [
+  idParam('tripId'),
+  body('email')
+    .isEmail()
+    .withMessage('A valid email address is required')
+    .bail()
+    .isLength({ max: 255 })
+    .withMessage('That email address is too long'),
+  body('role')
+    .optional()
+    .isIn(['viewer', 'editor'])
+    .withMessage('A collaborator is either a viewer or an editor')
+];
+
+/**
+ * Recording an expense (`FV-008`).
+ *
+ * `amount_minor` is an integer in the currency's minor unit, and `<> 0` mirrors the CHECK in
+ * `019_trip_expenses.sql`: a refund is a real expense with a negative sign, and zero is never a fact
+ * anybody meant to record.
+ *
+ * `participants` is optional because omitting it means everybody on the trip — which is what a
+ * dinner usually is. Sending it is how an expense for only some people gets recorded.
+ */
+const expenseBodyRules = [
+  idParam('tripId'),
+  body('description')
+    .trim()
+    .notEmpty()
+    .withMessage('An expense needs a description')
+    .bail()
+    .isLength({ max: 200 }),
+  body('amount_minor')
+    .isInt()
+    .withMessage('amount_minor must be a whole number of paise/cents')
+    .bail()
+    .custom((value) => Number(value) !== 0)
+    .withMessage('An expense cannot be zero')
+    .toInt(),
+  body('currency')
+    .isString()
+    .trim()
+    .matches(/^[A-Za-z]{3}$/)
+    .withMessage('currency must be a 3-letter ISO code'),
+  body('paid_by').optional().isString().trim().isLength({ min: 1, max: 255 }),
+  body('participants').optional().isArray({ max: 50 }),
+  body('participants.*').isString().trim().isLength({ min: 1, max: 255 })
+];
+
+module.exports = {
+  idParam,
+  tripBodyRules,
+  itemBodyRules,
+  collaboratorBodyRules,
+  expenseBodyRules
+};

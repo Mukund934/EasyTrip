@@ -15,6 +15,7 @@ const tripController = require('../controllers/tripController');
 const tripWorkspaceController = require('../controllers/tripWorkspaceController');
 const tripShareController = require('../controllers/tripShareController');
 const tripCollaboratorController = require('../controllers/tripCollaboratorController');
+const tripExpenseController = require('../controllers/tripExpenseController');
 const recommendationController = require('../controllers/recommendationController');
 
 const profileRules = [
@@ -103,7 +104,13 @@ router.get('/reviews', isAuthenticated, getMyReviews);
  * that owns them, and the URL says so. `/api/auth/items/:id` would be a shape where forgetting the
  * ownership join is one careless handler away — this one cannot be written without the trip id.
  */
-const { idParam, tripBodyRules, itemBodyRules } = require('./validators/tripValidators');
+const {
+  idParam,
+  tripBodyRules,
+  itemBodyRules,
+  collaboratorBodyRules,
+  expenseBodyRules
+} = require('./validators/tripValidators');
 
 // `FV-019`. Authenticated because the answer is derived entirely from this traveller's saved
 // places, which are private - there is no public version of the question. `limit` is capped rather
@@ -154,25 +161,7 @@ router.get(
 router.post(
   '/trips/:tripId/collaborators',
   isAuthenticated,
-  [
-    idParam('tripId'),
-    // `isEmail` and then `normalizeEmail: false` — the address is a lookup key against
-    // `users.email`, and normalisation would rewrite it (stripping Gmail dots, lowercasing) into
-    // something that no longer matches what somebody registered with. The model compares with
-    // `lower()` on both sides, which is the whole of the case-insensitivity this needs.
-    body('email')
-      .isEmail()
-      .withMessage('A valid email address is required')
-      .bail()
-      .isLength({ max: 255 })
-      .withMessage('That email address is too long'),
-    // Optional, because omitting it means `viewer` — the model defends the vocabulary as well, since
-    // it is the only path to the table and a CHECK violation would surface as an unactionable 500.
-    body('role')
-      .optional()
-      .isIn(['viewer', 'editor'])
-      .withMessage('A collaborator is either a viewer or an editor')
-  ],
+  collaboratorBodyRules,
   handleValidationErrors,
   tripCollaboratorController.addCollaborator
 );
@@ -187,6 +176,42 @@ router.delete(
   ],
   handleValidationErrors,
   tripCollaboratorController.removeCollaborator
+);
+
+/**
+ * What the trip cost, and who owes whom (`FV-008`).
+ *
+ * Reading is for anybody on the trip; recording follows the editor rule; deleting is the owner's or
+ * the payer's. The settlement is **derived on read** rather than stored — it is a function of the
+ * expenses, and a cached one goes quietly wrong the moment somebody records a dinner.
+ */
+router.get(
+  '/trips/:tripId/expenses',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripExpenseController.listExpenses
+);
+router.post(
+  '/trips/:tripId/expenses',
+  isAuthenticated,
+  expenseBodyRules,
+  handleValidationErrors,
+  tripExpenseController.createExpense
+);
+router.delete(
+  '/trips/:tripId/expenses/:expenseId',
+  isAuthenticated,
+  [idParam('tripId'), idParam('expenseId')],
+  handleValidationErrors,
+  tripExpenseController.deleteExpense
+);
+router.get(
+  '/trips/:tripId/settlement',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripExpenseController.getSettlement
 );
 
 router.get(
