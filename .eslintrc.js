@@ -1,8 +1,11 @@
 /**
  * Root lint configuration — the workspace files the tiers do not own (`TD-021`).
  *
- * `backend/` and `frontend/` each carry their own `.eslintrc.js` and are linted by their own
- * scripts. What nothing covered until now was everything *between* them: `e2e/`, `scripts/` and
+ * `backend/` and `frontend/` each carry their own config and are linted by their own scripts —
+ * `backend/.eslintrc.js` on ESLint 8, and, since the Next 16 upgrade, `frontend/eslint.config.mjs`
+ * in flat format on ESLint 9 (`next lint` was removed in 16, so that tier had no choice).
+ *
+ * What nothing covered until now was everything *between* them: `e2e/`, `scripts/` and
  * `playwright.config.js`. That is roughly 600 lines of JavaScript — including the code that
  * provisions a database and starts a server — with no static checking at all.
  *

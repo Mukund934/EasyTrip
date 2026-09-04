@@ -38,7 +38,6 @@ export const GalleryManager = ({ gallery: g }) => {
               key={image.id}
               className="relative group border border-gray-200 rounded-lg overflow-hidden"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={image.image_url}
                 alt={image.caption || 'Gallery image'}

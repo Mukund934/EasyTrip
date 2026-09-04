@@ -29,6 +29,31 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // Next 16 builds with Turbopack by default, and Turbopack infers the workspace root by looking for
+  // lockfiles. This repository has one at the root *and* one here, because it is a `concurrently`
+  // monorepo rather than npm workspaces (`ADR-010`) — each package resolves its own dependencies on
+  // purpose. Left to infer, Turbopack picks the repository root and traces output files from there,
+  // which is the wrong tree for a deployment artifact. Stating it is a correctness fix, not a way to
+  // silence the warning.
+  turbopack: {
+    root: __dirname
+  },
+
+  // Next 16 writes `AGENTS.md` and a `CLAUDE.md` pointing at it into this directory on every `dev`
+  // run, and re-creates them if they are deleted. Off, for two reasons that are not about the
+  // content.
+  //
+  // First, a `CLAUDE.md` is *loaded as project instructions*, and this one is authored by the
+  // framework rather than by anyone who works on this repository — it would arrive in the tree
+  // without passing through the review every other instruction here has. Second, it regenerates on
+  // a command that is supposed to be read-only, so an untracked pair of files reappears in
+  // `git status` after any `npm run dev` and after every E2E run, which is how a dirty tree stops
+  // being informative.
+  //
+  // The guidance itself is reasonable and is not being disputed: `docs/FRAMEWORK_UPGRADE_PLAN.md`
+  // §8 records it, and `node_modules/next/dist/docs/` is where it points either way.
+  agentRules: false,
+
   reactStrictMode: true,
   // Locale routing, for zero dependencies (IMP-114). `en` is the default and therefore
   // unprefixed, so every existing URL is untouched; Hindi lives under /hi.

@@ -27,7 +27,7 @@ export function usePlaceGallery(placeId, getIdToken) {
       const images = await getPlaceImages(placeId);
       setGallery(images || []);
       setGalleryError(null);
-    } catch (err) {
+    } catch {
       // Non-fatal: the rest of the edit form still works without the gallery list.
       setGalleryError('Could not load the gallery.');
     } finally {

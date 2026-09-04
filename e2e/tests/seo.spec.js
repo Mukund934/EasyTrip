@@ -69,7 +69,13 @@ test.describe('what a crawler reads, before any JavaScript runs', () => {
 
   test('the place page ships its title and description in the HTML', async ({ request }) => {
     const html = await headOf(request, '/places/1');
-    expect(html).toContain('<title>Hampi | EasyTrip Magazine</title>');
+    // Attribute-tolerant, like every other assertion in this block — and it had to become so at
+    // Next 16, which stamps `data-next-head=""` on the tags it manages. The exact string this used
+    // to match (`<title>Hampi | EasyTrip Magazine</title>`) pinned Next's private head markup
+    // rather than the thing a crawler reads, and the upgrade broke it while the title itself was
+    // served correctly. What is being gated is unchanged: the text is in the **response body**,
+    // before any JavaScript runs.
+    expect(html).toMatch(/<title[^>]*>Hampi \| EasyTrip Magazine<\/title>/);
     expect(html).toMatch(/<meta name="description" content="[^"]+"/);
   });
 
