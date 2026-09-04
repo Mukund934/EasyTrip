@@ -114,7 +114,7 @@ export default [
       /**
        * The one that stays off, and the reason is architectural rather than an appetite question.
        *
-       * **29 findings across 28 files**, every one of them the same shape: an effect that fetches
+       * **30 findings across 29 files**, every one of them the same shape: an effect that fetches
        * and calls `setState` with the result. That is not an oversight, it is `ADR-027` — which
        * measured the alternative and **decided against a data-fetching library**, because seven
        * pages already fetch their primary data in `getServerSideProps`/`getStaticProps` and a client
@@ -122,9 +122,14 @@ export default [
        *
        * Clearing this rule means either adopting the library that ADR rejected, or moving to
        * `use()` and Suspense, which is an App Router shape this project deliberately does not have.
-       * Turning it on today would mean 29 `eslint-disable` comments, which is a lint rule nobody
+       * Turning it on today would mean 30 `eslint-disable` comments, which is a lint rule nobody
        * reads plus a diff nobody can review. Off, with the count stated, is the honest position —
        * and revisiting it means reopening `ADR-027`, not editing this line.
+       *
+       * **It was 29 when this block was written and the thirtieth is ours.** Fixing `BUG-059`
+       * required `PlaceCard` to read the clock from state written in an effect, which is this exact
+       * pattern. Worth stating rather than quietly re-counting: the rule and the fix for a real
+       * hydration bug pull in opposite directions here, and the bug won.
        */
       'react-hooks/set-state-in-effect': 'off',
 
