@@ -167,9 +167,12 @@ export const MagazineReviews = ({
                   <span>{isDeletingReview ? 'Deleting…' : 'Delete'}</span>
                 </button>
               ) : (
+                /* 24x24, because the icon alone was 16x16 and an icon-only control has no text
+                   box to enlarge it (`PE-022`, WCAG 2.5.8). `-m-1` keeps the flag optically where
+                   it was, so the padding buys hit area rather than layout. */
                 <button
                   onClick={() => onReportReview(review.id)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="-m-1 flex h-6 w-6 items-center justify-center text-gray-400 hover:text-gray-600"
                 >
                   <span className="sr-only">Report this review</span>
                   <FiFlag className="w-4 h-4" />
