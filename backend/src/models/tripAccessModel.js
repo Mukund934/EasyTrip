@@ -52,11 +52,42 @@ const pool = require('../config/db');
  * table with a `UNIQUE (trip_id, user_id)` still forces the planner to prove uniqueness, and
  * because a join would silently duplicate rows the day that constraint is relaxed.
  */
-const READABLE_BY = `(
-  trips.user_id = $2
+const readableBy = (uid = '$2') => `(
+  trips.user_id = ${uid}
   OR EXISTS (
     SELECT 1 FROM trip_collaborators
-    WHERE trip_collaborators.trip_id = trips.id AND trip_collaborators.user_id = $2
+    WHERE trip_collaborators.trip_id = trips.id AND trip_collaborators.user_id = ${uid}
+  )
+)`;
+
+/** The read path's two call sites both bind the uid to `$2`, so they take the default. */
+const READABLE_BY = readableBy();
+
+/**
+ * The **write** rule: the owner, or a collaborator whose role is `editor` (`FV-007` stage (c)).
+ *
+ * Parameterised on the placeholder because the itinerary write paths bind the uid at different
+ * positions - `$2` in `addDay`, `$3` in `deleteDay`, `$4` in some item writes - and a fragment that
+ * silently assumed `$2` would compile fine and compare the uid against a *trip id*. Passing the
+ * placeholder makes that a caller decision rather than a coincidence.
+ *
+ * **An editor can read by construction, not by rule.** `readableBy` does not filter on role at all,
+ * so anyone in `trip_collaborators` satisfies it. There is deliberately no rank stored anywhere: a
+ * hierarchy encoded in both the schema and the code is one the SQL stops matching the day a third
+ * role arrives.
+ *
+ * What this predicate is **not** applied to is as much of the design as what it is - see
+ * `018_trip_editors.sql`. Renaming, deleting, duplicating, the share link and the collaborator list
+ * all stay `trips.user_id`, because each of them changes what the trip *is* or who can see it, and
+ * neither is implied by "help me plan this".
+ */
+const editableBy = (uid = '$2') => `(
+  trips.user_id = ${uid}
+  OR EXISTS (
+    SELECT 1 FROM trip_collaborators
+    WHERE trip_collaborators.trip_id = trips.id
+      AND trip_collaborators.user_id = ${uid}
+      AND trip_collaborators.role = 'editor'
   )
 )`;
 
@@ -122,12 +153,19 @@ const listCollaborators = async (tripId) => {
  *   - `{ ok: true, collaborator }`      — added, or already there (see below)
  *   - `{ ok: false, reason: 'not_found' }` — nobody has registered with that address
  *   - `{ ok: false, reason: 'is_owner' }`  — that is you; the owner is not a collaborator
+ *   - `{ ok: false, reason: 'bad_role' }`  — a role outside the vocabulary
  *
  * **Adding the same person twice succeeds.** It is the same fact stated twice, not a conflict, so
  * `ON CONFLICT DO UPDATE` returns the existing row and the route answers 200. A 409 here would make
  * a double-click look like a failure.
  */
+const ROLES = ['viewer', 'editor'];
+
 const addCollaborator = async ({ tripId, ownerId, email, role = 'viewer' }) => {
+  // Defended here as well as at the route, because this function is the only way a row reaches the
+  // table and the CHECK constraint's error is a 500 rather than something a caller can act on.
+  if (!ROLES.includes(role)) return { ok: false, reason: 'bad_role' };
+
   const found = await pool.query('SELECT firebase_uid FROM users WHERE lower(email) = lower($1)', [
     email
   ]);
@@ -162,6 +200,8 @@ const removeCollaborator = async (tripId, userId) => {
 
 module.exports = {
   READABLE_BY,
+  readableBy,
+  editableBy,
   roleOnTrip,
   listCollaborators,
   addCollaborator,
