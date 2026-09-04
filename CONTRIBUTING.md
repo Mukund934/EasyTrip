@@ -105,6 +105,17 @@ different from the development ones, so it can run while you are working.
 SEO tags, a licence notice, anything a crawler reads — assert against the raw response body, not the
 hydrated DOM. A browser-driven check passes either way. This has caught two real bugs.
 
+**Two accessibility gates run over the public routes, and they check different things.**
+`e2e/tests/axe.spec.js` runs `axe-core` and fails on anything it reports that is not in a written,
+per-route allowlist. `e2e/tests/touch-target.spec.js` measures every control against WCAG 2.5.8's
+24×24 minimum — separate because `axe-core` deliberately does not implement that criterion, three
+of whose four exceptions need a human. If you add a control smaller than 24×24, grow the _target_
+and leave the visual size alone; the carousel dots are the worked example.
+
+If either fails on a page you did not touch, read `BUG-057` before adjusting a number. That entry
+spent four sprints and two confident wrong diagnoses on a count that turned out to be an animation
+frame, and the allowlist entry it produced described nothing real.
+
 More detail: [`backend/tests/README.md`](backend/tests/README.md) and
 [`e2e/README.md`](e2e/README.md).
 
