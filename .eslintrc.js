@@ -81,7 +81,11 @@ module.exports = {
        */
       globals: {
         window: 'readonly',
-        document: 'readonly'
+        document: 'readonly',
+        // Added deliberately, as the paragraph above asks. `touch-target.spec.js` reads
+        // `getComputedStyle` inside `page.evaluate` to skip controls that are hidden rather than
+        // small — a distinction `getBoundingClientRect` alone cannot make.
+        getComputedStyle: 'readonly'
       },
 
       rules: {
