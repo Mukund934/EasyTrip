@@ -361,18 +361,22 @@ const listCollaborators = async (tripId, token) => {
 };
 
 /**
- * Add by the email somebody registered with. **Nothing is emailed** - the address is a lookup key
- * (`017_trip_collaborators.sql`).
+ * Add by the email somebody registered with, at a role. **Nothing is emailed** - the address is a
+ * lookup key (`017_trip_collaborators.sql`).
+ *
+ * The same call **changes** a role, because the endpoint upserts: posting an address already on the
+ * trip promotes or demotes them. `role` defaults to `viewer`, matching the API's own default, so a
+ * caller that does not care gets the weaker one.
  *
  * The 422 for an unregistered address carries a sentence written for a reader, and `withFallback`
  * preserves it: an `ApiClientError` that already has a status is rethrown untouched, so the panel
  * shows *"they need an EasyTrip account"* rather than this function's generic fallback.
  */
-const addCollaborator = async (tripId, email, token) => {
+const addCollaborator = async (tripId, email, token, role = 'viewer') => {
   try {
     const { data } = await apiClient.post(
       `/auth/trips/${tripId}/collaborators`,
-      { email },
+      { email, role },
       authed(token)
     );
     return data?.collaborator ?? null;

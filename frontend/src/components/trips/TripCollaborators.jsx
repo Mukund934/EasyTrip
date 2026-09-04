@@ -42,6 +42,9 @@ export const TripCollaborators = ({ tripId, getToken }) => {
   const [collaborators, setCollaborators] = useState([]);
   const [role, setRole] = useState(null);
   const [email, setEmail] = useState('');
+  // Defaults to the weaker role, the same way the API does. Somebody adding a person quickly
+  // grants reading, and granting write access is a thing they had to choose.
+  const [newRole, setNewRole] = useState('viewer');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -76,7 +79,7 @@ export const TripCollaborators = ({ tripId, getToken }) => {
     setBusy(true);
     setError(null);
     try {
-      await tripService.addCollaborator(tripId, address, await getToken());
+      await tripService.addCollaborator(tripId, address, await getToken(), newRole);
       // Cleared only after the server agreed. A field emptied on a failed add loses what the reader
       // typed and leaves them re-typing an address the server has already told them is wrong.
       setEmail('');
@@ -127,8 +130,10 @@ export const TripCollaborators = ({ tripId, getToken }) => {
       {/* What sharing does, in the words it actually does it in. */}
       <p className="mb-4 text-sm text-gray-600">
         {isOwner
-          ? 'Anyone you add can read this trip — the itinerary, notes and checklist. They cannot change it, and only you can add or remove people.'
-          : 'You can read this trip. Only its owner can change it, or change who else can see it.'}
+          ? 'Everyone you add can read this trip. An editor can also change the plan — days and stops — but not its name, its dates, who else is on it, or whether it is shared.'
+          : role === 'editor'
+            ? 'You can read this trip and change its plan. Only its owner can rename it, delete it, or change who else can see it.'
+            : 'You can read this trip. Only its owner can change it, or change who else can see it.'}
       </p>
 
       {collaborators.length === 0 ? (
@@ -151,8 +156,11 @@ export const TripCollaborators = ({ tripId, getToken }) => {
                 )}
               </span>
               <span className="flex shrink-0 items-center gap-3">
+                {/* What they can do, in the same words the form offers — so a reader can tell at a
+                    glance which of the two somebody is, and the label matches the choice that
+                    produced it. */}
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Can read
+                  {person.role === 'editor' ? 'Can edit' : 'Can read'}
                 </span>
                 {isOwner && (
                   <button
@@ -185,6 +193,18 @@ export const TripCollaborators = ({ tripId, getToken }) => {
               placeholder="them@example.com"
               className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
+            <label className="sr-only" htmlFor="collaborator-role">
+              What they can do
+            </label>
+            <select
+              id="collaborator-role"
+              value={newRole}
+              onChange={(event) => setNewRole(event.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="viewer">Can read</option>
+              <option value="editor">Can edit the plan</option>
+            </select>
             <button
               type="submit"
               disabled={busy || !email.trim()}
