@@ -95,6 +95,25 @@ applies to Firestore, Realtime Database and Pub/Sub; the Auth emulator is Node. 
 is missing, the authenticated specs **skip with the reason printed**, because a skipped security
 test must not look like a passing one.
 
+### If a run leaves something behind
+
+`releaseStalePorts()` in `auth-emulator.js` runs before every start and clears what a previous run
+could not clear for itself: the ports (9099, 4400, 4500) and the CLI's own
+`%TEMP%/hub-easytrip-e2e.json` locator.
+
+It has to, because **a killed process cannot tidy up after itself**. The Firebase CLI writes that
+locator so a second `firebase` command can find the running hub, and removes it only on a graceful
+stop — so a Ctrl-C, a crash, or a failed start all leave one naming a process that no longer exists.
+
+Two related things worth knowing if you are debugging a start that hangs (`TD-025`):
+
+- **`start()` kills the process tree, not the child.** On Windows the module spawns with
+  `shell: true`, so the direct child is `cmd.exe` and the CLI is its grandchild. `child.kill()` used
+  to reach only the shell and leave a live emulator holding all three ports.
+- **"The emulator printed nothing" is a finding, and the error says so.** A process that produced no
+  output in ninety seconds never got as far as running, which points somewhere completely different
+  from one that printed an error and exited. Check `npx firebase --version` first.
+
 ### What this layer cannot prove
 
 Emulator mode **disables signature verification** — that is what lets the emulator issue usable
