@@ -5,11 +5,23 @@ const logger = require('../utils/logger');
 
 // One list for every profile read/write. It was repeated three times, and the profile form seeds
 // itself from whatever this returns — a column missing from one copy silently blanks that field.
+/**
+ * Map a preference scalar onto the two values the UPDATE understands.
+ *
+ * `undefined` -> SQL NULL, meaning "leave it". `null` -> `''`, the sentinel meaning "clear it",
+ * which is also exactly what an unset `<select>` submits. Anything else passes through.
+ */
+const clearable = (value) => (value === undefined ? null : value === null ? '' : value);
+
 const USER_COLUMNS =
   'id, firebase_uid, email, name, location, dob, is_admin, ' +
   // `FV-029` stage (c). Personal data on the same terms as `dob`: written by the owner, returned
   // only on this authenticated route, and present in no public payload.
-  'requires_step_free, requires_accessible_restroom, created_at, updated_at';
+  'requires_step_free, requires_accessible_restroom, ' +
+  // `FV-020` stage (a). Same terms again: the owner writes them, only this authenticated route
+  // returns them, and `dietary_needs` in particular is health- and religion-adjacent.
+  'interests, budget_band, travel_pace, party_type, dietary_needs, ' +
+  'created_at, updated_at';
 
 /**
  * Get current user profile
@@ -64,7 +76,18 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { uid } = req.user;
-    const { name, location, dob, requires_step_free, requires_accessible_restroom } = req.body;
+    const {
+      name,
+      location,
+      dob,
+      requires_step_free,
+      requires_accessible_restroom,
+      interests,
+      budget_band,
+      travel_pace,
+      party_type,
+      dietary_needs
+    } = req.body;
 
     // location and dob were accepted by the validator and then dropped here, so the profile form
     // reported success while saving nothing (IMP-008). A cleared field arrives as '', which DATE
@@ -80,8 +103,17 @@ const updateProfile = async (req, res) => {
        SET name = $1, location = $2, dob = $3,
            requires_step_free = COALESCE($4, requires_step_free),
            requires_accessible_restroom = COALESCE($5, requires_accessible_restroom),
+           -- COALESCE throughout, so a client that does not send a field leaves it alone rather
+           -- than erasing it. Clearing a preference is done by sending an explicit empty value:
+           -- [] for the arrays, null for the scalars. Without that, an older client saving a name
+           -- would silently wipe preferences it has never heard of (FV-020).
+           interests = COALESCE($6, interests),
+           budget_band = CASE WHEN $7::text = '' THEN NULL ELSE COALESCE($7, budget_band) END,
+           travel_pace = CASE WHEN $8::text = '' THEN NULL ELSE COALESCE($8, travel_pace) END,
+           party_type = CASE WHEN $9::text = '' THEN NULL ELSE COALESCE($9, party_type) END,
+           dietary_needs = COALESCE($10, dietary_needs),
            updated_at = NOW()
-       WHERE firebase_uid = $6
+       WHERE firebase_uid = $11
        RETURNING ${USER_COLUMNS}`,
       [
         name,
@@ -89,6 +121,18 @@ const updateProfile = async (req, res) => {
         dob || null,
         requires_step_free === undefined ? null : Boolean(requires_step_free),
         requires_accessible_restroom === undefined ? null : Boolean(requires_accessible_restroom),
+        // `undefined` (field absent) leaves the column alone; an explicit `[]` clears it. The two
+        // are different requests and must stay different, or an older client saving a name would
+        // erase preferences it does not know about.
+        interests === undefined ? null : interests,
+        // Three states, two SQL values. `undefined` (absent) becomes SQL NULL and COALESCE leaves
+        // the column alone; an explicit `null` is folded to `''`, which the CASE above turns into
+        // NULL. Without that fold, sending `null` to clear a preference would be indistinguishable
+        // from not sending the field, and the preference could never be unset through the API.
+        clearable(budget_band),
+        clearable(travel_pace),
+        clearable(party_type),
+        dietary_needs === undefined ? null : dietary_needs,
         uid
       ]
     );

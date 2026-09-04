@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, param, query } = require('express-validator');
 const { isAuthenticated, isAuthenticatedStrict } = require('../utils/authMiddleware');
 const { handleValidationErrors } = require('../utils/errorHandler');
+const { profileRules } = require('./validators/profileValidators');
 // PE-007. Opt-in per request: without an `Idempotency-Key` header it does nothing at all, which is
 // what makes it safe to put in front of every mutation at once.
 const { idempotent } = require('../utils/idempotency');
@@ -20,35 +21,6 @@ const tripShareController = require('../controllers/tripShareController');
 const tripCollaboratorController = require('../controllers/tripCollaboratorController');
 const tripExpenseController = require('../controllers/tripExpenseController');
 const recommendationController = require('../controllers/recommendationController');
-
-const profileRules = [
-  body('name')
-    .trim()
-    .notEmpty()
-    .withMessage('Name is required')
-    .bail()
-    .isLength({ max: 100 })
-    .withMessage('Name must be at most 100 characters'),
-  body('location')
-    .optional({ values: 'falsy' })
-    .trim()
-    .isLength({ max: 120 })
-    .withMessage('Location must be at most 120 characters'),
-  // `FV-029` stage (c). `values: 'null'` rather than `'falsy'`, and the distinction is the whole
-  // point: `false` is a real answer here — it is how somebody *removes* a stated requirement — and
-  // `optional({ values: 'falsy' })` would silently drop it, leaving the requirement set forever.
-  ...['requires_step_free', 'requires_accessible_restroom'].map((field) =>
-    body(field)
-      .optional({ values: 'null' })
-      .isBoolean()
-      .withMessage(`${field} must be true or false`)
-      .toBoolean()
-  ),
-  body('dob')
-    .optional({ values: 'falsy' })
-    .isISO8601()
-    .withMessage('Date of birth must be a valid date')
-];
 
 // The wishlist id, wherever it arrives. Bounded to a positive integer so a malformed id is a 400
 // the caller can read rather than a 500 from `INT` overflowing or a `NaN` reaching the query.
