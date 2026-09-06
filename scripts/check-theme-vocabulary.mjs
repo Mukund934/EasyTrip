@@ -94,6 +94,93 @@ const PAIRED_LISTS = [
   ...SEASONALITY_LISTS.map((list) => ({ ...list, module: 'placeSeasonality' }))
 ];
 
+/**
+ * `FV-020`'s four preference vocabularies — and the first ones here with a **third** tier to check.
+ *
+ * `TravelPreferences.jsx` says in its own header that *"two copies of a vocabulary is exactly the
+ * shape `check:themes` exists to police"*, and then shipped four more copies without adding them
+ * here. This is that sentence honoured.
+ *
+ * **Why the frontend list is parsed differently.** These are `{ id, label }` objects, not flat
+ * strings, because a label is a product decision the database has no opinion about — `mid` renders
+ * as "Mid-range". So the generic `listFrom` would collect the labels too and compare
+ * `['budget', 'Budget', ...]` against `['budget', ...]`: a guard that fails constantly and gets
+ * disabled. Ids only, by key.
+ *
+ * **Why three of them also read the migration.** `021_travel_preferences.sql` CHECKs the three
+ * scalars in the database, so they inherit the `places.setting` hazard exactly: a value only the
+ * application knows is not a rejected request, it is a **500 from Postgres**. `dietary_needs` and
+ * `interests` are deliberately uncheck'd in SQL (the migration argues why), so `dietary_needs` is
+ * two-tier and `interests` is not here at all — it *reuses* the theme ids, which the block below
+ * already guards.
+ */
+const PREFERENCE_LISTS = [
+  { name: 'BUDGET_BANDS', label: 'budget bands', column: 'budget_band' },
+  { name: 'TRAVEL_PACES', label: 'travel paces', column: 'travel_pace' },
+  { name: 'PARTY_TYPES', label: 'party types', column: 'party_type' },
+  { name: 'DIETARY_NEEDS', label: 'dietary needs', column: null }
+];
+
+/** Ids only from a `[{ id: 'x', label: 'X' }]` list — see `PREFERENCE_LISTS`. */
+const idsFrom = (file, name) => {
+  const source = readFileSync(join(ROOT, file), 'utf8');
+  const block = new RegExp(`${name} = \\[([\\s\\S]*?)\\];`).exec(source);
+  if (!block) throw new Error(`${file}: could not find ${name}`);
+  return [...block[1].matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1]);
+};
+
+/**
+ * The values inside a column's `CHECK (... IN (...))` in a migration.
+ *
+ * Anchored on the column name rather than on a line, and it **throws** when the constraint is not
+ * found rather than returning `[]` — an empty list would compare unequal and read as a drift that
+ * is really a moved constraint, which sends the next reader to the wrong file.
+ */
+const checkConstraintValues = (file, column) => {
+  const source = readFileSync(join(ROOT, file), 'utf8');
+  const block = new RegExp(`${column}\\s+IN\\s*\\(([^)]*)\\)`).exec(source);
+  if (!block) throw new Error(`${file}: no CHECK ... ${column} IN (...) constraint found`);
+  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+};
+
+const MIGRATION_021 = 'backend/src/config/migrations/021_travel_preferences.sql';
+
+for (const { name, label, column } of PREFERENCE_LISTS) {
+  const fe = idsFrom('frontend/src/constants/preferences.js', name);
+  const be = listFrom('backend/src/constants/travelPreferences.js', name);
+
+  if (fe.length === 0 || be.length === 0) {
+    console.error(`  EMPTY  ${label} parsed to nothing — the guard would pass vacuously`);
+    process.exit(1);
+  }
+  if (fe.join(',') !== be.join(',')) {
+    console.error(`  ${label.toUpperCase()} MISMATCH`);
+    console.error(`         frontend: [${fe.join(', ')}]`);
+    console.error(`         backend:  [${be.join(', ')}]`);
+    console.error('         A preference only the form offers is one the API rejects.');
+    process.exit(1);
+  }
+
+  if (!column) continue;
+
+  // Set comparison, not order: SQL lists an unordered membership set, and requiring the migration
+  // to be re-edited because the form reordered two options would be a guard nobody could satisfy.
+  const sql = checkConstraintValues(MIGRATION_021, column);
+  const missingInSql = be.filter((id) => !sql.includes(id));
+  const extraInSql = sql.filter((id) => !be.includes(id));
+
+  if (missingInSql.length > 0 || extraInSql.length > 0) {
+    console.error(`  ${label.toUpperCase()} vs THE DATABASE`);
+    console.error(`         application: [${be.join(', ')}]`);
+    console.error(`         ${column} CHECK: [${sql.join(', ')}]`);
+    for (const id of missingInSql)
+      console.error(`         '${id}' is offered and validated but the CHECK rejects it — a 500`);
+    for (const id of extraInSql)
+      console.error(`         '${id}' is allowed by the CHECK but nothing can ever set it`);
+    process.exit(1);
+  }
+}
+
 for (const { name, label, module } of PAIRED_LISTS) {
   const fe = listFrom(`frontend/src/constants/${module}.js`, name);
   const be = listFrom(`backend/src/constants/${module}.js`, name);
@@ -157,7 +244,10 @@ if (missing.length === 0 && extra.length === 0 && sameOrder) {
       // Counted from `PAIRED_LISTS` rather than typed, so adding a vocabulary cannot leave this
       // line claiming a number it no longer checks.
       `${feSettings.length} place settings and the same ${PAIRED_LISTS.length} paired vocabularies, ` +
-      `in the same order`
+      `in the same order; ${PREFERENCE_LISTS.length} preference vocabularies agree across both ` +
+      // Counted, not typed, for the same reason as the line above.
+      `tiers and ${PREFERENCE_LISTS.filter((list) => list.column).length} of them agree with the ` +
+      `CHECK constraints in 021`
   );
   process.exit(0);
 }
