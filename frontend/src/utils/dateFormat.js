@@ -119,7 +119,11 @@ export const formatRelativeOrShort = (dateString, now) => {
   // honest answer for both, and it is what makes the two renders identical.
   if (typeof now !== 'number' || Number.isNaN(now)) return formatDateShort(dateString);
 
-  const diffDays = Math.ceil(Math.abs(now - parsed.getTime()) / (1000 * 60 * 60 * 24));
+  // `floor`, not `ceil` (`BUG-060`). Over a *millisecond* difference `ceil` rounds any non-zero
+  // elapsed time up to a whole day, so a row six hours old reported 1 and rendered "Yesterday",
+  // and `'Today'` needed `now` to equal the timestamp exactly — an unreachable branch. `floor`
+  // makes the count mean "whole days elapsed", which is what all three labels already claim.
+  const diffDays = Math.floor(Math.abs(now - parsed.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays >= 7) return formatDateShort(dateString);
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';

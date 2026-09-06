@@ -163,19 +163,37 @@ describe('formatRelativeOrShort is pure, which is the fix for BUG-059', () => {
     expect(formatRelativeOrShort(AUG_30, at('2026-09-05T12:00:00.000Z'))).toBe('6 days ago');
   });
 
-  test('the rounding is `ceil`, so a few hours old already reads "Yesterday" (BUG-060)', () => {
-    // **Asserting a defect, on purpose.** `Math.ceil` over a millisecond difference means any
-    // non-zero elapsed time rounds up to a whole day, so a row created six hours ago is labelled
-    // "Yesterday" and the `'Today'` branch is unreachable except at the exact same millisecond.
+  test('the rounding is `floor`, so "Today" means today and not one millisecond (BUG-060)', () => {
+    // The inverse of what this test asserted while `BUG-060` was open. Under `Math.ceil` every
+    // one of these first three read "Yesterday", because a millisecond difference rounded up to a
+    // whole day; `'Today'` was reachable only when `now` equalled the timestamp exactly.
     //
-    // Preserved rather than fixed here: this commit moves the logic and removes its clock read
-    // (`BUG-059`), and changing what a card *says* at the same time would hide a product change
-    // inside a refactor. Filed as `BUG-060`. This test is what makes the current behaviour a
-    // stated position instead of an accident, and it will fail loudly when that item is taken.
-    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T18:00:00.000Z'))).toBe('Yesterday');
-    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T12:00:00.001Z'))).toBe('Yesterday');
-    // The only input that reaches 'Today' is the timestamp itself.
+    // Asserted at both ends of the first day rather than at one point in it: a fix that moved the
+    // boundary instead of the rounding — subtracting an offset, say — would satisfy a single
+    // six-hours-old fixture and still be wrong at 23:59.
     expect(formatRelativeOrShort(AUG_30, at(AUG_30))).toBe('Today');
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T12:00:00.001Z'))).toBe('Today');
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T18:00:00.000Z'))).toBe('Today');
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-31T11:59:59.999Z'))).toBe('Today');
+    // And the first millisecond of the next whole day is where "Yesterday" starts.
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-31T12:00:00.000Z'))).toBe('Yesterday');
+    expect(formatRelativeOrShort(AUG_30, at('2026-09-01T11:59:59.999Z'))).toBe('Yesterday');
+  });
+
+  test('a timestamp slightly in the future is "Today", not "-1 days ago"', () => {
+    // Found by mutation: dropping the `Math.abs` left every other assertion in this file green,
+    // because none of them looked backwards. It is reachable rather than theoretical — `now` is
+    // the *browser's* clock and `created_at` is the *server's*, so a client a few seconds slow
+    // sees a row created in its own future. `Math.floor` of a small negative is -1, which reads
+    // as the literal string "-1 days ago" on the card.
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-30T11:59:55.000Z'))).toBe('Today');
+    // Still "Today" a whole 23 hours out, because the count is *whole days of distance* and 23
+    // hours is none of them. Skew far larger than any real clock disagreement stays benign.
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-29T13:00:00.000Z'))).toBe('Today');
+    // Past 24 hours the distance reading becomes visible: a day into the future reads
+    // "Yesterday". Asserted rather than hidden — `Math.abs` measures magnitude, not direction, and
+    // that is the accepted cost of it. Nothing legitimately writes a `created_at` a day ahead.
+    expect(formatRelativeOrShort(AUG_30, at('2026-08-29T11:00:00.000Z'))).toBe('Yesterday');
   });
 
   test('at exactly a week it hands over to the absolute date, and stays there', () => {
