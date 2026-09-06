@@ -84,25 +84,49 @@ const ratingDistribution = async () => {
 };
 
 /**
- * Recent review activity, by day.
+ * Recent activity, by day, as three series (`FV-022`).
  *
  * Bounded to a window rather than "all time" so the query stays cheap as the table grows, and
- * expressed as a dense series — **days with no reviews are present with `count: 0`.** A sparse
- * series plotted as a line silently draws a straight segment across a quiet week, which reads as
- * steady activity rather than none.
+ * expressed as a dense series — **quiet days are present at zero.** A sparse series plotted as a
+ * line silently draws a straight segment across a quiet week, which reads as steady activity rather
+ * than none.
+ *
+ * ---------------------------------------------------------------------------
+ * Why these three and not the ones that are easier to count
+ * ---------------------------------------------------------------------------
+ * `ADR-037`'s rule governs here too: *what would change what an admin does next?* Each series is
+ * one an admin would act on, and the ones left out are left out on that ground.
+ *
+ * | series | what a change in it means |
+ * | --- | --- |
+ * | `reviews` | content arriving. A run of zeros where there were not zeros is a signal the review path broke, not that taste changed |
+ * | `trips` | the keystone feature being used at all |
+ * | `reports` | moderation **inflow** — read against the open-report count, it answers whether the queue is keeping up or falling behind |
+ *
+ * **Deliberately absent: users joined, and places added.** The first is the vanity metric this
+ * dashboard exists to avoid; the second is the admin's own output, and a chart of your own activity
+ * is not monitoring. `ADR-037` removed a fabricated "last login" for less.
+ *
+ * It was `reviewActivity` returning `{ date, count }` until `FV-022`. `count` never said what it
+ * counted, which was survivable while there was one series and is not now.
  */
-const reviewActivity = async (days = 30) => {
+const activitySeries = async (days = 30) => {
   const window = Number.isFinite(Number(days)) ? Math.min(Math.max(Number(days), 1), 90) : 30;
 
+  // One query with three correlated subqueries rather than three queries joined in JS: the days
+  // must line up exactly, and three separate dense series assembled client-side is three chances to
+  // produce a row whose date does not match the row beside it.
   const { rows } = await pool.query(
-    `SELECT d.day::date AS date, COUNT(r.id)::int AS count
+    `SELECT
+       d.day::date AS date,
+       (SELECT COUNT(*)::int FROM place_reviews r  WHERE r.created_at::date  = d.day::date) AS reviews,
+       (SELECT COUNT(*)::int FROM trips t          WHERE t.created_at::date  = d.day::date) AS trips,
+       (SELECT COUNT(*)::int FROM review_reports p WHERE p.created_at::date  = d.day::date) AS reports
      FROM generate_series(
             CURRENT_DATE - ($1::int - 1) * INTERVAL '1 day',
             CURRENT_DATE,
             INTERVAL '1 day'
           ) AS d(day)
-     LEFT JOIN place_reviews r ON r.created_at::date = d.day::date
-     GROUP BY d.day
      ORDER BY d.day`,
     [window]
   );
@@ -112,7 +136,9 @@ const reviewActivity = async (days = 30) => {
   // UTC lands on the previous day — the BUG-044/BUG-046 class, designed out rather than tested for.
   return rows.map((row) => ({
     date: row.date instanceof Date ? row.date.toISOString().slice(0, 10) : String(row.date),
-    count: row.count
+    reviews: row.reviews,
+    trips: row.trips,
+    reports: row.reports
   }));
 };
 
@@ -143,4 +169,4 @@ const incompletePlaces = async (limit = 5) => {
   return rows;
 };
 
-module.exports = { catalogueStats, ratingDistribution, reviewActivity, incompletePlaces };
+module.exports = { catalogueStats, ratingDistribution, activitySeries, incompletePlaces };

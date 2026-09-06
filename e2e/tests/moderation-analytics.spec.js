@@ -214,4 +214,25 @@ test.describe('the analytics dashboard reports the catalogue, to admins only', (
       expect(entry.missing_coordinates || entry.missing_image).toBe(true);
     }
   });
+
+  test('the activity series is dense and carries all three counts (FV-022)', async ({
+    request
+  }) => {
+    // The window is computed by Postgres over `generate_series`, so a day with nothing on it is a
+    // real row at zero rather than an absent one. Asserted through the deployed stack because the
+    // date arithmetic is the server's, and a series that skipped quiet days would draw a straight
+    // line across them and read as steady activity.
+    const response = await request.get(`${API}/admin/analytics?days=7`, { headers: auth('admin') });
+    expect(response.status()).toBe(200);
+
+    const { activity } = await response.json();
+    expect(activity).toHaveLength(7);
+
+    for (const day of activity) {
+      expect(day.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(typeof day.reviews).toBe('number');
+      expect(typeof day.trips).toBe('number');
+      expect(typeof day.reports).toBe('number');
+    }
+  });
 });

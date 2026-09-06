@@ -16,7 +16,7 @@ const getAnalytics = async (req, res) => {
     const [stats, ratings, activity, incomplete] = await Promise.all([
       analyticsModel.catalogueStats(),
       analyticsModel.ratingDistribution(),
-      analyticsModel.reviewActivity(req.query.days),
+      analyticsModel.activitySeries(req.query.days),
       analyticsModel.incompletePlaces()
     ]);
 

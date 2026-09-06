@@ -189,13 +189,13 @@ describe('the rating distribution', () => {
   });
 });
 
-describe('review activity', () => {
+describe('the activity series', () => {
   test('it is a dense series — quiet days are present with zero', async () => {
     // A sparse series plotted as a line draws a straight segment across a quiet week, which reads
     // as steady activity rather than none.
     const { activity } = (await analytics()).body;
     expect(activity).toHaveLength(30);
-    expect(activity.filter((d) => d.count === 0).length).toBeGreaterThan(0);
+    expect(activity.filter((d) => d.reviews === 0).length).toBeGreaterThan(0);
   });
 
   test('dates are plain YYYY-MM-DD strings, not timestamps', async () => {
@@ -226,7 +226,55 @@ describe('review activity', () => {
 
     const after = (await analytics()).body.activity;
     expect(after[after.length - 1].date).toBe(today.date);
-    expect(after[after.length - 1].count).toBe(today.count + 1);
+    expect(after[after.length - 1].reviews).toBe(today.reviews + 1);
+  });
+
+  test('all three series are present on every day, at zero rather than absent', async () => {
+    // `FV-022`. A missing key is not the same as a zero: `undefined` plotted as a point lands at
+    // the bottom of a chart looking exactly like "none happened", and summed into a total it makes
+    // the total NaN. Every day carries all three.
+    const { activity } = (await analytics()).body;
+
+    for (const day of activity) {
+      expect(typeof day.reviews).toBe('number');
+      expect(typeof day.trips).toBe('number');
+      expect(typeof day.reports).toBe('number');
+    }
+  });
+
+  test('a trip created today lands on today, and moves only the trips series', async () => {
+    // The series must be independent. One correlated subquery accidentally joined to the wrong
+    // day column moves two lines at once, which is invisible on a chart and wrong in a way nobody
+    // would question.
+    const { activity } = (await analytics()).body;
+    const before = activity[activity.length - 1];
+
+    await pool.query(
+      `INSERT INTO trips (user_id, title, status) VALUES ('seed-user-uid', 'Activity trip', 'draft')`
+    );
+
+    const after = (await analytics()).body.activity;
+    const today = after[after.length - 1];
+
+    expect(today.trips).toBe(before.trips + 1);
+    expect(today.reviews).toBe(before.reviews);
+    expect(today.reports).toBe(before.reports);
+  });
+
+  test('a report counts as inflow on the day it arrived, even once resolved', async () => {
+    // `reports` is arrival, not backlog — the open count in `catalogue` is the backlog. Counting
+    // only open reports here would make the series shrink as a moderator works, so a productive
+    // afternoon would look like a drop in reports being filed.
+    const { activity } = (await analytics()).body;
+    const before = activity[activity.length - 1];
+
+    await pool.query(
+      `INSERT INTO review_reports (review_id, reporter_uid, reason, status)
+       VALUES (1, 'activity-reporter', NULL, 'reviewed')`
+    );
+
+    const after = (await analytics()).body.activity;
+    expect(after[after.length - 1].reports).toBe(before.reports + 1);
   });
 });
 
