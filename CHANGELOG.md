@@ -32,6 +32,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   included.
 - `check:themes` now guards the four preference vocabularies across frontend, backend **and** the
   `CHECK` constraints in migration 021.
+- **Crash and shutdown handling** (`FV-021`, part) — uncaught exceptions, unhandled rejections
+  and `SIGTERM`/`SIGINT` now go through the same structured logger as everything else, instead
+  of Node printing an unstructured stack to stderr and a signal logging nothing at all.
+  Shutdown stops accepting connections, drains the database pool under a deadline, and records
+  whether it completed gracefully. Error monitoring (`ADR-020`) and uptime/performance
+  dashboards remain out of scope until a vendor is chosen and something is deployed.
 - **Analytics & monitoring page** (`FV-022`) — daily activity across reviews, trips and
   moderation inflow; the full rating distribution rather than only its average; and the specific
   places left to finish, each linking to that place. Two of these datasets were already being

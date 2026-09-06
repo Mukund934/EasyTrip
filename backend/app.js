@@ -21,6 +21,7 @@ const { listMigrationFiles } = require('./src/config/migrationFiles');
 const { errorHandler } = require('./src/utils/errorHandler');
 const logger = require('./src/utils/logger');
 const requestLogger = require('./src/utils/requestLogger');
+const { installProcessHandlers } = require('./src/utils/processLifecycle');
 
 // Import routes
 const placeRoutes = require('./src/routes/placeRoutes');
@@ -344,7 +345,7 @@ pool
 // after the last assertion instead of exiting. `npm start`, `npm run dev` and `node app.js` are
 // unaffected — this file is still the entry point, it just no longer listens when required.
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     // One line, not six. The old banner printed every route's base URL on every boot — a
     // development convenience that cost six lines in every production log, and that went stale the
     // moment a router was added or removed.
@@ -353,6 +354,16 @@ if (require.main === module) {
       `Server listening on port ${PORT}`
     );
   });
+
+  // Crash and shutdown handling (`FV-021`), installed here and only here — for the same reason
+  // `listen` is: the API suite imports this module, and a test process that installed a SIGINT
+  // handler or an `uncaughtException` handler would be intercepting signals Jest relies on.
+  //
+  // Until this existed, the two events that matter most bypassed `IMP-071` entirely: a crash was
+  // printed by Node as an unstructured stack on stderr, and a SIGTERM — which every managed host
+  // sends before stopping a container — logged nothing at all, so a routine deploy and a hard
+  // crash looked identical in the log stream.
+  installProcessHandlers({ server, pool, logger });
 }
 
 module.exports = app;
