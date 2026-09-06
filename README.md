@@ -5,7 +5,7 @@
 > so instead of showing a plausible number.
 
 [![CI](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml/badge.svg)](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/assertions-1%2C996-brightgreen)](#-testing--verification)
+[![Tests](https://img.shields.io/badge/assertions-2%2C017-brightgreen)](#-testing--verification)
 [![Routes](https://img.shields.io/badge/API%20routes-78%20documented-blue)](#-api-documentation)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
@@ -41,7 +41,7 @@ That last row is the honest version of this repository's history, and it is the 
 
 ## Why this repo might be worth your time
 
-- **1,996 assertions** — 1,054 API tests against a _real_ PostgreSQL, 788 component tests, 154
+- **2,017 assertions** — 1,075 API tests against a _real_ PostgreSQL, 788 component tests, 154
   browser journeys that really sign in through the Firebase Auth Emulator. Reproducible commands in
   [Testing & verification](#-testing--verification).
 - **The counts above cannot go stale.** A CI job parses the runners' own JSON reports and fails the
@@ -187,13 +187,13 @@ npm run test:e2e              # starts the Firebase Auth Emulator itself
 
 ### 🧪 Engineering
 
-- ✅ **1,996 assertions across three layers** – 1,054 API tests against a real PostgreSQL, 788 component tests, and 154 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.69, and the browser suite was genuinely **run**, not counted: 154 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **2,017 assertions across three layers** – 1,075 API tests against a real PostgreSQL, 788 component tests, and 154 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.70, and the browser suite was genuinely **run**, not counted: 154 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
 - ⚙️ **CI on every push** – seven jobs: lint and build, frontend tests, migrations, API tests, end-to-end, a job that checks the assertion counts above against what the suites actually ran, and a dependency-advisory gate at `high` across all three workspaces
 - 🗄️ **Real migrations** – versioned, checksummed, and applied by a runner rather than at boot
-- 📋 **Observability that survives the crash** – structured JSON logs (pino) with a per-request id echoed as `x-request-id`, URLs scrubbed of anything that ever authenticated, and no headers or bodies logged at all. Crashes and `SIGTERM` go through the same pipeline rather than around it — Node prints an unstructured stack to stderr by default, which made the one line explaining why a service stopped the only line that was not JSON. Shutdown drains the connection pool under a deadline and records whether it finished gracefully
+- 📋 **Observability that survives the crash** – structured JSON logs (pino) with a per-request id echoed as `x-request-id`, URLs scrubbed of anything that ever authenticated, and no headers or bodies logged at all. Crashes and `SIGTERM` go through the same pipeline rather than around it — Node prints an unstructured stack to stderr by default, which made the one line explaining why a service stopped the only line that was not JSON. Shutdown drains the connection pool under a deadline and records whether it finished gracefully. A request slower than a threshold is promoted from `info` to `warn` so it **arrives** rather than merely being findable — and a slow health check is deliberately _not_ demoted, because it is the earliest sign the database is struggling. A pool connect-timeout carries the pool's occupancy, since _"timeout exceeded when trying to connect"_ is otherwise the same sentence whether the database is unreachable, cold-starting, or healthy and simply out of connections
 
 ---
 
@@ -493,7 +493,7 @@ Three layers, all reproducible from a clean checkout, and none of them mocked wh
 
 | Layer     | Count     | What it runs against                                                                 |
 | --------- | --------- | ------------------------------------------------------------------------------------ |
-| API       | **1,054** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
+| API       | **1,075** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
 | Component | **788**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
 | Browser   | **154**   | Real Chromium/WebKit + a real **Firebase Auth Emulator** — journeys actually sign in |
 

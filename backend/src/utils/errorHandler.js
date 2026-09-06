@@ -1,5 +1,6 @@
 const { validationResult } = require('express-validator');
 const logger = require('./logger');
+const { poolStats, isConnectionTimeout } = require('../config/db');
 
 /**
  * Normalizes an express-validator error into { field, message }.
@@ -31,7 +32,18 @@ const handleValidationErrors = (req, res, next) => {
  * Global error handling middleware
  */
 const errorHandler = (err, req, res, next) => {
-  logger.error({ err }, 'Unhandled error reached the error handler');
+  // A pool timeout is annotated with the pool's occupancy (`FV-021`). Without it the line reads
+  // "timeout exceeded when trying to connect" — which is the same sentence whether the database is
+  // unreachable, cold-starting, or healthy and simply out of connections. `waiting > 0` is what
+  // separates the third case from the first two, and it is only knowable at the moment it happens.
+  if (isConnectionTimeout(err)) {
+    logger.error(
+      { err, pool: poolStats() },
+      'Database connection timed out — pool occupancy attached'
+    );
+  } else {
+    logger.error({ err }, 'Unhandled error reached the error handler');
+  }
 
   // Handle Multer errors
   if (err.name === 'MulterError') {

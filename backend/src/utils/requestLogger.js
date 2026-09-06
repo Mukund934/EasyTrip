@@ -63,6 +63,64 @@ const sanitizeUrl = (url) => {
   return `${path}?${params.toString()}`;
 };
 
+/**
+ * How slow a request has to be before it is worth interrupting somebody about (`FV-021`).
+ *
+ * A threshold rather than a dashboard, because a dashboard needs somewhere to run and this needs
+ * nothing. `pino-http` already records `responseTime` on every line, which makes a slow request
+ * *findable* — but only by someone who already suspects one and goes looking. Promoting it to
+ * `warn` makes it **arrive**, which is the difference between having the data and having the
+ * signal.
+ *
+ * One second is deliberately generous. This API's slowest legitimate route is a place search with
+ * facets, and the point of the line is "something is wrong", not "something could be faster" —
+ * a threshold that fires on healthy traffic is a threshold people filter out.
+ */
+const SLOW_REQUEST_MS = Number(process.env.SLOW_REQUEST_MS) || 1000;
+
+/**
+ * Milliseconds since `pino-http` started timing this request, or `null` if it never did.
+ *
+ * `pino-http` exports the symbol it stores the start time under, so this reads the number the
+ * library is already keeping rather than starting a second clock that could disagree with the
+ * `responseTime` on the same line.
+ */
+const elapsedMs = (res) => {
+  const start = res[pinoHttp.startTime];
+  return typeof start === 'number' ? Date.now() - start : null;
+};
+
+const isSlow = (res) => {
+  const elapsed = elapsedMs(res);
+  return elapsed !== null && elapsed >= SLOW_REQUEST_MS;
+};
+
+/**
+ * Which lines an operator actually sees.
+ *
+ * Named and exported rather than written inline in the config, because this is a *rule* — and
+ * testing it through the middleware would mean asserting on captured log output instead of on the
+ * decision itself.
+ */
+const customLogLevel = (req, res, err) => {
+  if (err || res.statusCode >= 500) return 'error';
+  if (res.statusCode >= 400) return 'warn';
+  // Checked BEFORE the health-check demotion, deliberately. A fast health check is noise and is
+  // demoted below; a **slow** one is the earliest sign the database is struggling, and demoting
+  // that to `debug` would hide the single most useful line this service can emit.
+  if (isSlow(res)) return 'warn';
+  // Uptime monitors poll /api/health continuously. At info level that is the only thing anyone
+  // would see in the logs of a healthy, idle service.
+  if (req.url === '/api/health') return 'debug';
+  return 'info';
+};
+
+// The message says it was slow, because a `warn` line that reads exactly like the `info` lines
+// around it is a level nobody learns to trust.
+const customSuccessMessage = (req, res) =>
+  `${req.method} ${sanitizeUrl(req.url)} ${res.statusCode}` +
+  (isSlow(res) ? ` — SLOW (>=${SLOW_REQUEST_MS}ms)` : '');
+
 const requestLogger = pinoHttp({
   logger,
 
@@ -100,16 +158,8 @@ const requestLogger = pinoHttp({
     })
   },
 
-  customLogLevel: (req, res, err) => {
-    if (err || res.statusCode >= 500) return 'error';
-    if (res.statusCode >= 400) return 'warn';
-    // Uptime monitors poll /api/health continuously. At info level that is the only thing anyone
-    // would see in the logs of a healthy, idle service.
-    if (req.url === '/api/health') return 'debug';
-    return 'info';
-  },
-
-  customSuccessMessage: (req, res) => `${req.method} ${sanitizeUrl(req.url)} ${res.statusCode}`,
+  customLogLevel,
+  customSuccessMessage,
   customErrorMessage: (req, res, err) =>
     `${req.method} ${sanitizeUrl(req.url)} ${res.statusCode} — ${err.message}`
 });
@@ -117,3 +167,6 @@ const requestLogger = pinoHttp({
 module.exports = requestLogger;
 module.exports.sanitizeUrl = sanitizeUrl;
 module.exports.SENSITIVE_QUERY_PARAMS = SENSITIVE_QUERY_PARAMS;
+module.exports.SLOW_REQUEST_MS = SLOW_REQUEST_MS;
+module.exports.customLogLevel = customLogLevel;
+module.exports.customSuccessMessage = customSuccessMessage;

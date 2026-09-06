@@ -87,9 +87,47 @@ pool.on('error', (error) => {
   logger.error({ err: error }, 'Unexpected error on an idle Postgres client');
 });
 
+/**
+ * A snapshot of the pool's occupancy (`FV-021`).
+ *
+ * **Why this exists at all.** `max` is 10 and `connectionTimeoutMillis` is 10 seconds, so a
+ * saturated pool does not fail fast — it queues, and then throws
+ * *"timeout exceeded when trying to connect"*. That message is identical whether the database is
+ * unreachable, asleep behind a cold-start, or perfectly healthy and simply out of connections
+ * because ten slow queries are in flight. Those are three different incidents with three different
+ * responses, and the log line could not tell them apart.
+ *
+ * `waiting > 0` is the one that distinguishes them: it means the pool itself is the bottleneck.
+ *
+ * Read straight off the pool rather than counted independently — a second counter is a second
+ * thing that can be wrong, and it would be wrong in exactly the situation nobody can reproduce.
+ */
+const poolStats = () => ({
+  total: pool.totalCount,
+  idle: pool.idleCount,
+  waiting: pool.waitingCount,
+  max: pool.options?.max ?? null
+});
+
+/**
+ * Whether an error is the pool giving up rather than the database refusing.
+ *
+ * Matched on the message because `pg` does not give this error a `code` — it is constructed in
+ * `pg-pool` as a plain `Error`. Anchored on the distinctive part of the string, so a message that
+ * changes wording fails to match and the line simply loses its annotation, rather than
+ * mis-attributing an unrelated failure to pool exhaustion.
+ */
+const isConnectionTimeout = (error) =>
+  typeof error?.message === 'string' &&
+  error.message.includes('timeout exceeded when trying to connect');
+
 // Export the pool itself and nothing more. An earlier version also assigned
 // `module.exports.query = (text, params) => pool.query(text, params)` as a convenience — but since
 // `module.exports` *is* `pool`, that overwrote `pool.query` with a function calling itself, and the
 // first query blew the stack. The pool already exposes `.query`, so both `pool.query(...)` and the
 // legacy `db.query(...)` call style work with no wrapper at all.
 module.exports = pool;
+// Attached to the pool rather than exported separately, because `module.exports` **is** the pool —
+// see the note above about what happened the last time this file exported a second thing.
+module.exports.poolStats = poolStats;
+module.exports.isConnectionTimeout = isConnectionTimeout;

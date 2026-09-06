@@ -32,6 +32,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   included.
 - `check:themes` now guards the four preference vocabularies across frontend, backend **and** the
   `CHECK` constraints in migration 021.
+- **Slow-request and pool-saturation signals** (`FV-021`, part) — a request over a threshold
+  (`SLOW_REQUEST_MS`, default 1000) is logged at `warn` instead of `info`; a slow `/api/health`
+  check is deliberately not demoted to `debug` like a fast one. A pool connect-timeout now
+  carries the pool's occupancy, which is what distinguishes an exhausted pool from an
+  unreachable database — the error message alone does not.
 - **Crash and shutdown handling** (`FV-021`, part) — uncaught exceptions, unhandled rejections
   and `SIGTERM`/`SIGINT` now go through the same structured logger as everything else, instead
   of Node printing an unstructured stack to stderr and a signal logging nothing at all.
