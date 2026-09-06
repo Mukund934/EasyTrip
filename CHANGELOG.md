@@ -32,6 +32,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   included.
 - `check:themes` now guards the four preference vocabularies across frontend, backend **and** the
   `CHECK` constraints in migration 021.
+- **Analytics & monitoring page** (`FV-022`) — daily activity across reviews, trips and
+  moderation inflow; the full rating distribution rather than only its average; and the specific
+  places left to finish, each linking to that place. Two of these datasets were already being
+  computed on every dashboard load and rendered nowhere. The chart is `aria-hidden` decoration
+  over a real table, so the information is not visual-only, and no charting dependency was
+  added.
 - **Admin audit log** (`PE-013`, half of `FV-023`) — privilege changes, moderation decisions and
   admin review deletions, written in the same transaction as the action they record so an
   unlogged `is_admin` flip cannot happen. Read-only, with no route that edits or deletes an
@@ -49,6 +55,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `fast-uri` high-severity advisories (host confusion, SSRF) reachable via `firebase-tools`.
 
 ### Changed
+
+- `GET /admin/analytics` returns `activity` as `{ date, reviews, trips, reports }` rather than
+  `{ date, count }`. `count` never said what it counted, which was survivable with one series.
 
 - README restructured around a 30-second read: what it is, why it might be credible, and how to run
   it, before the deep reference material. Its test counts are now guarded in **four** places rather

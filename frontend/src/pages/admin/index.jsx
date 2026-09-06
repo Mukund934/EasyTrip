@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateTime } from '../../utils/dateFormat';
-import { FiPlus, FiList, FiUsers, FiFlag, FiShield } from 'react-icons/fi';
+import { FiPlus, FiList, FiUsers, FiFlag, FiShield, FiBarChart2 } from 'react-icons/fi';
 import { adminService } from '../../services/adminService';
 import { AdminStats } from '../../components/admin/AdminStats';
 import { requireAdminPage } from '../../services/adminGate';
@@ -109,6 +109,16 @@ export default function AdminDashboard() {
       icon: <FiShield className="h-8 w-8" />,
       href: '/admin/audit',
       color: 'bg-slate-100 text-slate-600'
+    },
+    {
+      // `FV-022`. The tiles below answer "what needs doing"; this page answers "what has been
+      // happening" — and it is where the activity series and the rating distribution are read,
+      // both of which this page has been fetching and discarding since Sprint 7.11.
+      title: 'Analytics',
+      description: 'Activity over time and the rating distribution',
+      icon: <FiBarChart2 className="h-8 w-8" />,
+      href: '/admin/analytics',
+      color: 'bg-blue-100 text-blue-600'
     }
     // The "Settings" tile that used to sit here linked to /admin/settings, which has never existed
     // and is not on the roadmap. Removing the tile is one of the two options IMP-025 lists for it;

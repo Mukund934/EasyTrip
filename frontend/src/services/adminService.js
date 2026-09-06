@@ -102,8 +102,14 @@ const resolveReports = async (token, reviewId, resolution) => {
 /**
  * Admin analytics (`IMP-111`). Returns `{ catalogue, ratings, activity, needsAttention }`.
  */
-const getAnalytics = async (token) => {
-  const response = await apiClient.get('/admin/analytics', {
+const getAnalytics = async (token, { days } = {}) => {
+  // `days` omitted rather than sent empty: the route validates it as an integer 1-90, so `?days=`
+  // is a 400 for what the caller means by "use the default".
+  const params = new URLSearchParams();
+  if (days !== undefined) params.set('days', String(days));
+
+  const query = params.toString();
+  const response = await apiClient.get(`/admin/analytics${query ? `?${query}` : ''}`, {
     authToken: token,
     requireAuth: true
   });
