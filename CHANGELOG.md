@@ -32,6 +32,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   included.
 - `check:themes` now guards the four preference vocabularies across frontend, backend **and** the
   `CHECK` constraints in migration 021.
+- **Admin audit log** (`PE-013`, half of `FV-023`) — privilege changes, moderation decisions and
+  admin review deletions, written in the same transaction as the action they record so an
+  unlogged `is_admin` flip cannot happen. Read-only, with no route that edits or deletes an
+  entry. Feature flags — the other half of `FV-023` — are deliberately deferred; see
+  `ADR-056`.
 
 ### Fixed
 

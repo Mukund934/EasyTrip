@@ -110,6 +110,26 @@ const getAnalytics = async (token) => {
   return response.data;
 };
 
+/**
+ * The admin audit log (`PE-013`). Returns `{ entries, total, limit, offset }`.
+ *
+ * `action` is omitted from the query string when absent rather than sent empty: the route validates
+ * it against a closed list, and `?action=` would be a 400 for what the user means by "all of them".
+ */
+const getAuditEntries = async (token, { action, limit, offset } = {}) => {
+  const params = new URLSearchParams();
+  if (action) params.set('action', action);
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (offset !== undefined) params.set('offset', String(offset));
+
+  const query = params.toString();
+  const response = await apiClient.get(`/admin/audit${query ? `?${query}` : ''}`, {
+    authToken: token,
+    requireAuth: true
+  });
+  return response.data;
+};
+
 export const adminService = {
   addAdmin,
   removeAdmin,
@@ -117,5 +137,6 @@ export const adminService = {
   geocode,
   getReports,
   resolveReports,
-  getAnalytics
+  getAnalytics,
+  getAuditEntries
 };

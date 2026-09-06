@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateTime } from '../../utils/dateFormat';
-import { FiPlus, FiList, FiUsers, FiFlag } from 'react-icons/fi';
+import { FiPlus, FiList, FiUsers, FiFlag, FiShield } from 'react-icons/fi';
 import { adminService } from '../../services/adminService';
 import { AdminStats } from '../../components/admin/AdminStats';
 import { requireAdminPage } from '../../services/adminGate';
@@ -99,6 +99,16 @@ export default function AdminDashboard() {
       icon: <FiFlag className="h-8 w-8" />,
       href: '/admin/moderation',
       color: 'bg-red-100 text-red-600'
+    },
+    {
+      // `PE-013`. Same lesson as the tile above: a page reachable only by typing its URL is a page
+      // nobody reads, and an audit log nobody reads is the write amplification `ADR-022` refused to
+      // build in the first place.
+      title: 'Audit Log',
+      description: 'Privilege changes and moderation decisions',
+      icon: <FiShield className="h-8 w-8" />,
+      href: '/admin/audit',
+      color: 'bg-slate-100 text-slate-600'
     }
     // The "Settings" tile that used to sit here linked to /admin/settings, which has never existed
     // and is not on the roadmap. Removing the tile is one of the two options IMP-025 lists for it;

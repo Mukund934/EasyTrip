@@ -5,8 +5,8 @@
 > so instead of showing a plausible number.
 
 [![CI](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml/badge.svg)](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/assertions-1%2C923-brightgreen)](#-testing--verification)
-[![Routes](https://img.shields.io/badge/API%20routes-77%20documented-blue)](#-api-documentation)
+[![Tests](https://img.shields.io/badge/assertions-1%2C967-brightgreen)](#-testing--verification)
+[![Routes](https://img.shields.io/badge/API%20routes-78%20documented-blue)](#-api-documentation)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2-blue?logo=react)](https://reactjs.org/)
@@ -41,7 +41,7 @@ That last row is the honest version of this repository's history, and it is the 
 
 ## Why this repo might be worth your time
 
-- **1,923 assertions** — 1,017 API tests against a _real_ PostgreSQL, 758 component tests, 148
+- **1,967 assertions** — 1,040 API tests against a _real_ PostgreSQL, 774 component tests, 153
   browser journeys that really sign in through the Firebase Auth Emulator. Reproducible commands in
   [Testing & verification](#-testing--verification).
 - **The counts above cannot go stale.** A CI job parses the runners' own JSON reports and fails the
@@ -68,7 +68,7 @@ git clone https://github.com/Mukund934/EasyTrip.git && cd EasyTrip
 npm run install:all                       # root, backend, frontend
 cp backend/.env.example backend/.env      # then fill it in — the server refuses to boot without it
 cp frontend/.env.example frontend/.env.local
-npm run migrate                           # 21 migrations, re-runnable
+npm run migrate                           # 22 migrations, re-runnable
 npm run dev                               # frontend :3000 · API :5000
 ```
 
@@ -183,10 +183,11 @@ npm run test:e2e              # starts the Firebase Auth Emulator itself
 - 🚩 **Moderation Queue** – Reported reviews, grouped one row per review however many people reported it. Reporter identity is never exposed, to the admin or anyone else
 - 📊 **Analytics** – Real catalogue figures, plus a _needs attention_ panel that links to the work: places with no coordinates, places with no image, reports awaiting a decision
 - 📍 **Address Lookup** – Fill a place's coordinates from its address via OpenStreetMap. One match fills the form; several are offered for a choice rather than guessed at
+- 🛡️ **Audit Log** – Every privilege change, moderation decision and admin review deletion, recorded **in the same transaction as the action** so an unlogged `is_admin` flip is not possible. Read-only: no route edits or deletes an entry, including for the admin who created it. A grant whose Firebase claim failed to sync is marked _partly applied_ rather than recorded as a success the API had already reported as a 500
 
 ### 🧪 Engineering
 
-- ✅ **1,923 assertions across three layers** – 1,017 API tests against a real PostgreSQL, 758 component tests, and 148 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.67, and the browser suite was genuinely **run**, not counted: 148 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **1,967 assertions across three layers** – 1,040 API tests against a real PostgreSQL, 774 component tests, and 153 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.67b, and the browser suite was genuinely **run**, not counted: 153 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
@@ -491,9 +492,9 @@ Three layers, all reproducible from a clean checkout, and none of them mocked wh
 
 | Layer     | Count     | What it runs against                                                                 |
 | --------- | --------- | ------------------------------------------------------------------------------------ |
-| API       | **1,017** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
-| Component | **758**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
-| Browser   | **148**   | Real Chromium/WebKit + a real **Firebase Auth Emulator** — journeys actually sign in |
+| API       | **1,040** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
+| Component | **774**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
+| Browser   | **153**   | Real Chromium/WebKit + a real **Firebase Auth Emulator** — journeys actually sign in |
 
 ```bash
 cd backend  && DATABASE_URL=postgresql://…/throwaway npm test   # truncates every table
@@ -945,6 +946,7 @@ account cannot reach them even by addressing a victim's item through its own tri
 | PATCH  | `/admin/reports/reviews/:reviewId`  | Admin | Resolve every open report on a review - `{ resolution }`. `409` when another moderator already did      |
 | GET    | `/admin/analytics`                  | Admin | Catalogue figures, rating distribution, review activity, and places needing attention                   |
 | GET    | `/admin/geocode`                    | Admin | Forward geocoding (`q`), paced to 1 req/s as the OpenStreetMap usage policy requires                    |
+| GET    | `/admin/audit`                      | Admin | Admin audit log, newest first. Filter by `action`. Read-only — no route edits or deletes an entry       |
 
 ### Newsletter
 
