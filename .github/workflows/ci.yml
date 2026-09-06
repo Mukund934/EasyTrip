@@ -449,3 +449,48 @@ jobs:
             --api-json=test-counts/test-count-api.json \
             --component-json=test-counts/test-count-component.json \
             --e2e-json=test-counts/test-count-e2e.json
+
+  # ---------------------------------------------------------------------------
+  # Dependency advisories
+  # ---------------------------------------------------------------------------
+  #
+  # Gated at **high**, not at `moderate` or `low`, and that threshold is the whole design.
+  #
+  # All three workspaces carry moderate advisories today (backend 7, root 9, frontend 0), every one
+  # of them transitive and none with a fix that does not force a major bump on something
+  # load-bearing. A gate set at `moderate` would therefore be red on the day it was added — and a
+  # gate that is red on arrival does not get fixed, it gets ignored, and then it is a job everyone
+  # has learned to skip past on the way to the real failures.
+  #
+  # `high` is the level at which this project will actually stop and act. It caught its first one
+  # immediately: `fast-uri` reachable through `firebase-tools`, fixed by a non-breaking bump.
+  #
+  # `--omit=dev` is deliberately NOT passed. It would have hidden that finding, because
+  # `firebase-tools` is a devDependency — and a compromised dev dependency runs on the machine that
+  # holds the deploy credentials, which is not a smaller problem than one in production.
+  #
+  # Not `needs:`-ed by anything. An advisory published overnight should fail this job without
+  # blocking the test suites from reporting what they know.
+  audit:
+    name: Dependency advisories
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Each workspace has its own lockfile, so each is audited on its own. `continue-on-error` is
+      # deliberately absent: the point of a gate is that it stops something.
+      - name: Audit root
+        run: npm audit --audit-level=high
+
+      - name: Audit backend
+        working-directory: backend
+        run: npm audit --audit-level=high
+
+      - name: Audit frontend
+        working-directory: frontend
+        run: npm audit --audit-level=high
