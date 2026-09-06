@@ -7,6 +7,7 @@ import { FiUser, FiMapPin, FiCalendar, FiSave } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import MyReviews from '../components/profile/MyReviews';
 import AccessNeeds from '../components/AccessNeeds';
+import TravelPreferences from '../components/TravelPreferences';
 
 export default function Profile() {
   const { currentUser, loading: authLoading, updateProfile, getIdToken } = useAuth();
@@ -15,11 +16,36 @@ export default function Profile() {
   const [dob, setDob] = useState('');
   // `FV-029` stage (c). One object rather than two booleans: they are submitted together, loaded
   // together, and the profile form sends itself whole — so they behave as one field.
+  // `FV-020`. `null` for the scalars rather than `''`, so "not set" is the initial state and stays
+  // distinguishable from a chosen value all the way to the API.
+  const [preferences, setPreferences] = useState({
+    interests: [],
+    budget_band: null,
+    travel_pace: null,
+    party_type: null,
+    dietary_needs: []
+  });
   const [accessNeeds, setAccessNeeds] = useState({
     requires_step_free: false,
     requires_accessible_restroom: false
   });
   const [loading, setLoading] = useState(false);
+  /**
+   * Whether `GET /auth/profile` actually answered (`BUG-062`).
+   *
+   * The two state objects above initialise to "nothing set", and both are submitted as **explicit**
+   * values: `[]` and `null` clear a preference, `false` clears an access need. That is deliberate
+   * and it is what makes a preference erasable through the form at all.
+   *
+   * It also means the initial state is indistinguishable from a deliberate wipe. So if the load
+   * below fails — a dropped request, an expired token, a 500 — the form renders "nothing set", and
+   * the next save of an unrelated field sends that as fact and **destroys the stored profile**.
+   *
+   * `authController.js` names this exact hazard and defends against a client that *omits* the
+   * fields; it cannot defend against one that sends stale defaults. So until the load has
+   * succeeded, the payload omits both groups entirely and `COALESCE` leaves the columns alone.
+   */
+  const [storedProfileLoaded, setStoredProfileLoaded] = useState(false);
   const router = useRouter();
 
   // Redirect if not logged in
@@ -68,6 +94,19 @@ export default function Profile() {
           requires_step_free: Boolean(data.requires_step_free),
           requires_accessible_restroom: Boolean(data.requires_accessible_restroom)
         });
+        // Assigned rather than `current ||`-ed, for the same reason as the block above: an empty
+        // list and a cleared preference are real stored values, and a "keep what is there" guard
+        // would make them indistinguishable from an unloaded form.
+        setPreferences({
+          interests: data.interests || [],
+          budget_band: data.budget_band ?? null,
+          travel_pace: data.travel_pace ?? null,
+          party_type: data.party_type ?? null,
+          dietary_needs: data.dietary_needs || []
+        });
+        // Last, and only on the success path: everything above is now a stored value rather than
+        // an initial one, so it is safe to submit.
+        setStoredProfileLoaded(true);
       } catch (error) {
         // Non-fatal: the form still works, it just starts empty. Failing loudly here would block
         // editing over a transient network error.
@@ -87,11 +126,14 @@ export default function Profile() {
     try {
       setLoading(true);
 
+      // Omitted rather than sent-as-they-are when the load did not land. See `storedProfileLoaded`:
+      // these fields clear on an explicit empty value, so sending the un-loaded defaults would
+      // erase a stored profile as a side effect of renaming yourself.
       const result = await updateProfile({
         name,
         location,
         dob,
-        ...accessNeeds
+        ...(storedProfileLoaded ? { ...accessNeeds, ...preferences } : {})
       });
 
       if (result.success) {
@@ -222,6 +264,31 @@ export default function Profile() {
                     />
                   </div>
                 </div>
+
+                {/*
+                  Said out loud rather than left to be inferred (`BUG-062`). When the load fails
+                  the two panels below render every field empty, which is a claim — "you have set
+                  nothing" — and it may be false. Saving is still allowed and is still safe,
+                  because the payload omits these groups until the load lands; what is not safe is
+                  letting somebody read an empty form as their stored profile.
+                */}
+                {!storedProfileLoaded && (
+                  <p
+                    role="status"
+                    className="mt-6 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                  >
+                    Your saved preferences and access needs could not be loaded, so the two sections
+                    below are showing empty rather than what you have stored. Saving will leave them
+                    untouched. Reload the page to edit them.
+                  </p>
+                )}
+
+                <TravelPreferences
+                  values={preferences}
+                  onChange={(field, value) =>
+                    setPreferences((current) => ({ ...current, [field]: value }))
+                  }
+                />
 
                 <AccessNeeds
                   values={accessNeeds}
