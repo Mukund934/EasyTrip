@@ -45,6 +45,73 @@ const CLAIM =
 /** `'1,009'` -> `1009`. The README writes thousands with a separator; the runners do not. */
 const toNumber = (text) => Number(String(text).replace(/,/g, ''));
 
+/**
+ * The places the README **repeats** the counts, which is now three (`IMP-128`, extended).
+ *
+ * The restructured front door states the numbers before a reader reaches the canonical sentence:
+ * a shields.io badge, the opening "why this repo" bullet, and the Testing & Verification table.
+ * That is good for the reader and it is four copies of one fact — the exact shape this guard was
+ * written for, reintroduced by the file it guards.
+ *
+ * And the README now says out loud that *"the counts above cannot go stale"*. A claim about a
+ * guard is itself a claim, so it has to be true of every copy rather than only the one the guard
+ * happened to be pointed at first.
+ *
+ * Each entry is matched against the canonical claim, never against a literal — so there is still
+ * exactly one number to edit when a suite grows. **A missing echo is a failure, not a skip**, for
+ * the same reason `CLAIM` is strict: an echo that has been reworded away is an unchecked number,
+ * and a guard that silently stops checking one is worse than one that never checked it.
+ */
+const ECHOES = [
+  {
+    label: 'the assertions badge',
+    // `1%2C923` — the comma is percent-encoded inside the shields.io URL.
+    pattern: /!\[Tests\]\(https:\/\/img\.shields\.io\/badge\/assertions-([\d]+(?:%2C[\d]+)*)-/,
+    of: 'total',
+    decode: (raw) => toNumber(raw.replace(/%2C/g, ''))
+  },
+  {
+    label: 'the "why this repo" opening bullet',
+    pattern:
+      /\*\*([\d,]+)\s+assertions\*\*\s+—\s+([\d,]+)\s+API tests[^\n]*?([\d,]+)\s+component tests,\s+([\d,]+)\s*\n?\s*browser journeys/,
+    of: ['total', 'api', 'component', 'e2e']
+  },
+  {
+    label: 'the Testing & Verification table',
+    pattern:
+      /\|\s*API\s*\|\s*\*\*([\d,]+)\*\*[\s\S]*?\|\s*Component\s*\|\s*\*\*([\d,]+)\*\*[\s\S]*?\|\s*Browser\s*\|\s*\*\*([\d,]+)\*\*/,
+    of: ['api', 'component', 'e2e']
+  }
+];
+
+const checkEchoes = (claim, readme) => {
+  const problems = [];
+
+  for (const echo of ECHOES) {
+    const match = echo.pattern.exec(readme);
+    if (!match) {
+      problems.push(
+        `  MISSING ECHO  ${echo.label} is gone or reworded — this guard can no longer read it.\n` +
+          '                If that was deliberate, update ECHOES in scripts/check-test-counts.mjs.'
+      );
+      continue;
+    }
+
+    const keys = Array.isArray(echo.of) ? echo.of : [echo.of];
+    keys.forEach((key, index) => {
+      const found = echo.decode ? echo.decode(match[index + 1]) : toNumber(match[index + 1]);
+      if (found !== claim[key]) {
+        problems.push(
+          `  ECHO MISMATCH  ${echo.label} says ${key} is ${found}, the canonical sentence says ` +
+            `${claim[key]}`
+        );
+      }
+    });
+  }
+
+  return problems;
+};
+
 const readClaim = () => {
   const match = CLAIM.exec(readFileSync(README, 'utf8'));
   if (!match) {
@@ -113,6 +180,11 @@ const args = parseArgs();
 const claim = readClaim();
 
 const failures = [];
+
+// ---------------------------------------------------------------------------
+// Check 0 — the README agreeing with itself. Needs no test run either.
+// ---------------------------------------------------------------------------
+failures.push(...checkEchoes(claim, readFileSync(README, 'utf8')));
 
 // ---------------------------------------------------------------------------
 // Check 1 — the README's own arithmetic. Needs no test run.

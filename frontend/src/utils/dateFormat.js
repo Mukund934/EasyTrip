@@ -1,11 +1,19 @@
 /**
  * Date formatting, in one place (IMP-122, partial).
  *
- * Five copies of a `formatDate` existed across the frontend, and no two agreed. Three are
- * consolidated here, as three named functions rather than one with an options bag: they differ in
- * precision, in month width, AND in what they return for missing input, and each of those is a
- * property of the caller rather than a preference. `PlaceCard.jsx` and `admin/users.jsx` still
- * carry their own — the rest of `IMP-122`.
+ * Five copies of a `formatDate` existed across the frontend, and no two agreed. **All five are now
+ * here**, as named functions rather than one with an options bag: they differ in precision, in
+ * month width, AND in what they return for missing input, and each of those is a property of the
+ * caller rather than a preference.
+ *
+ * The header used to end *"`PlaceCard.jsx` and `admin/users.jsx` still carry their own — the rest
+ * of `IMP-122`"*, and had outlived that by two sprints: `admin/users.jsx` imports
+ * `formatDateShort`, and `PlaceCard` delegates to `formatRelativeOrShort` below. A comment naming
+ * work that is finished sends the next reader to fix something that is not broken.
+ *
+ * One deliberate exception exists app-wide, and it is not a straggler: `BrowseFilterPanel` formats
+ * the *reader's own* "today" in the reader's zone, which is the opposite requirement to everything
+ * here. It is lint-suppressed at the line with its reason attached.
  *
  * **All three name their locale and their time zone.** Anything left to the runtime differs
  * between Node and the browser, which is how `BUG-044` (locale) and `BUG-046` (zone) happened.

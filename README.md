@@ -1,61 +1,115 @@
 # EasyTrip 🌍
 
-> Discover Your Next Adventure – A modern travel destination platform built with Next.js, Node.js, and PostgreSQL (A Full Stack Project)
+> **A travel platform that refuses to make things up.** Browse real destinations, plan a day that is
+> actually walkable, split what the trip cost — and when EasyTrip does not know something, it says
+> so instead of showing a plausible number.
 
+[![CI](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml/badge.svg)](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/assertions-1%2C923-brightgreen)](#-testing--verification)
+[![Routes](https://img.shields.io/badge/API%20routes-77%20documented-blue)](#-api-documentation)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2-blue?logo=react)](https://reactjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-green?logo=node.js)](https://nodejs.org/)
-[![Express](https://img.shields.io/badge/Express-5.1+-lightgrey?logo=express)](https://expressjs.com/)
+[![Express](https://img.shields.io/badge/Express-5.1-lightgrey?logo=express)](https://expressjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?logo=postgresql)](https://postgresql.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-Auth-yellow?logo=firebase)](https://firebase.google.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-blue?logo=tailwindcss)](https://tailwindcss.com/)
-[![Cloudinary](https://img.shields.io/badge/Cloudinary-Images-lightblue?logo=cloudinary)](https://cloudinary.com/)
+
+![EasyTrip landing page](./preview1.png)
 
 ---
 
-## 📸 Project Previews
+## What this is
 
-> Sneak peek into the EasyTrip experience
+A full-stack destination discovery and trip-planning app — Next.js, Express 5, PostgreSQL, Firebase
+Auth — where a signed-in traveller can browse curated places, save them, build a day-by-day
+itinerary, invite someone to edit it, and settle up the expenses afterwards. Admins manage the
+catalogue through a panel with image upload and a moderation queue.
 
-### 🏠 Landing Page (Home Section)
+**The thing worth looking at is not the feature list.** It is that the project treats _"we don't
+know"_ as a value it has to render honestly, and has the tests to prove it does:
 
-![Landing Page (Home section)](./preview1.png)
+|                                            |                                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| A place with no accessibility data         | says **"nobody has recorded enough about it"** — not "not accessible"         |
+| A recommendation that can't rank a place   | **excludes it and shows the running count** on screen                         |
+| An itinerary with a mixed-currency expense | **refuses to total it**, and says which two currencies                        |
+| A settlement suggestion                    | ships `optimal: false`, because minimising transfers is NP-hard               |
+| A weather panel with no reading            | shows an absence, after the original one was **deleted for being fabricated** |
+
+That last row is the honest version of this repository's history, and it is the reason for the rest.
 
 ---
 
-### 🌍 Discover Amazing Places (Browse Section)
+## Why this repo might be worth your time
 
-![Discover Amazing places (Browse section)](./preview2.png)
+- **1,923 assertions** — 1,017 API tests against a _real_ PostgreSQL, 758 component tests, 148
+  browser journeys that really sign in through the Firebase Auth Emulator. Reproducible commands in
+  [Testing & verification](#-testing--verification).
+- **The counts above cannot go stale.** A CI job parses the runners' own JSON reports and fails the
+  build if this README's numbers disagree with the suites. Same for the 77-route API table, the
+  environment variables, the theme vocabularies, and module size.
+- **Mutation testing is a habit, not a one-off.** Roughly _"here is the change, and here is the
+  deliberate break that proves the test would have caught it"_ — including the runs that were
+  **discarded** because a restore was not byte-identical.
+- **The interesting bugs are written up, not buried.** Authentication was
+  [broken by construction](#the-one-worth-leading-with-authentication-was-broken-by-construction)
+  for most of this project's life. That section is the first thing a reviewer should read.
+- **What is _not_ built has its own section.** [Not Yet Implemented](#-not-yet-implemented) exists so
+  the feature list can be trusted.
 
 ---
 
-### ✨ Why Choose EasyTrip
+## Quickstart
+
+Needs Node 20+, PostgreSQL 13+, and a Firebase project (free tier). Full detail, including every
+environment variable, is in [Installation & Setup](#-installation--setup).
+
+```bash
+git clone https://github.com/Mukund934/EasyTrip.git && cd EasyTrip
+npm run install:all                       # root, backend, frontend
+cp backend/.env.example backend/.env      # then fill it in — the server refuses to boot without it
+cp frontend/.env.example frontend/.env.local
+npm run migrate                           # 21 migrations, re-runnable
+npm run dev                               # frontend :3000 · API :5000
+```
+
+Verify the checkout is sound before changing anything:
+
+```bash
+cd backend && npm test        # needs a throwaway DATABASE_URL — it truncates every table
+cd frontend && npm test
+npm run test:e2e              # starts the Firebase Auth Emulator itself
+```
+
+---
+
+<details>
+<summary><b>📸 More screenshots</b> — browse, search, a place page, weather and map</summary>
+
+<br>
+
+**Discover places (browse)**
+
+![Discover amazing places](./preview2.png)
+
+**Why Choose EasyTrip**
 
 ![Why Choose EasyTrip](./preview3.png)
 
----
+**Search within browse**
 
-### 🔎 Search in Browse Section
+![Search in browse section](./preview4.png)
 
-![Search in Browse section](./preview4.png)
+**A destination page**
 
----
+![Tourism spot](./preview5.png)
 
-### 🗺️ Checking Out a Tourism Spot (Hero Section)
+**Reading about the place**
 
-![Tourism Spot](./preview5.png)
+![About place](./preview6.png)
 
----
+**Weather widget and map**
 
-### 📖 Explore About the Place
-
-![About Place](./preview6.png)
-
----
-
-### ☀️ Weather Widget & Map Location
-
-![Weather & Map](./preview7.png)
+![Weather and map](./preview7.png)
 
 > ⚠️ **This screenshot predates two changes, and the caveat that replaced it also went stale.**
 > The map is a Google Maps embed driven by the place's stored coordinates and works as shown.
@@ -64,6 +118,8 @@
 > was deleted rather than left looking functional. It has since been **rebuilt for real** against
 > Open-Meteo, keyed on the place's own coordinates, and it now states an absence instead of showing
 > a number when there is no reading. So the panel is genuine again, but it does not look like this.
+
+</details>
 
 ---
 
@@ -75,6 +131,7 @@
 - [Technology Stack](#️-technology-stack)
 - [Project Architecture](#-project-architecture)
 - [Architecture Patterns](#️-architecture-patterns)
+- [Testing & Verification](#-testing--verification)
 - [Installation & Setup](#-installation--setup)
 - [API Documentation](#-api-documentation)
 - [Data Sources & Attribution](#️-data-sources--attribution)
@@ -133,7 +190,7 @@
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
-- ⚙️ **CI on every push** – six jobs: lint and build, frontend tests, migrations, API tests, end-to-end, and a job that checks the assertion counts above against what the suites actually ran
+- ⚙️ **CI on every push** – seven jobs: lint and build, frontend tests, migrations, API tests, end-to-end, a job that checks the assertion counts above against what the suites actually ran, and a dependency-advisory gate at `high` across all three workspaces
 - 🗄️ **Real migrations** – versioned, checksummed, and applied by a runner rather than at boot
 
 ---
@@ -394,6 +451,68 @@ place is a broken card rather than a record worth keeping.
 - 🌐 **Context API** – Centralized global state for authentication & user data, consumed via a `useAuth()` hook
 - 🧮 **Denormalized rating aggregates** – `rating_sum` / `rating_count` on `places` are kept in sync by a `plpgsql` trigger on every review write, so list pages never aggregate at read time
 - 🔗 **API-First Design** – RESTful endpoints consumed by an axios service layer
+
+---
+
+## 🧪 Testing & Verification
+
+Three layers, all reproducible from a clean checkout, and none of them mocked where it matters.
+
+| Layer     | Count     | What it runs against                                                                 |
+| --------- | --------- | ------------------------------------------------------------------------------------ |
+| API       | **1,017** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
+| Component | **758**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
+| Browser   | **148**   | Real Chromium/WebKit + a real **Firebase Auth Emulator** — journeys actually sign in |
+
+```bash
+cd backend  && DATABASE_URL=postgresql://…/throwaway npm test   # truncates every table
+cd frontend && npm test
+npm run test:e2e                                                # starts the emulator itself
+```
+
+**Why the database is real.** Every interesting property in this API _is_ a property of SQL — the
+trigger keeping `places.rating_sum` in step with the reviews, the `UNIQUE (place_id, user_id)` that
+turns a second review into an edit, the foreign key making a review of a nonexistent place
+impossible. A mocked pool would assert only that the code sends the query it was written to send.
+
+**Why Firebase is mocked in the API suite but real in the browser suite.** The middleware asks
+Firebase exactly one question — decode this token. Everything after that is EasyTrip's own logic,
+and that is what is worth testing. The end-to-end suite then uses the genuine emulator, because that
+is the only thing that actually proves the `firebase-admin` integration.
+
+### Mutation testing
+
+Tests are checked by deliberately breaking the code and confirming they notice. Each run is: green
+control → pristine snapshot → **one** mutation → test → restore → **byte-identical MD5 check** →
+next. A run whose restore does not verify is **discarded entirely**, not salvaged — a contaminated
+run produces numbers that are worse than none.
+
+Survivors are recorded rather than hidden, and they have twice been the most useful output: a test
+asserting a call count that was true of _every possible implementation_, and an `ORDER BY` tiebreak
+whose test could never have failed on a four-row table.
+
+### The guards — claims this README cannot make falsely
+
+Seven scripts assert properties no test covers and no build breaks on. All seven run in CI.
+
+| Guard               | Fails the build when                                                       |
+| ------------------- | -------------------------------------------------------------------------- |
+| `check:test-counts` | The counts above disagree with the runners' own JSON reports               |
+| `check:api-docs`    | A route exists that the API table omits, or vice versa (77 today)          |
+| `check:env-docs`    | The server reads an environment variable this README does not document     |
+| `check:themes`      | A controlled vocabulary drifts between frontend, backend, or a SQL `CHECK` |
+| `check:secrets`     | A credential is tracked in git                                             |
+| `check:size`        | A module passes its size budget without a reasoned waiver                  |
+| `check:i18n`        | A user-facing string bypasses the translation layer                        |
+
+`check:test-counts` deliberately does **not** count `test(` calls in the source: measured once, that
+approach was off by fifty because `test.each` generates more cases than there are call sites, and a
+guard reliably wrong by fifty is worse than none — the first person to see it fail would "fix" the
+README to match.
+
+Accessibility is gated too: six routes are scanned with `axe-core` on every E2E run, at zero
+violations minus a reasoned allowlist. Target size (WCAG 2.5.8) has its own spec beside it, because
+`axe-core` deliberately does not implement that criterion.
 
 ---
 
@@ -927,7 +1046,7 @@ The test count is checked the same way, and it took a second attempt to do hones
 the runners' actual 509/330/81, because `test.each` and generated cases produce more tests than
 there are call sites, and a guard that is reliably off by fifty teaches people to edit the README
 until it matches the wrong number. So `npm run check:test-counts` reads `numTotalTests` from the
-runners themselves: the three suites publish what they ran, and a sixth CI job compares all three
+runners themselves: the three suites publish what they ran, and a dedicated CI job compares all three
 against the sentence above. The headline total is also checked against its own three parts, which
 needs no test run and catches the likelier edit — updating one layer and forgetting the sum.
 
@@ -951,7 +1070,7 @@ Everything since adopts:
 
 ## 🚀 Deployment
 
-**Deployment** is manual. CI is not: every push runs six jobs (see [Engineering](#-engineering)), but nothing deploys automatically on green.
+**Deployment** is manual. CI is not: every push runs seven jobs (see [Engineering](#-engineering)), but nothing deploys automatically on green.
 
 - **Frontend**: Vercel
 - **Backend**: Render
