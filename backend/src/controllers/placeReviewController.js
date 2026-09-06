@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const { getCurrentUserName } = require('./helpers/currentUser');
 const { toPublicReview } = require('./helpers/reviewPrivacy');
 const { resolveAdminStatus } = require('../utils/authMiddleware');
+const auditModel = require('../models/auditModel');
 
 const getPlaceReviews = async (req, res) => {
   try {
@@ -126,12 +127,54 @@ const deletePlaceReview = async (req, res) => {
     // Still a single statement, so the security boundary is unchanged: a non-owner who is not an
     // admin cannot remove a row no matter what happens concurrently. Checking permission in a
     // separate query first and then deleting would leave a window between the two.
-    const deleted = await pool.query(
-      `DELETE FROM place_reviews
-       WHERE id = $1 AND place_id = $2 AND (user_id = $3 OR $4 = TRUE)
-       RETURNING id`,
-      [reviewId, id, userId, callerIsAdmin]
-    );
+    //
+    // Wrapped in a transaction only so the audit row below commits with it (`PE-013`). The DELETE
+    // itself is untouched — same statement, same predicate, same guarantee.
+    //
+    // `user_id` is returned because it is the one thing that distinguishes the two callers this
+    // endpoint serves, and it is gone the moment the row is: an author removing their own review
+    // is an ordinary user action, and an admin removing somebody else's is the one worth recording.
+    const client = await pool.connect();
+    let deleted;
+    try {
+      await client.query('BEGIN');
+
+      deleted = await client.query(
+        `DELETE FROM place_reviews
+         WHERE id = $1 AND place_id = $2 AND (user_id = $3 OR $4 = TRUE)
+         RETURNING id, user_id`,
+        [reviewId, id, userId, callerIsAdmin]
+      );
+
+      // **Only when an admin removed someone else's review.** This table records what admins did
+      // *to other people*; logging an author tidying up their own review would turn an
+      // accountability trail into surveillance of ordinary users, and would bury the four or five
+      // entries a reader actually came for.
+      const removed = deleted.rows[0];
+      if (removed && callerIsAdmin && removed.user_id !== userId) {
+        await auditModel.record(client, {
+          actorUid: userId,
+          actorEmail: req.user?.email || null,
+          action: 'review.deleted_by_admin',
+          targetType: 'review',
+          targetId: removed.id,
+          // No label, for the reason `report.resolved` has none: `IMP-021` keeps review authorship
+          // out of admin-facing surfaces. Unlike the queue, though, the review is now *gone* — so
+          // the place id is recorded, because "which place lost a review" is answerable without
+          // naming anyone and is the only context a later reader can still act on.
+          targetLabel: null,
+          outcome: 'succeeded',
+          detail: { place_id: Number(id) }
+        });
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
 
     if (deleted.rowCount === 0) {
       // Nothing was removed. Reviews are public, so their ids are not a secret - there is no

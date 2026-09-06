@@ -6,7 +6,10 @@ const { handleValidationErrors } = require('../utils/errorHandler');
 const { getAllAdmins, addAdmin, removeAdmin } = require('../controllers/adminController');
 const { listReports, resolveReports } = require('../controllers/moderationController');
 const { getAnalytics } = require('../controllers/analyticsController');
+const { listAuditEntries } = require('../controllers/auditController');
 const { STATUSES, RESOLUTIONS, MAX_LIMIT } = require('../models/moderationModel');
+const { AUDIT_ACTIONS } = require('../constants/auditActions');
+const { MAX_LIMIT: AUDIT_MAX_LIMIT } = require('../models/auditModel');
 
 // Place CRUD is registered once, in placeRoutes.js. It used to be declared here as
 // well, with a different multer storage engine, and only the `/api` mount order in
@@ -93,6 +96,31 @@ router.get(
     .withMessage('days must be between 1 and 90'),
   handleValidationErrors,
   getAnalytics
+);
+
+// ---------------------------------------------------------------------------
+// Audit log (PE-013, ADR-056)
+// ---------------------------------------------------------------------------
+// The reader `ADR-022` required before this table was allowed to be created. Read-only on purpose:
+// there is no route that edits or deletes an entry, because an audit trail an admin can rewrite
+// records nothing. Rows leave only by a retention policy, which does not exist yet and whose
+// trigger is a real deployment.
+router.get(
+  '/audit',
+  isAdmin,
+  [
+    query('action')
+      .optional({ values: 'falsy' })
+      .isIn(AUDIT_ACTIONS)
+      .withMessage(`action must be one of: ${AUDIT_ACTIONS.join(', ')}`),
+    query('limit')
+      .optional({ values: 'falsy' })
+      .isInt({ min: 1, max: AUDIT_MAX_LIMIT })
+      .withMessage(`limit must be between 1 and ${AUDIT_MAX_LIMIT}`),
+    query('offset').optional({ values: 'falsy' }).isInt({ min: 0 })
+  ],
+  handleValidationErrors,
+  listAuditEntries
 );
 
 module.exports = router;

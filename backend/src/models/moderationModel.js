@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const auditModel = require('./auditModel');
 
 /**
  * The review moderation queue (`IMP-111`, `ADR-036`).
@@ -103,7 +104,7 @@ const listReports = async ({ status = 'open', limit, offset } = {}) => {
 };
 
 /**
- * Resolve every open report against one review.
+ * Resolve every open report against one review, and record who did it (`PE-013`).
  *
  * Keyed on the **review**, not on a report id, because that is the unit a moderator acts on — see
  * `listReports`. Resolving one report of eight would leave the review in the queue with a lower
@@ -112,18 +113,56 @@ const listReports = async ({ status = 'open', limit, offset } = {}) => {
  * Returns the number of report rows moved, so the caller can tell "resolved 8" from "there was
  * nothing open to resolve" — a distinction a bare 204 would throw away, and the one that matters
  * when two moderators open the queue at the same time.
+ *
+ * **One transaction, not two statements.** The moderation decision and its audit row commit
+ * together — a resolution nothing recorded is exactly the gap `022`'s header argues this table
+ * exists to close, and it is the likelier failure precisely because the audit insert is the
+ * afterthought in any hand-written sequence.
+ *
+ * The audit row is written only when something actually moved. A second moderator hitting an
+ * already-handled review gets a 409 and leaves no entry, because they did not resolve anything —
+ * logging their click would fill the trail with non-events and make the real decision harder to
+ * find.
  */
-const resolveReportsForReview = async (reviewId, resolution) => {
+const resolveReportsForReview = async (reviewId, resolution, actor = null) => {
   if (!RESOLUTIONS.includes(resolution)) {
     throw new Error(`Unsupported resolution: ${resolution}`);
   }
 
-  const { rowCount } = await pool.query(
-    `UPDATE review_reports SET status = $1 WHERE review_id = $2 AND status = 'open'`,
-    [resolution, reviewId]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  return rowCount;
+    const { rowCount } = await client.query(
+      `UPDATE review_reports SET status = $1 WHERE review_id = $2 AND status = 'open'`,
+      [resolution, reviewId]
+    );
+
+    if (rowCount > 0 && actor) {
+      await auditModel.record(client, {
+        actorUid: actor.uid,
+        actorEmail: actor.email,
+        action: 'report.resolved',
+        targetType: 'review',
+        targetId: reviewId,
+        // No label. The one thing that would identify this row to a human is the review's text or
+        // its author, and `IMP-021` keeps review authorship out of moderator-facing surfaces —
+        // the same rule that keeps `reporter_uid` out of the queue above. The review id is the
+        // handle; the queue is where you go to see what it was.
+        targetLabel: null,
+        outcome: 'succeeded',
+        detail: { resolution, reports_closed: rowCount }
+      });
+    }
+
+    await client.query('COMMIT');
+    return rowCount;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 /** Whether a review has any open reports — used to answer 404-vs-200 honestly. */

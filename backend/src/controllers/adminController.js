@@ -1,6 +1,71 @@
 const pool = require('../config/db');
 const { getAuth } = require('firebase-admin/auth');
 const logger = require('../utils/logger');
+const auditModel = require('../models/auditModel');
+
+/**
+ * Grant or revoke, as one transaction with its own audit row (`PE-013`).
+ *
+ * The privilege change and the record of it commit together or not at all. Writing the audit row
+ * after the fact — or worse, `.catch`-swallowed beside it — would allow an `is_admin` flip that
+ * nothing recorded, which is the one outcome this table exists to make impossible.
+ *
+ * The row is written `succeeded` because inside this transaction it has: the column that actually
+ * authorises the person is set. The Firebase claim sync happens afterwards and can still fail; the
+ * caller downgrades the entry to `partially_applied` when it does.
+ */
+const setAdminFlag = async ({ uid, email, name, grant, actorUid, actorEmail }) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let changed;
+    if (grant) {
+      const updated = await client.query(
+        'UPDATE users SET is_admin = true, updated_at = NOW() WHERE firebase_uid = $1 RETURNING id',
+        [uid]
+      );
+      if (updated.rowCount === 0) {
+        await client.query(
+          `INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at)
+           VALUES ($1, $2, $3, true, NOW(), NOW())`,
+          [uid, email, name || '']
+        );
+      }
+      changed = true;
+    } else {
+      const updated = await client.query(
+        'UPDATE users SET is_admin = false, updated_at = NOW() WHERE firebase_uid = $1 RETURNING id',
+        [uid]
+      );
+      changed = updated.rowCount > 0;
+      if (!changed) {
+        await client.query('ROLLBACK');
+        return { changed: false, auditId: null };
+      }
+    }
+
+    const auditId = await auditModel.record(client, {
+      actorUid,
+      actorEmail,
+      action: grant ? 'admin.granted' : 'admin.revoked',
+      targetType: 'user',
+      targetId: uid,
+      // The email, not the uid, because that is what an admin recognises — and a copy, because the
+      // row has to still name them after the account is gone.
+      targetLabel: email,
+      outcome: 'succeeded'
+    });
+
+    await client.query('COMMIT');
+    return { changed, auditId };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
 
 /**
  * Keep the Firebase custom `admin` claim in step with users.is_admin.
@@ -57,29 +122,30 @@ const addAdmin = async (req, res) => {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
 
-    // Check if user exists in our database
-    const userResult = await pool.query('SELECT * FROM users WHERE firebase_uid = $1', [
-      userRecord.uid
-    ]);
-
-    if (userResult.rows.length > 0) {
-      // User exists, update admin status
-      await pool.query(
-        'UPDATE users SET is_admin = true, updated_at = NOW() WHERE firebase_uid = $1',
-        [userRecord.uid]
-      );
-    } else {
-      // User doesn't exist, add to database
-      await pool.query(
-        'INSERT INTO users (firebase_uid, email, name, is_admin, created_at, updated_at) VALUES ($1, $2, $3, true, NOW(), NOW())',
-        [userRecord.uid, userRecord.email, userRecord.displayName || '']
-      );
-    }
+    // The upsert and its audit row, as one transaction. See `setAdminFlag`.
+    const { auditId } = await setAdminFlag({
+      uid: userRecord.uid,
+      email: userRecord.email,
+      name: userRecord.displayName,
+      grant: true,
+      actorUid: req.user?.uid,
+      actorEmail: req.user?.email || null
+    });
 
     try {
       await syncAdminClaim(userRecord, true);
     } catch (claimError) {
       logger.error({ err: claimError }, 'Error setting admin custom claim');
+      // The grant is already committed and already recorded as `succeeded`; that is now only half
+      // true, and the log is the thing a reader will trust later. Downgrading it is best-effort on
+      // purpose — if this fails the entry still says the grant happened, which is the half that
+      // matters, and failing the response twice over a label would help nobody.
+      await auditModel.markPartiallyApplied(auditId).catch((auditError) => {
+        logger.error(
+          { err: auditError, auditId },
+          'Could not downgrade audit entry to partially_applied'
+        );
+      });
       return res.status(500).json({
         message: `${email} was granted admin in the database, but the Firebase admin claim could not be set. They will be denied admin access until this call succeeds — please retry.`
       });
@@ -107,13 +173,16 @@ const removeAdmin = async (req, res) => {
       return res.status(404).json({ message: 'User not found in Firebase' });
     }
 
-    // Update user in database
-    const result = await pool.query(
-      'UPDATE users SET is_admin = false, updated_at = NOW() WHERE firebase_uid = $1 RETURNING id',
-      [userRecord.uid]
-    );
+    // Demotion and its audit row, as one transaction. See `setAdminFlag`.
+    const { changed, auditId } = await setAdminFlag({
+      uid: userRecord.uid,
+      email: userRecord.email,
+      grant: false,
+      actorUid: req.user?.uid,
+      actorEmail: req.user?.email || null
+    });
 
-    if (result.rows.length === 0) {
+    if (!changed) {
       return res.status(404).json({ message: 'User not found in database' });
     }
 
@@ -124,6 +193,12 @@ const removeAdmin = async (req, res) => {
       await syncAdminClaim(userRecord, false);
     } catch (claimError) {
       logger.error({ err: claimError }, 'Error clearing admin custom claim');
+      await auditModel.markPartiallyApplied(auditId).catch((auditError) => {
+        logger.error(
+          { err: auditError, auditId },
+          'Could not downgrade audit entry to partially_applied'
+        );
+      });
       return res.status(500).json({
         message: `${email} was removed as an admin in the database, but the stale Firebase admin claim could not be cleared. Admin access is already denied; please retry to clear the claim.`
       });

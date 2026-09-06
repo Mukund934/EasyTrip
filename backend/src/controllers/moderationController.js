@@ -62,7 +62,10 @@ const resolveReports = async (req, res) => {
     const reviewId = Number(req.params.reviewId);
     const { resolution } = req.body;
 
-    const moved = await moderationModel.resolveReportsForReview(reviewId, resolution);
+    const moved = await moderationModel.resolveReportsForReview(reviewId, resolution, {
+      uid: req.user?.uid,
+      email: req.user?.email || null
+    });
 
     if (moved === 0) {
       // Nothing was open. Two moderators can have the queue on screen at once, and the second one
