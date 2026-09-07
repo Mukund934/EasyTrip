@@ -5,7 +5,7 @@
 > so instead of showing a plausible number.
 
 [![CI](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml/badge.svg)](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/assertions-2%2C017-brightgreen)](#-testing--verification)
+[![Tests](https://img.shields.io/badge/assertions-2%2C018-brightgreen)](#-testing--verification)
 [![Routes](https://img.shields.io/badge/API%20routes-78%20documented-blue)](#-api-documentation)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
@@ -41,7 +41,7 @@ That last row is the honest version of this repository's history, and it is the 
 
 ## Why this repo might be worth your time
 
-- **2,017 assertions** — 1,075 API tests against a _real_ PostgreSQL, 788 component tests, 154
+- **2,018 assertions** — 1,075 API tests against a _real_ PostgreSQL, 789 component tests, 154
   browser journeys that really sign in through the Firebase Auth Emulator. Reproducible commands in
   [Testing & verification](#-testing--verification).
 - **The counts above cannot go stale.** A CI job parses the runners' own JSON reports and fails the
@@ -191,7 +191,7 @@ npm run test:e2e              # starts the Firebase Auth Emulator itself
 
 ### 🧪 Engineering
 
-- ✅ **2,017 assertions across three layers** – 1,075 API tests against a real PostgreSQL, 788 component tests, and 154 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.70, and the browser suite was genuinely **run**, not counted: 154 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **2,018 assertions across three layers** – 1,075 API tests against a real PostgreSQL, 789 component tests, and 154 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.74, and the browser suite was genuinely **run**, not counted: 154 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
@@ -520,7 +520,7 @@ Three layers, all reproducible from a clean checkout, and none of them mocked wh
 | Layer     | Count     | What it runs against                                                                 |
 | --------- | --------- | ------------------------------------------------------------------------------------ |
 | API       | **1,075** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
-| Component | **788**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
+| Component | **789**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
 | Browser   | **154**   | Real Chromium/WebKit + a real **Firebase Auth Emulator** — journeys actually sign in |
 
 ```bash
@@ -570,9 +570,28 @@ approach was off by fifty because `test.each` generates more cases than there ar
 guard reliably wrong by fifty is worse than none — the first person to see it fail would "fix" the
 README to match.
 
-Accessibility is gated too: six routes are scanned with `axe-core` on every E2E run, at zero
-violations minus a reasoned allowlist. Target size (WCAG 2.5.8) has its own spec beside it, because
-`axe-core` deliberately does not implement that criterion.
+Accessibility is gated too: six public routes and three authenticated ones are scanned with
+`axe-core` on every E2E run, **at zero violations with an empty allowlist**. Target size
+(WCAG 2.5.8) has its own spec beside it, because `axe-core` deliberately does not implement that
+criterion.
+
+The allowlist was not always empty, and how it emptied is the more useful half. It held eleven
+contrast waivers described as _"a design decision rather than a defect ... the palette is the
+product's"_. Measuring them in Phase 14 showed that ten were **one utility on plain white** —
+`text-gray-400`, `#9ca3af` on `#ffffff`, **2.53:1** against a 4.5:1 requirement — and that the same
+components already used `text-gray-500` (**4.83:1**) for identical muted text a few lines away. The
+palette was not being defended; one token was being used inconsistently.
+
+The eleventh was a real choice and not the one the waiver implied: a single class was colouring the
+average-rating **numeral and its star together**, so the text failed at 1.91:1. Darkening the yellow
+enough to pass would have turned a gold star olive to fix a problem the star does not have. The
+colour moved off the text; the star keeps the brand yellow and is marked decorative.
+
+**And the measurement found something worse than any of them.** Each forecast day rendered an
+`aria-hidden` weather glyph and nothing else — while the API had been returning `condition` for
+every day since the panel was built. A screen reader announced a weekday and two temperatures, and
+whether it was going to rain reached nobody (WCAG 1.1.1). The words were already there; the client
+chose a glyph from the same field and dropped the string.
 
 ---
 

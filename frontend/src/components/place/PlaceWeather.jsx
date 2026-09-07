@@ -173,11 +173,20 @@ export const PlaceWeather = ({ placeId }) => {
                   className={`mx-auto my-1 h-4 w-4 ${day.is_wet ? 'text-blue-500' : 'text-gray-400'}`}
                   aria-hidden="true"
                 />
+                {/* The glyph above is `aria-hidden`, and it was the only thing carrying the
+                    condition — so a screen reader announced a weekday and two numbers, and whether
+                    it was going to rain reached nobody. The server has computed these words since
+                    the panel was built (`describe(weather_code)`); the client picked a glyph from
+                    the same code and dropped the string. Rendering it is the whole fix. */}
+                <span className="sr-only">{day.condition}</span>
                 <p className="text-xs text-gray-900">
                   <span className="sr-only">High </span>
                   {day.max_c}°
                 </p>
-                <p className="text-xs text-gray-400">
+                {/* `gray-500`, not `gray-400`: the low is deliberately quieter than the high, and
+                    at 2.53:1 `gray-400` was quieter than WCAG AA allows. `gray-500` is 4.83:1 and
+                    is what the weekday label above already uses. */}
+                <p className="text-xs text-gray-500">
                   <span className="sr-only">Low </span>
                   {day.min_c}°
                 </p>
@@ -189,7 +198,7 @@ export const PlaceWeather = ({ placeId }) => {
 
       {/* Attribution, not decoration: Open-Meteo's terms ask for it, and naming the source is what
           separates this panel from the fabricated one it replaced. */}
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="mt-4 text-xs text-gray-500">
         Forecast by{' '}
         <a
           href="https://open-meteo.com/"

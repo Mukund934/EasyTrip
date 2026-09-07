@@ -55,7 +55,14 @@ describe('a real reading', () => {
     render(<PlaceWeather placeId={1} />);
 
     expect(await screen.findByText('27')).toBeInTheDocument();
-    expect(screen.getByText('Partly cloudy')).toBeInTheDocument();
+    // `getAllByText`, not `getByText`: since Sprint 8.74 each forecast day also announces its own
+    // condition to a screen reader, and this fixture's first forecast day is "Partly cloudy" too.
+    // The current reading is the *visible* one, which is what distinguishes it from the sr-only
+    // copies — asserting on that rather than on "there is exactly one" keeps the test about the
+    // panel instead of about the fixture's choice of weather.
+    expect(
+      screen.getAllByText('Partly cloudy').some((node) => !node.className.includes('sr-only'))
+    ).toBe(true);
     expect(screen.getByText(/feels like 29/i)).toBeInTheDocument();
     // Attribution is required by Open-Meteo's terms — and naming the source is what distinguishes
     // this panel from the fabricated one it replaced.
@@ -75,6 +82,22 @@ describe('a real reading', () => {
     expect(screen.getByText(formatWeekdayShort('2026-03-01'))).toBeInTheDocument();
     expect(screen.getByText('31°')).toBeInTheDocument();
     expect(screen.getByText('19°')).toBeInTheDocument();
+  });
+
+  test("announces each forecast day's condition, which only the icon used to carry", async () => {
+    render(<PlaceWeather placeId={1} />);
+    await screen.findByText('27');
+
+    // The day glyph is `aria-hidden`, so before Sprint 8.74 a screen reader got a weekday and two
+    // numbers and no way to learn it was going to rain. The server has always sent the words.
+    const rain = screen.getByText('Rain');
+    expect(rain).toBeInTheDocument();
+    expect(rain).toHaveClass('sr-only');
+
+    // Asserted as *absent from the accessibility tree* rather than merely present in the DOM: an
+    // icon that is announced would duplicate the sentence beside it, and the whole point is that
+    // exactly one of the two reaches a screen reader.
+    expect(document.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
   });
 
   test('omits optional readings the provider did not send, rather than rendering blanks', async () => {

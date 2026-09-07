@@ -34,9 +34,14 @@ const BrowseStatsCard = ({ stats, total, currentUser, lastUpdated }) => (
       <div className="flex justify-between items-center">
         <span className="text-sm text-gray-600">Average Rating</span>
         <div className="flex items-center text-sm">
-          <span className="font-medium text-yellow-500 flex items-center">
+          {/* The number is text and has to meet 4.5:1; `text-yellow-500` gave it 1.91:1. Darkening
+              the yellow far enough (`yellow-700`, 4.92:1) would have turned a gold star olive to
+              fix a problem the star does not have — so the colour moved off the text instead. The
+              star keeps the brand yellow and is marked decorative, which it is: the label beside it
+              says "Average Rating" and the numeral states the value. */}
+          <span className="font-medium text-gray-900 flex items-center">
             {stats.avgRating}
-            <FiStar className="ml-1 h-3 w-3 fill-current" />
+            <FiStar className="ml-1 h-3 w-3 fill-current text-yellow-500" aria-hidden="true" />
           </span>
         </div>
       </div>
@@ -57,7 +62,7 @@ const BrowseStatsCard = ({ stats, total, currentUser, lastUpdated }) => (
 
     {/* Data timestamp */}
     {lastUpdated && (
-      <div className="mt-4 text-xs text-center text-gray-400">
+      <div className="mt-4 text-xs text-center text-gray-500">
         <div className="flex items-center justify-center">
           <FiClock className="mr-1 h-3 w-3" />
           <span>Data updated: {formatDateTime(lastUpdated)}</span>

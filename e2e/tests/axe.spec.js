@@ -63,20 +63,31 @@ const ROUTES = ['/', '/browse', '/places/1', '/login', '/signup', '/about'];
 /**
  * Violations this project has looked at and is living with, per route.
  *
- * **Only contrast, and only because it is a design decision rather than a defect.** The palette is
- * the product's, the failures are muted secondary text against tinted panels, and changing them is a
- * visual choice the owner makes — not something a test should force at 2am. Sprint 6.17 reached the
- * same conclusion and recorded it; this makes the conclusion enforceable instead of remembered.
+ * **It is empty, and that is new (Sprint 8.74).** It used to hold `/browse: 2` and `/places/1: 9`,
+ * described as *"a design decision rather than a defect ... the palette is the product's ... a
+ * visual choice the owner makes."* Phase 14 measured all eleven instead of restating that, and the
+ * description turned out not to fit:
  *
- * The number is a **ceiling, not a target**. Lower it when a route improves.
+ *   - **Ten of the eleven were one utility**, `text-gray-400`, on **plain white** — not muted text
+ *     on a tinted panel. `#9ca3af` on `#ffffff` is **2.53:1** against a 4.5:1 requirement, and it
+ *     is the same reading everywhere it appears, because it is the same two colours.
+ *   - **The fix was already in the file.** Three lines above the failing low temperature,
+ *     `PlaceWeather` uses `text-gray-500` for the weekday label — 4.83:1, passes, and visually the
+ *     same decision. The palette was not being defended; one token was being used inconsistently.
+ *   - **The eleventh was real and did need a choice**, and it was not the one the waiver implied.
+ *     `text-yellow-500` at 1.91:1 was colouring *the average-rating numeral and its star together*.
+ *     Darkening the yellow to pass (`yellow-700`, 4.92:1) would have turned a gold star olive to
+ *     fix a problem the star does not have. The colour moved off the text instead; the star keeps
+ *     the brand yellow and is marked decorative, which it is.
+ *
+ * So the ceiling is now **zero on every scanned route**, and this object stays empty. An entry
+ * here needs a measured ratio and a reason next to it, so that "we did not look" cannot go on
+ * wearing the words "we decided".
  */
-const ACCEPTED = {
-  '/browse': { 'color-contrast': 2 },
-  '/places/1': { 'color-contrast': 9 }
-};
+const ACCEPTED = {};
 
-// `/`, `/login`, `/signup` and `/about` are **absent because they are clean**, not because they are
-// unchecked — they are in `ROUTES` and gated at zero.
+// **Every route is now absent because every route is clean**, not because any is unchecked — all
+// six are in `ROUTES` and all six are gated at zero.
 //
 // **`/` used to carry `{ 'color-contrast': 1 }` and that waiver was wrong** (`BUG-057`, fixed in
 // Sprint 8.55). It was never describing the page. Both nodes it covered were caught *mid-fade*: the
@@ -85,8 +96,19 @@ const ACCEPTED = {
 // `#0277b4` composited at partial opacity is a different colour every frame. The settled page has no
 // contrast violations at all. `scan` now waits for the animation, and the ceiling is zero.
 //
-// The two that remain are real, and were stable all along: `text-yellow-500` at 1.91:1 and
+// The two that remained were real, and were stable all along: `text-yellow-500` at 1.91:1 and
 // `text-gray-400` at 2.53:1 on `/browse`, measured identically across eight consecutive scans.
+// **Both are fixed as of Sprint 8.74**, along with the nine `text-gray-400` nodes on `/places/1`
+// that were the same two colours again. Re-measured three times per route after the change.
+//
+// **A note on how they were measured, because it repeated `BUG-057` exactly.** The probe written to
+// collect the per-node colour pairs scanned all six routes in one test on one `page`, and copied
+// this file's `settleAnimations` *without* the throw at the end. It duly reported two violations on
+// `/` — a route gated at zero that had just passed a full suite run — with the background given as
+// `#4a505b`, which is not a colour in this design. Same fade, same artefact, two sprints after the
+// fix. The lesson is the one already in this file and it did not take: **a contrast reading taken
+// before the page settles is a coin toss**, and any tool that measures one must be at least as
+// strict as the gate, or its output is noise that looks like data.
 
 /**
  * Fast-forward every running animation to its end state (`BUG-057`).
