@@ -3,6 +3,7 @@ const userModel = require('../models/userModel');
 // Items live in their own model: they are the only rows reached through two joins, and that rule
 // is easier to keep true in one file (Sprint 8.26).
 const tripItemModel = require('../models/tripItemModel');
+const tripActivityModel = require('../models/tripActivityModel');
 const feasibilityService = require('../services/feasibilityService');
 const routeOrderService = require('../services/routeOrderService');
 const tripForecastService = require('../services/tripForecastService');
@@ -71,6 +72,40 @@ const getTrip = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Error loading trip');
     res.status(500).json({ message: 'Error loading this trip' });
+  }
+};
+
+/**
+ * GET /api/auth/trips/:tripId/activity
+ *
+ * Who changed this itinerary (`BL-147`).
+ *
+ * **The reader is why this is not on the admin audit page.** `ADR-056` split collaborator activity
+ * out of `PE-013` because the entitled reader is different: an administrator asking what their
+ * moderators did to other people's accounts, versus a traveller asking what their friend did to
+ * their plan. Rendering one trip's edits on an admin screen would be `IMP-021`'s identity exposure
+ * in a new place.
+ *
+ * **Entitlement is the trip's own read rule, not ownership.** Anyone who may see the plan may see
+ * how it got that way, which includes the editors who produced the entries. A second access model
+ * over a table that already sits behind one is how two rules drift apart and one turns out to be
+ * wrong — `tripActivityModel`'s header has the longer argument.
+ *
+ * A trip that is not readable is a **404**, matching every other trip read: a 403 would confirm the
+ * trip exists to somebody not entitled to know that.
+ */
+const getTripActivity = async (req, res) => {
+  try {
+    const entries = await tripActivityModel.listForTrip(req.user.uid, Number(req.params.tripId), {
+      limit: req.query.limit,
+      before: req.query.before
+    });
+    if (entries === null) return notFound(res);
+
+    res.status(200).json({ activity: entries });
+  } catch (error) {
+    logger.error({ err: error }, 'Error loading trip activity');
+    res.status(500).json({ message: 'Error loading this activity feed' });
   }
 };
 
@@ -375,6 +410,7 @@ const reorderItems = async (req, res) => {
 };
 
 module.exports = {
+  getTripActivity,
   listTrips,
   getTrip,
   getTripFeasibility,

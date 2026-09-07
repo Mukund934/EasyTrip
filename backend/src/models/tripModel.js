@@ -3,6 +3,9 @@ const pool = require('../config/db');
 // than restated, because the header below is about a rule that cannot be forgotten - and a rule
 // spelled out separately in each query is one that can be spelled out slightly differently.
 const { READABLE_BY, editableBy } = require('./tripAccessModel');
+// `BL-147`. Imported here rather than called from the controller so the activity row shares the
+// transaction the change is already in — see `tripActivityModel`'s header for why that matters.
+const tripActivity = require('./tripActivityModel');
 
 /**
  * The trip workspace (`IMP-109` / `FV-006`, `ADR-031`).
@@ -265,6 +268,14 @@ const addDay = async (userId, tripId) => {
       [tripId, next.rows[0].day_number]
     );
 
+    await tripActivity.record(client, {
+      tripId,
+      actorUid: userId,
+      actorLabel: await tripActivity.actorLabelFor(client, userId),
+      action: 'day.added',
+      detail: { dayNumber: day.rows[0].day_number }
+    });
+
     await client.query('COMMIT');
     return day.rows[0];
   } catch (error) {
@@ -308,6 +319,17 @@ const deleteDay = async (userId, tripId, dayId) => {
       'UPDATE trip_days SET day_number = day_number - 1 WHERE trip_id = $1 AND day_number > $2',
       [tripId, removed.rows[0].day_number]
     );
+
+    await tripActivity.record(client, {
+      tripId,
+      actorUid: userId,
+      actorLabel: await tripActivity.actorLabelFor(client, userId),
+      action: 'day.removed',
+      // The number the day HAD. Every later day has just been renumbered down one, so this is the
+      // only moment the removed day's own ordinal exists — and "removed day 3" is the sentence the
+      // reader needs, not "removed a day".
+      detail: { dayNumber: removed.rows[0].day_number }
+    });
 
     await client.query('COMMIT');
     return true;

@@ -264,6 +264,51 @@ for (const { name, label, constraint } of AUDIT_LISTS) {
   }
 }
 
+/**
+ * The trip activity vocabulary (`BL-147`), three tiers again.
+ *
+ * `023_trip_activity.sql` CHECKs it, so a drift here is the same 500 the audit vocabulary would
+ * cause — except the reader is a traveller rather than an administrator. An action the API records
+ * but the page has no sentence for renders as `items.reordered` in a feed somebody opened to find
+ * out what their friend did to their plan.
+ */
+{
+  const fe = idsFrom('frontend/src/constants/tripActivity.js', 'TRIP_ACTIVITY_ACTIONS');
+  const be = listFrom('backend/src/constants/tripActivity.js', 'TRIP_ACTIVITY_ACTIONS');
+
+  if (fe.length === 0 || be.length === 0) {
+    console.error(
+      '  EMPTY  trip activity actions parsed to nothing — the guard would pass vacuously'
+    );
+    process.exit(1);
+  }
+  if (fe.join(',') !== be.join(',')) {
+    console.error('  TRIP ACTIVITY ACTIONS MISMATCH');
+    console.error(`         frontend: [${fe.join(', ')}]`);
+    console.error(`         backend:  [${be.join(', ')}]`);
+    console.error('         An action the feed can record is one the page cannot name.');
+    process.exit(1);
+  }
+
+  const sql = checkConstraintValues(
+    'backend/src/config/migrations/023_trip_activity.sql',
+    'action'
+  );
+  const missingInSql = be.filter((id) => !sql.includes(id));
+  const extraInSql = sql.filter((id) => !be.includes(id));
+
+  if (missingInSql.length > 0 || extraInSql.length > 0) {
+    console.error('  TRIP ACTIVITY ACTIONS vs THE DATABASE');
+    console.error(`         application: [${be.join(', ')}]`);
+    console.error(`         action CHECK: [${sql.join(', ')}]`);
+    for (const id of missingInSql)
+      console.error(`         '${id}' would be written and the CHECK would reject it — a 500`);
+    for (const id of extraInSql)
+      console.error(`         '${id}' is allowed by the CHECK but nothing ever writes it`);
+    process.exit(1);
+  }
+}
+
 const frontend = frontendIds();
 const backend = backendIds();
 
@@ -312,7 +357,7 @@ if (missing.length === 0 && extra.length === 0 && sameOrder) {
       // Counted, not typed, for the same reason as the line above.
       `tiers and ${PREFERENCE_LISTS.filter((list) => list.column).length} of them agree with the ` +
       `CHECK constraints in 021; ${AUDIT_LISTS.length} audit vocabularies agree across both tiers ` +
-      `and with 022`
+      `and with 022; trip activity agrees across both tiers and with 023`
   );
   process.exit(0);
 }

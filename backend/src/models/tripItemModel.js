@@ -1,6 +1,9 @@
 const pool = require('../config/db');
 // The write rule, written once (`FV-007` stage (c)). Every predicate below is the same one.
 const { editableBy } = require('./tripAccessModel');
+// `BL-147`. Imported here rather than called from the controller so the activity row shares the
+// transaction the change is already in — see `tripActivityModel`'s header for why that matters.
+const tripActivity = require('./tripActivityModel');
 
 /**
  * Everything that writes a `trip_items` row (`IMP-109`, `ADR-031`).
@@ -73,6 +76,14 @@ const addItem = async (userId, tripId, dayId, item) => {
       ]
     );
 
+    await tripActivity.record(client, {
+      tripId,
+      actorUid: userId,
+      actorLabel: await tripActivity.actorLabelFor(client, userId),
+      action: 'item.added',
+      detail: { title: created.rows[0].title }
+    });
+
     await client.query('COMMIT');
     return created.rows[0];
   } catch (error) {
@@ -129,45 +140,109 @@ const updateItem = async (userId, tripId, itemId, patch) => {
     );
   }
 
-  const result = await pool.query(
-    `UPDATE trip_items SET ${assignments.join(', ')}
-     FROM trip_days, trips${movingDay ? ', trip_days AS destination' : ''}
-     WHERE trip_items.id = $${values.length + 1}
-       AND trip_items.trip_day_id = trip_days.id
-       AND trip_days.trip_id = trips.id
-       AND trips.id = $${values.length + 2}
-       AND ${editableBy(`$${values.length + 3}`)}
-       ${
-         movingDay
-           ? `AND destination.id = $${values.length + 4}
-       AND destination.trip_id = trips.id`
-           : ''
-       }
-     RETURNING trip_items.id, trip_items.trip_day_id, trip_items.place_id, trip_items.item_type,
-               trip_items.title, trip_items.notes, trip_items.start_time, trip_items.end_time,
-               trip_items.position`,
-    movingDay
-      ? [...values, itemId, tripId, userId, patch.trip_day_id]
-      : [...values, itemId, tripId, userId]
-  );
+  // A transaction, added with `BL-147`: this was a single statement, and it stays correct on its
+  // own — but the activity row has to commit with the update or not at all, and a fire-and-forget
+  // insert afterwards is the hole `ADR-022` identified. One statement plus one insert is still one
+  // unit of work.
+  const client = await pool.connect();
 
-  return result.rows[0] || null;
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `UPDATE trip_items SET ${assignments.join(', ')}
+       FROM trip_days, trips${movingDay ? ', trip_days AS destination' : ''}
+       WHERE trip_items.id = $${values.length + 1}
+         AND trip_items.trip_day_id = trip_days.id
+         AND trip_days.trip_id = trips.id
+         AND trips.id = $${values.length + 2}
+         AND ${editableBy(`$${values.length + 3}`)}
+         ${
+           movingDay
+             ? `AND destination.id = $${values.length + 4}
+         AND destination.trip_id = trips.id`
+             : ''
+         }
+       RETURNING trip_items.id, trip_items.trip_day_id, trip_items.place_id, trip_items.item_type,
+                 trip_items.title, trip_items.notes, trip_items.start_time, trip_items.end_time,
+                 trip_items.position`,
+      movingDay
+        ? [...values, itemId, tripId, userId, patch.trip_day_id]
+        : [...values, itemId, tripId, userId]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await tripActivity.record(client, {
+      tripId,
+      actorUid: userId,
+      actorLabel: await tripActivity.actorLabelFor(client, userId),
+      action: 'item.updated',
+      // `trip_day_id` is included in the field list when the item moved between days, because
+      // "moved Red Fort to another day" is a different event to the reader than "renamed it" —
+      // even though both arrive through this one endpoint.
+      detail: {
+        title: result.rows[0].title,
+        fields: movingDay ? [...columns, 'trip_day_id'] : columns
+      }
+    });
+
+    await client.query('COMMIT');
+    return result.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 /** Remove an item. */
 const deleteItem = async (userId, tripId, itemId) => {
-  const result = await pool.query(
-    `DELETE FROM trip_items
-     USING trip_days, trips
-     WHERE trip_items.id = $1
-       AND trip_items.trip_day_id = trip_days.id
-       AND trip_days.trip_id = trips.id
-       AND trips.id = $2
-       AND ${editableBy('$3')}`,
-    [itemId, tripId, userId]
-  );
+  // A transaction for `BL-147`, same reasoning as `updateItem`. The DELETE also gained a
+  // `RETURNING`: after it commits the title is gone, and "removed Red Fort" is the line the reader
+  // needs rather than "removed an item".
+  const client = await pool.connect();
 
-  return result.rowCount > 0;
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `DELETE FROM trip_items
+       USING trip_days, trips
+       WHERE trip_items.id = $1
+         AND trip_items.trip_day_id = trip_days.id
+         AND trip_days.trip_id = trips.id
+         AND trips.id = $2
+         AND ${editableBy('$3')}
+       RETURNING trip_items.title`,
+      [itemId, tripId, userId]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    await tripActivity.record(client, {
+      tripId,
+      actorUid: userId,
+      actorLabel: await tripActivity.actorLabelFor(client, userId),
+      action: 'item.removed',
+      detail: { title: result.rows[0].title }
+    });
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 /**
@@ -187,7 +262,7 @@ const reorderItems = async (userId, tripId, dayId, orderedItemIds) => {
     await client.query('BEGIN');
 
     const owned = await client.query(
-      `SELECT trip_items.id FROM trip_items
+      `SELECT trip_items.id, trip_days.day_number FROM trip_items
        JOIN trip_days ON trip_days.id = trip_items.trip_day_id
        JOIN trips ON trips.id = trip_days.trip_id
        WHERE trip_days.id = $1 AND trips.id = $2 AND ${editableBy('$3')}`,
@@ -210,6 +285,17 @@ const reorderItems = async (userId, tripId, dayId, orderedItemIds) => {
     for (const [position, itemId] of requested.entries()) {
       await client.query('UPDATE trip_items SET position = $1 WHERE id = $2', [position, itemId]);
     }
+
+    await tripActivity.record(client, {
+      tripId,
+      actorUid: userId,
+      actorLabel: await tripActivity.actorLabelFor(client, userId),
+      action: 'items.reordered',
+      // The day's ordinal rather than its id, because the reader is looking at a plan numbered by
+      // day and has never seen a `trip_days.id`. `owned` is non-empty here: an empty day cannot
+      // reach this line, since a zero-length order fails the size check above.
+      detail: { dayNumber: owned.rows[0].day_number, count: requested.length }
+    });
 
     await client.query('COMMIT');
     return true;

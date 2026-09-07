@@ -87,6 +87,7 @@ lock, an `INSERT`. The files were worth more than the hundred lines. Recorded as
 | `020_idempotency_keys.sql`         | `idempotency_keys` — a retried write is safe to retry; a reused key with a different body is a conflict, not a replay (`PE-007`).                                           |
 | `021_travel_preferences.sql`       | `users.interests`, `budget_band`, `travel_pace` — the traveller's stated preferences (`FV-020` stage a).                                                                    |
 | `022_admin_audit_log.sql`          | `admin_audit_log` — what admins did to other people (`PE-013`). Refused once by `ADR-022` for having no reader; allowed now because `IMP-111` built one.                    |
+| `023_trip_activity.sql`            | `trip_activity` — who changed a shared itinerary, read by the trip's own readers rather than an admin (`BL-147`). Cascades with the trip, unlike `022`.                     |
 
 `schema.sql` is the fresh-database path: it creates the tables from nothing, and it is what
 `docker-compose.yml` runs on first start. The migrations are the upgrade path for a database that

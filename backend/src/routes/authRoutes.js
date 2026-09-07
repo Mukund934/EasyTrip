@@ -192,6 +192,16 @@ router.get(
   tripExpenseController.getSettlement
 );
 
+// `BL-147`. Gated by the trip's own read rule inside the model, so this needs no extra middleware
+// beyond the id validation every trip route has.
+router.get(
+  '/trips/:tripId/activity',
+  isAuthenticated,
+  idParam('tripId'),
+  handleValidationErrors,
+  tripController.getTripActivity
+);
+
 router.get(
   '/trips/:tripId/feasibility',
   isAuthenticated,
