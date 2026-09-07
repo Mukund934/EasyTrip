@@ -552,7 +552,7 @@ whose test could never have failed on a four-row table.
 
 ### The guards — claims this README cannot make falsely
 
-Eight scripts assert properties no test covers and no build breaks on. All eight run in CI.
+Nine scripts assert properties no test covers and no build breaks on. All nine run in CI.
 
 | Guard               | Fails the build when                                                       |
 | ------------------- | -------------------------------------------------------------------------- |
@@ -564,6 +564,7 @@ Eight scripts assert properties no test covers and no build breaks on. All eight
 | `check:secrets`     | A credential is tracked in git                                             |
 | `check:size`        | A module passes its size budget without a reasoned waiver                  |
 | `check:i18n`        | A user-facing string bypasses the translation layer                        |
+| `check:bundle-size` | The shared JS baseline or any route's own code grows past its budget       |
 
 `check:test-counts` deliberately does **not** count `test(` calls in the source: measured once, that
 approach was off by fifty because `test.each` generates more cases than there are call sites, and a
@@ -592,6 +593,28 @@ colour moved off the text; the star keeps the brand yellow and is marked decorat
 every day since the panel was built. A screen reader announced a weekday and two temperatures, and
 whether it was going to rain reached nobody (WCAG 1.1.1). The words were already there; the client
 chose a glyph from the same field and dropped the string.
+
+### Performance, measured rather than estimated
+
+`next build`, gzipped, reproducible with `npm run check:bundle-size`:
+
+|                                                                        | gzip                                         |
+| ---------------------------------------------------------------------- | -------------------------------------------- |
+| **Shared baseline** — framework, `_app`, polyfills, paid by every page | **240.6 kB**                                 |
+| Route-specific code                                                    | 7.7 kB (`/login`) → 51.5 kB (`/places/[id]`) |
+| First load                                                             | 248.3 kB → 292.1 kB                          |
+
+**97% of the login page is shared bundle**, and 32% of that baseline is two libraries most routes do
+not need: `framer-motion` (39.5 kB) and the Firebase client SDK (36.7 kB), both loaded on `/about`
+and `/404` as readily as anywhere else. Both reductions are specified and measured; neither is done,
+because changing when code loads on every page in an app with **no visual-regression coverage** is
+how a passing test suite ships a page that flashes.
+
+**There is no Lighthouse gate, on purpose.** A lab score measures the machine as much as the page —
+ten-point swings between identical runs on a shared CI runner — and the numbers that would matter
+most (TTFB, real cache behaviour) are properties of a deployment that does not exist yet. Gzip
+length does not vary by machine, so that is what is gated. The guard was falsified by importing
+`leaflet` into `_app.jsx`: the baseline moved to 282.3 kB and the build failed.
 
 ---
 

@@ -163,6 +163,16 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
           NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000'
 
+      # The only guard that needs the build, so it runs here rather than with the other seven above.
+      # Two budgets: the shared baseline every page pays (240.6 kB gzip as measured in Sprint 8.74)
+      # and any single route's own code. It exists because the regression that actually happens is
+      # somebody adding an import to a shared file — importing `leaflet` into `_app.jsx` moved the
+      # baseline to 282.3 kB, which is what this was falsified against. Deliberately NOT Lighthouse:
+      # a lab score swings ten points between identical runs on a shared runner, and the numbers
+      # worth gating need a deployment (`H2`). Gzip length does not vary by machine.
+      - name: Check the bundle has not grown past its budget
+        run: npm run check:bundle-size
+
   frontend-tests:
     name: Frontend component tests
     runs-on: ubuntu-latest
