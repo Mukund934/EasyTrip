@@ -25,6 +25,7 @@
     "check:api-docs": "node scripts/check-api-docs.mjs",
     "check:schema-docs": "node scripts/check-schema-docs.mjs",
     "check:bundle-size": "node scripts/check-bundle-size.mjs",
+    "check:stack-versions": "node scripts/check-stack-versions.mjs",
     "check:test-counts": "node scripts/check-test-counts.mjs",
     "check:themes": "node scripts/check-theme-vocabulary.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",

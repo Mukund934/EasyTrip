@@ -117,8 +117,10 @@ SEO tags, a licence notice, anything a crawler reads — assert against the raw 
 hydrated DOM. A browser-driven check passes either way. This has caught two real bugs.
 
 **Two accessibility gates run over the public routes, and they check different things.**
-`e2e/tests/axe.spec.js` runs `axe-core` and fails on anything it reports that is not in a written,
-per-route allowlist. `e2e/tests/touch-target.spec.js` measures every control against WCAG 2.5.8's
+`e2e/tests/axe.spec.js` runs `axe-core` and fails on **anything it reports** — the per-route
+allowlist is empty as of Sprint 8.74, so the gate is zero violations across six public routes and
+three authenticated ones. An entry added back needs a measured contrast ratio and a reason beside
+it, so that "we did not look" cannot wear the words "we decided". `e2e/tests/touch-target.spec.js` measures every control against WCAG 2.5.8's
 24×24 minimum — separate because `axe-core` deliberately does not implement that criterion, three
 of whose four exceptions need a human. If you add a control smaller than 24×24, grow the _target_
 and leave the visual size alone; the carousel dots are the worked example.
@@ -143,6 +145,8 @@ npm run check:size       # no module over 500 lines outside the recorded waivers
 npm run check:secrets    # no credential-shaped names or values in tracked files
 npm run check:api-docs   # the README's route table matches the routers, both directions
 npm run check:schema-docs # the README's ER diagram matches the migrations, both directions
+npm run check:stack-versions # badges and Structure.txt match the three package.json files
+npm run check:bundle-size # after a build: the shared JS baseline and each route's own code
 npm run check:env-docs   # every variable the code reads is in a .env.example, and vice versa
 npm run check:test-counts # the README's assertion total against its own three parts
 npx prettier --check .

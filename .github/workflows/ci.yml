@@ -126,6 +126,14 @@ jobs:
       - name: Check the schema documentation matches the migrations
         run: npm run check:schema-docs
 
+      # Badges and one-line tier descriptions are hand-typed numbers beside three manifests that own
+      # the truth. Sprints 8.53-8.54 moved Express 4->5, Next 13->16 and React 18->19; a month later
+      # `Structure.txt` still said "Express 4 API" and "Next.js 13, React 18", and the README's
+      # Express badge said 5.1 against an installed 5.2.1. A badge may state fewer segments than the
+      # manifest (16.3 for 16.3.4) - just not different ones.
+      - name: Check the stated stack versions match the manifests
+        run: npm run check:stack-versions
+
       # A theme id is stored in `places.themes` and is what the browse filter offers, so both tiers
       # have to agree on the list. They cannot share a module (ESM in one package, CommonJS in the
       # other), so it is duplicated -- and a duplicate without a check is exactly how the seed came

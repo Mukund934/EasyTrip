@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2-blue?logo=react)](https://reactjs.org/)
-[![Express](https://img.shields.io/badge/Express-5.1-lightgrey?logo=express)](https://expressjs.com/)
+[![Express](https://img.shields.io/badge/Express-5.2-lightgrey?logo=express)](https://expressjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?logo=postgresql)](https://postgresql.org/)
 
 ![EasyTrip landing page](./preview1.png)
@@ -129,23 +129,29 @@ npm run test:e2e              # starts the Firebase Auth Emulator itself
 
 ## 📋 Table of Contents
 
-- [Overview](#-overview)
-- [Features](#-features)
-- [Not Yet Implemented](#-not-yet-implemented)
-- [Technology Stack](#️-technology-stack)
-- [Project Architecture](#-project-architecture)
-- [Architecture Patterns](#️-architecture-patterns)
-- [Testing & Verification](#-testing--verification)
-- [Installation & Setup](#-installation--setup)
-- [API Documentation](#-api-documentation)
-- [Data Sources & Attribution](#️-data-sources--attribution)
-- [Known Issues & Lessons Learned](#-known-issues--lessons-learned)
-- [Commit & Branch Hygiene](#-commit--branch-hygiene)
-- [Deployment](#-deployment)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Contact](#-contact)
-- [Roadmap](#-roadmap)
+**Evaluating rather than running it?** [`CODE_TOUR.md`](CODE_TOUR.md) is the short way in — what to
+read, in what order, and why, in a five-minute, twenty-minute and hour-long version.
+
+**The product**
+[Overview](#-overview) · [Features](#-features) · [Not Yet Implemented](#-not-yet-implemented) ·
+[Data Sources & Attribution](#️-data-sources--attribution)
+
+**The engineering**
+[Technology Stack](#️-technology-stack) · [Project Architecture](#-project-architecture) ·
+[How an Admin Request Is Authorised](#-how-an-admin-request-is-authorised) ·
+[Database Schema](#️-database-schema) · [Architecture Patterns](#️-architecture-patterns) ·
+[Testing & Verification](#-testing--verification)
+
+**Running it**
+[Quickstart](#quickstart) · [Installation & Setup](#-installation--setup) ·
+[API Documentation](#-api-documentation) · [Deployment](#-deployment)
+
+**The honest parts**
+[Known Issues & Lessons Learned](#-known-issues--lessons-learned) ·
+[Commit & Branch Hygiene](#-commit--branch-hygiene) · [Roadmap](#-roadmap)
+
+**Meta**
+[Contributing](#-contributing) · [License](#-license) · [Contact](#-contact)
 
 ---
 
@@ -561,19 +567,20 @@ whose test could never have failed on a four-row table.
 
 ### The guards — claims this README cannot make falsely
 
-Nine scripts assert properties no test covers and no build breaks on. All nine run in CI.
+Ten scripts assert properties no test covers and no build breaks on. All ten run in CI.
 
-| Guard               | Fails the build when                                                       |
-| ------------------- | -------------------------------------------------------------------------- |
-| `check:test-counts` | The counts above disagree with the runners' own JSON reports               |
-| `check:api-docs`    | A route exists that the API table omits, or vice versa (79 today)          |
-| `check:schema-docs` | A table exists that the ER diagram omits, or vice versa (18 today)         |
-| `check:env-docs`    | The server reads an environment variable this README does not document     |
-| `check:themes`      | A controlled vocabulary drifts between frontend, backend, or a SQL `CHECK` |
-| `check:secrets`     | A credential is tracked in git                                             |
-| `check:size`        | A module passes its size budget without a reasoned waiver                  |
-| `check:i18n`        | A user-facing string bypasses the translation layer                        |
-| `check:bundle-size` | The shared JS baseline or any route's own code grows past its budget       |
+| Guard                  | Fails the build when                                                       |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `check:test-counts`    | The counts above disagree with the runners' own JSON reports               |
+| `check:api-docs`       | A route exists that the API table omits, or vice versa (79 today)          |
+| `check:schema-docs`    | A table exists that the ER diagram omits, or vice versa (18 today)         |
+| `check:env-docs`       | The server reads an environment variable this README does not document     |
+| `check:themes`         | A controlled vocabulary drifts between frontend, backend, or a SQL `CHECK` |
+| `check:secrets`        | A credential is tracked in git                                             |
+| `check:size`           | A module passes its size budget without a reasoned waiver                  |
+| `check:i18n`           | A user-facing string bypasses the translation layer                        |
+| `check:bundle-size`    | The shared JS baseline or any route's own code grows past its budget       |
+| `check:stack-versions` | A badge or structure file states a framework version the manifests do not  |
 
 `check:test-counts` deliberately does **not** count `test(` calls in the source: measured once, that
 approach was off by fifty because `test.each` generates more cases than there are call sites, and a
@@ -922,6 +929,8 @@ npm install --production
 
 4. **Set up domain and SSL certificates**
 
+</details>
+
 ---
 
 ## 📚 API Documentation
@@ -937,7 +946,14 @@ Firebase. Protected routes expect the resulting Firebase ID token as
 `Authorization: Bearer <idToken>`, which the API verifies with the Firebase Admin SDK.
 Admin routes additionally require the account to be an admin (`users.is_admin`).
 
-The table below is the complete set of Express routes the backend actually registers.
+The tables below are the complete set of Express routes the backend actually registers —
+**79 of them, and `npm run check:api-docs` fails the build if this stops being true**, in both
+directions: an undocumented route and a documented-but-nonexistent one each fail it.
+
+<details>
+<summary><b>▶️ All 79 endpoints</b> — health, places, reviews, profile, trips, admin, newsletter</summary>
+
+<br>
 
 ### Health
 

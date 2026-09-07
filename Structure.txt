@@ -1,12 +1,14 @@
 EasyTrip — repository structure
-Regenerated 2026-08-10 from the tracked file list; scripts/ refreshed 2026-08-15. Directory-level rather than
+Regenerated 2026-08-10 from the tracked file list; scripts/ refreshed 2026-08-15;
+framework versions corrected 2026-09-07 (they still said Express 4 / Next 13 / React 18 after
+Sprints 8.53-8.54 moved them, and `check:stack-versions` now fails the build if they drift again). Directory-level rather than
 file-by-file: the previous version named individual files and 14 of the 37 it
 listed no longer existed, because the Phase 5 cleanup deleted them and nothing
 updated this file. A tree that has to be hand-edited on every refactor will
 drift again, so this one describes shape and responsibility instead.
 
 EasyTrip/
-├── backend/                      Express 4 API, CommonJS, PostgreSQL
+├── backend/                      Express 5 API, CommonJS, PostgreSQL
 │   ├── app.js                    Entry point: middleware, routes, error handler.
 │   │                             Listens only when it is the process entry point.
 │   ├── script/                   Operational scripts (migrations runner, make-admin)
@@ -21,7 +23,7 @@ EasyTrip/
 │   │   └── utils/                Auth middleware, error handler, logging, multer
 │   └── tests/                    Jest + supertest against a real Postgres
 │
-├── frontend/                     Next.js 13 (Pages Router), React 18, Tailwind
+├── frontend/                     Next.js 16 (Pages Router), React 19, Tailwind
 │   ├── src/
 │   │   ├── components/           UI, grouped by feature: admin/, browse/, home/,
 │   │   │                         map/, place/, plus shared components
