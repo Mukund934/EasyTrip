@@ -754,6 +754,28 @@ unapplied migrations at boot, read-only. See
 [`backend/src/config/migrations/README.md`](backend/src/config/migrations/README.md) for the
 conventions, and `ADR-025` for why there is a hand-written runner rather than node-pg-migrate.
 
+**Optional — sample data.** A migrated database is empty, so `/browse` shows nothing and there is
+very little to look at:
+
+```bash
+cd backend && npm run seed
+```
+
+Four places, three users and a set of reviews. **Everything in it is fixed** — ids, ratings,
+timestamps and uids are all hardcoded, and nothing derives from the clock, because a fixture that
+changes between runs turns a real regression into _"probably just the seed"_. The same fixtures back
+the API suite, so what you see locally is what the tests assert against.
+
+The four places are chosen to cover the shapes the read paths branch on rather than to look
+plausible: one fully populated, one with **no coordinates**, one with **no image**, one with neither
+and no reviews. That is deliberate — the states where this app has to say _"we don't know"_ are the
+ones worth being able to see.
+
+> **It re-seeds destructively**, so point it at a development database. And note the seeded users
+> are **database rows, not Firebase accounts** — they exist so reviews have authors. To sign in as
+> yourself and get the admin panel, create a real account through the app and then run
+> `make-admin.js` below.
+
 ---
 
 ### Backend Setup

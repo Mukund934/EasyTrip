@@ -58,6 +58,17 @@ tables; the migrations add everything since, and some of them add constraints ra
 `npm run migrate:status` shows what is applied without changing anything. The conventions are in
 [`backend/src/config/migrations/README.md`](backend/src/config/migrations/README.md).
 
+**Sample data**, because a migrated database is empty and `/browse` shows nothing:
+
+```bash
+cd backend && npm run seed   # destructive — truncates first, so use a dev database
+```
+
+Three users, four places, three reviews, all with **fixed** ids and timestamps — the same fixtures
+the API suite asserts against, so local behaviour and test behaviour are the same behaviour. The
+places deliberately cover the shapes the read paths branch on: one complete, one with no
+coordinates, one with no image, one with neither and no reviews.
+
 **Run it.**
 
 ```bash
