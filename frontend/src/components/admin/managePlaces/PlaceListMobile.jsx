@@ -1,4 +1,4 @@
-import { FiClock, FiEdit, FiEye, FiMapPin, FiTrash2, FiUser } from 'react-icons/fi';
+import { FiClock, FiEdit, FiEye, FiMapPin, FiTrash2 } from 'react-icons/fi';
 import Link from 'next/link';
 import ImageWithFallback from '../../ImageWithFallback';
 import { formatDateShort } from '../../../utils/dateFormat';
@@ -91,11 +91,7 @@ export const PlaceListMobile = ({ manage }) => {
               )}
 
               {/* Meta Info */}
-              <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-                <div className="flex items-center">
-                  <FiUser className="w-3 h-3 mr-1" />
-                  <span className="truncate max-w-20">{place.updated_by_name || 'Unknown'}</span>
-                </div>
+              <div className="flex items-center justify-end mt-3 text-xs text-gray-500">
                 <div className="flex items-center">
                   <FiClock className="w-3 h-3 mr-1" />
                   <span>{formatDateShort(place.updated_at)}</span>
