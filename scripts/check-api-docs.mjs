@@ -99,30 +99,43 @@ const missing = [...real].filter((r) => !documented.has(r) && !UNDOCUMENTED_BY_D
 const phantom = [...documented].filter((r) => !real.has(r));
 
 /**
- * The README's guards table summarises this check as *"A route exists that the API table omits, or
- * vice versa (77 today)"* — and that parenthetical is a hand-typed number sitting beside a guarded
- * one, which is the exact shape of drift this guard exists to prevent. It had already gone stale by
- * one when `check-schema-docs.mjs` was written on 2026-09-07 and the real count printed as 78.
+ * The route table is guarded; the sentences *about* the route table were not.
  *
- * A guard that leaves a stale number in the sentence describing it is only most of a guard.
+ * The README states the route count in three more places than the table itself, and on 2026-09-07
+ * **two of the three disagreed with it**: the guards table said *"(77 today)"* and the summary at
+ * the top said *"the 77-route API table"*, while the badge correctly said 78. The table had been
+ * right the whole time, because this guard checks it — which is precisely why the drift collected
+ * in the prose beside it instead.
+ *
+ * A guard that leaves a stale number in the sentence describing it is only most of a guard. Each
+ * pattern below is anchored tightly enough to identify one specific claim, so a new sentence is not
+ * silently unchecked — it is simply not yet claimed, and adding it here is a one-line change.
  */
-const summaryDrift = () => {
-  const table = readFileSync(README, 'utf8');
-  const row = /\|\s*`check:api-docs`\s*\|[^|]*?\((\d+) today\)/.exec(table);
-  if (!row) return null;
-  return Number(row[1]) === real.size
-    ? null
-    : `  SUMMARY     README's guards table says "(${row[1]} today)"; ${real.size} routes are registered`;
-};
+const COUNT_CLAIMS = [
+  { label: 'the Routes badge', pattern: /API%20routes-(\d+)%20documented/ },
+  { label: 'the summary at the top', pattern: /the (\d+)-route API table/ },
+  {
+    label: "the guards table's row",
+    pattern: /\|\s*`check:api-docs`\s*\|[^|]*?\((\d+) today\)/
+  }
+];
 
-const summary = summaryDrift();
+const readme = readFileSync(README, 'utf8');
+const staleClaims = COUNT_CLAIMS.flatMap(({ label, pattern }) => {
+  const found = pattern.exec(readme);
+  if (!found || Number(found[1]) === real.size) return [];
+  return [`  SUMMARY     ${label} says ${found[1]} routes; ${real.size} are registered`];
+});
 
-if (missing.length === 0 && phantom.length === 0 && !summary) {
-  console.log(`  OK  README documents all ${real.size} registered routes, and no others`);
+if (missing.length === 0 && phantom.length === 0 && staleClaims.length === 0) {
+  console.log(
+    `  OK  README documents all ${real.size} registered routes, and no others; ` +
+      `${COUNT_CLAIMS.length} prose claims agree`
+  );
   process.exit(0);
 }
 
-if (summary) console.error(summary);
+for (const claim of staleClaims) console.error(claim);
 
 // Both directions matter, and for different reasons. A missing route is a README that undersells
 // the API; a phantom one is a README that promises an endpoint returning 404 — which is worse,

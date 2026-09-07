@@ -45,7 +45,7 @@ That last row is the honest version of this repository's history, and it is the 
   browser journeys that really sign in through the Firebase Auth Emulator. Reproducible commands in
   [Testing & verification](#-testing--verification).
 - **The counts above cannot go stale.** A CI job parses the runners' own JSON reports and fails the
-  build if this README's numbers disagree with the suites. Same for the 77-route API table, the
+  build if this README's numbers disagree with the suites. Same for the 78-route API table, the
   environment variables, the theme vocabularies, and module size.
 - **Mutation testing is a habit, not a one-off.** Roughly _"here is the change, and here is the
   deliberate break that proves the test would have caught it"_ — including the runs that were
