@@ -28,6 +28,14 @@
  * reads the SQL rather than `information_schema`: it sees what the files declare, not what a server
  * made of them. For drift between two documents in this repository, that is the right resolution.
  *
+ * **The parse was cross-checked against a live server once, by hand,** on a freshly migrated
+ * database: `information_schema` reported the same 17 tables and the same 12 foreign keys this file
+ * computes from the text. That is not a substitute for the guard — it is how the guard was shown to
+ * agree with the thing it is standing in for. It also turned up the one honest discrepancy: `\dt`
+ * shows **eighteen** tables, because `migrate.js` creates `schema_migrations` to record its own
+ * progress. That table is the runner's bookkeeping, is created by no file here, and is excluded —
+ * the README now says so out loud, so a reader who counts does not conclude the diagram is short.
+ *
  * Same class as `check-api-docs.mjs`, `check-env-docs.mjs` and `check-test-counts.mjs`: a
  * falsifiable claim about the repository, not a test — it makes no claim about behaviour.
  */
@@ -175,7 +183,7 @@ const parseCount = (raw) => {
 
 /** The README's own sentence about the diagram, which is the claim this guard exists to check. */
 const CLAIM =
-  /All ([\w-]+) tables and every one of the ([\w-]+) `REFERENCES` clauses are (?:here|drawn)/i;
+  /All ([\w-]+) (?:application )?tables and every one of the ([\w-]+) `REFERENCES` clauses are (?:here|drawn)/i;
 
 const failures = [];
 

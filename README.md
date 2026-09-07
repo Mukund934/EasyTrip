@@ -56,6 +56,10 @@ That last row is the honest version of this repository's history, and it is the 
 - **What is _not_ built has its own section.** [Not Yet Implemented](#-not-yet-implemented) exists so
   the feature list can be trusted.
 
+**If you are evaluating this repository rather than running it, start with
+[`CODE_TOUR.md`](CODE_TOUR.md)** — what to read, in what order, and why, in a five-minute, a
+twenty-minute and an hour-long version. It ends with the caveats this README's length can hide.
+
 ---
 
 ## Quickstart
@@ -381,8 +385,12 @@ a user whose `is_admin` is `false`, and asserts the 403.
 ## 🗃️ Database Schema
 
 Read out of a live database — `information_schema` on a freshly migrated instance — rather than
-drawn from memory. **All seventeen tables and every one of the twelve `REFERENCES` clauses are
-here** — and `npm run check:schema-docs` fails the build if that stops being true.
+drawn from memory. **All seventeen application tables and every one of the twelve `REFERENCES`
+clauses are here** — and `npm run check:schema-docs` fails the build if that stops being true.
+
+`\dt` on a migrated database shows **eighteen**. The extra one is `schema_migrations`, which
+`migrate.js` creates to record what it has applied; it is the runner's bookkeeping rather than part
+of the schema, so it is not drawn here.
 
 ```mermaid
 erDiagram
