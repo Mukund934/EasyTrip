@@ -23,6 +23,7 @@
     "check:size": "node scripts/check-module-size.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:api-docs": "node scripts/check-api-docs.mjs",
+    "check:schema-docs": "node scripts/check-schema-docs.mjs",
     "check:test-counts": "node scripts/check-test-counts.mjs",
     "check:themes": "node scripts/check-theme-vocabulary.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",

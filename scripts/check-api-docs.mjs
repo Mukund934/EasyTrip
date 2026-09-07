@@ -98,10 +98,31 @@ const documented = documentedRoutes();
 const missing = [...real].filter((r) => !documented.has(r) && !UNDOCUMENTED_BY_DESIGN.has(r));
 const phantom = [...documented].filter((r) => !real.has(r));
 
-if (missing.length === 0 && phantom.length === 0) {
+/**
+ * The README's guards table summarises this check as *"A route exists that the API table omits, or
+ * vice versa (77 today)"* — and that parenthetical is a hand-typed number sitting beside a guarded
+ * one, which is the exact shape of drift this guard exists to prevent. It had already gone stale by
+ * one when `check-schema-docs.mjs` was written on 2026-09-07 and the real count printed as 78.
+ *
+ * A guard that leaves a stale number in the sentence describing it is only most of a guard.
+ */
+const summaryDrift = () => {
+  const table = readFileSync(README, 'utf8');
+  const row = /\|\s*`check:api-docs`\s*\|[^|]*?\((\d+) today\)/.exec(table);
+  if (!row) return null;
+  return Number(row[1]) === real.size
+    ? null
+    : `  SUMMARY     README's guards table says "(${row[1]} today)"; ${real.size} routes are registered`;
+};
+
+const summary = summaryDrift();
+
+if (missing.length === 0 && phantom.length === 0 && !summary) {
   console.log(`  OK  README documents all ${real.size} registered routes, and no others`);
   process.exit(0);
 }
+
+if (summary) console.error(summary);
 
 // Both directions matter, and for different reasons. A missing route is a README that undersells
 // the API; a phantom one is a README that promises an endpoint returning 404 — which is worse,

@@ -131,6 +131,7 @@ npm run lint             # all three tiers
 npm run check:size       # no module over 500 lines outside the recorded waivers
 npm run check:secrets    # no credential-shaped names or values in tracked files
 npm run check:api-docs   # the README's route table matches the routers, both directions
+npm run check:schema-docs # the README's ER diagram matches the migrations, both directions
 npm run check:env-docs   # every variable the code reads is in a .env.example, and vice versa
 npm run check:test-counts # the README's assertion total against its own three parts
 npx prettier --check .
@@ -139,6 +140,11 @@ npx prettier --check .
 `check:api-docs` fails on an undocumented route **and** on a documented route that does not exist.
 That second direction matters: the table once drifted 23 routes behind, and a check that only looked
 one way would not have noticed.
+
+`check:schema-docs` is the same idea for the schema, and it also asserts that **every migration has
+a row in `backend/src/config/migrations/README.md`.** If you add a migration, describe it there —
+the table had stopped at `010` while twelve more files shipped, which is how a contributor ends up
+reading twenty-two `.sql` headers to find out what the schema does.
 
 CI runs seven jobs on every push — lint and build, frontend tests, migrations, API tests, end to end,
 a README test-count check, and a dependency-advisory gate at `high`.

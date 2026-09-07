@@ -381,7 +381,8 @@ a user whose `is_admin` is `false`, and asserts the 403.
 ## 🗃️ Database Schema
 
 Read out of a live database — `information_schema` on a freshly migrated instance — rather than
-drawn from memory. **All sixteen tables and every one of the twelve `REFERENCES` clauses are here.**
+drawn from memory. **All seventeen tables and every one of the twelve `REFERENCES` clauses are
+here** — and `npm run check:schema-docs` fails the build if that stops being true.
 
 ```mermaid
 erDiagram
@@ -453,13 +454,22 @@ erDiagram
         varchar email UK
         varchar status "subscribed | unsubscribed - never deleted, so a re-subscribe is one row"
     }
+    admin_audit_log {
+        serial id PK
+        varchar actor_uid "who acted"
+        varchar actor_email "a copy, not a join - the row outlives the account it names"
+        varchar action "closed vocabulary, CHECKed and mirrored in constants/auditActions.js"
+        varchar target_id "a uid for a user, a numeric id for a review - one column, not two half-null ones"
+        varchar outcome "succeeded | partially_applied - see below"
+        jsonb detail "small, action-specific, and read by the page"
+    }
 ```
 
-Five tables carry no detail block above because nothing about them is surprising:
-`trip_expense_participants` (expense ↔ uid), `trip_days`, `trip_notes`, `trip_checklist_items` and
-`place_images` are plain children of their parent, and `newsletter_subscribers` stands alone.
+Seven tables carry no detail block above because nothing about them is surprising: `trip_days`,
+`trip_notes`, `trip_checklist_items`, `place_images`, `user_saved_places` and `review_reports` are
+plain children of their parent, and `trip_expense_participants` is the expense ↔ uid join.
 
-**Two things in that diagram are decisions rather than shapes.**
+**Three things in that diagram are decisions rather than shapes.**
 
 `users.firebase_uid` is a **unique key, not a foreign key**, and nothing references it. Rows in
 `users` are created lazily on first authenticated request, so a review can exist before its author's
@@ -472,6 +482,14 @@ claim to prove the distinction holds.
 Deleting a place should not silently delete somebody's itinerary; the day survives with a gap it can
 name. Everything else cascades, because a gallery image or a saved-place row pointing at a deleted
 place is a broken card rather than a record worth keeping.
+
+`admin_audit_log` is the **only table with no foreign key at all**, and its `actor_email` and
+`target_label` are deliberate copies rather than joins. _"Who deleted this account?"_ is a question
+asked precisely once the account is gone, so a joined audit log goes blank at the moment it matters,
+and an FK would let a cascade elsewhere delete the evidence. Its `outcome` column exists for the
+same kind of reason: granting admin writes the database row and _then_ syncs the Firebase claim, so
+a failed sync returns `500` while the privilege change really happened. `partially_applied` records
+that, because a trail that only agrees with the HTTP status is not a control.
 
 ---
 
@@ -526,12 +544,13 @@ whose test could never have failed on a four-row table.
 
 ### The guards — claims this README cannot make falsely
 
-Seven scripts assert properties no test covers and no build breaks on. All seven run in CI.
+Eight scripts assert properties no test covers and no build breaks on. All eight run in CI.
 
 | Guard               | Fails the build when                                                       |
 | ------------------- | -------------------------------------------------------------------------- |
 | `check:test-counts` | The counts above disagree with the runners' own JSON reports               |
-| `check:api-docs`    | A route exists that the API table omits, or vice versa (77 today)          |
+| `check:api-docs`    | A route exists that the API table omits, or vice versa (78 today)          |
+| `check:schema-docs` | A table exists that the ER diagram omits, or vice versa (17 today)         |
 | `check:env-docs`    | The server reads an environment variable this README does not document     |
 | `check:themes`      | A controlled vocabulary drifts between frontend, backend, or a SQL `CHECK` |
 | `check:secrets`     | A credential is tracked in git                                             |

@@ -118,6 +118,14 @@ jobs:
       - name: Check the environment templates match the code
         run: npm run check:env-docs
 
+      # The same guarantee again, for the schema. The README's ER diagram says it holds every table
+      # in the database; on 2026-09-07 it was missing `admin_audit_log`, which migration 022 added,
+      # three controllers write to, and an admin page reads — and the sentence above it still said
+      # "sixteen". The migrations README had also stopped describing files at 010, leaving twelve
+      # undocumented. Both directions fail here, and so does a stale count.
+      - name: Check the schema documentation matches the migrations
+        run: npm run check:schema-docs
+
       # A theme id is stored in `places.themes` and is what the browse filter offers, so both tiers
       # have to agree on the list. They cannot share a module (ESM in one package, CommonJS in the
       # other), so it is duplicated -- and a duplicate without a check is exactly how the seed came
