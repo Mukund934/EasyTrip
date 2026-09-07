@@ -27,6 +27,7 @@ import TripChecklist from '../../components/trips/TripChecklist';
 import ExportCalendarButton from '../../components/trips/ExportCalendarButton';
 import ShareTripPanel from '../../components/trips/ShareTripPanel';
 import TripCollaborators from '../../components/trips/TripCollaborators';
+import TripActivity from '../../components/trips/TripActivity';
 import TripExpenses from '../../components/trips/TripExpenses';
 import DuplicateTripButton from '../../components/trips/DuplicateTripButton';
 import { formatDate } from '../../utils/dateFormat';
@@ -443,6 +444,14 @@ export default function TripWorkspace() {
           <div className="mt-8 grid gap-6 lg:grid-cols-2">
             <TripChecklist tripId={trip.id} getToken={getIdToken} />
             <TripNotes tripId={trip.id} getToken={getIdToken} />
+          </div>
+
+          {/* Below the plan and the two workspaces, because it is a thing you consult rather than a
+              thing you work in (`BL-147`). It is also the only panel here that fetches nothing until
+              asked: the history of a trip nobody is questioning is not worth a request on every
+              visit, and the workspace already makes several. */}
+          <div className="mt-8">
+            <TripActivity tripId={trip.id} getToken={getIdToken} />
           </div>
 
           {/* The two ways this trip reaches somebody else, together, because a reader deciding how

@@ -5,7 +5,7 @@
 > so instead of showing a plausible number.
 
 [![CI](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml/badge.svg)](https://github.com/Mukund934/EasyTrip/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/assertions-2%2C037-brightgreen)](#-testing--verification)
+[![Tests](https://img.shields.io/badge/assertions-2%2C049-brightgreen)](#-testing--verification)
 [![Routes](https://img.shields.io/badge/API%20routes-79%20documented-blue)](#-api-documentation)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
@@ -41,7 +41,7 @@ That last row is the honest version of this repository's history, and it is the 
 
 ## Why this repo might be worth your time
 
-- **2,037 assertions** — 1,094 API tests against a _real_ PostgreSQL, 789 component tests, 154
+- **2,049 assertions** — 1,094 API tests against a _real_ PostgreSQL, 801 component tests, 154
   browser journeys that really sign in through the Firebase Auth Emulator. Reproducible commands in
   [Testing & verification](#-testing--verification).
 - **The counts above cannot go stale.** A CI job parses the runners' own JSON reports and fails the
@@ -191,7 +191,7 @@ npm run test:e2e              # starts the Firebase Auth Emulator itself
 
 ### 🧪 Engineering
 
-- ✅ **2,037 assertions across three layers** – 1,094 API tests against a real PostgreSQL, 789 component tests, and 154 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.78, and the browser suite was genuinely **run**, not counted: 154 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
+- ✅ **2,049 assertions across three layers** – 1,094 API tests against a real PostgreSQL, 801 component tests, and 154 browser journeys including ones that really sign in through the Firebase Auth Emulator and drive client-rendered pages as that user. All three were measured at Sprint 8.78, and the browser suite was genuinely **run**, not counted: 154 expected, **0 unexpected, 0 flaky, 0 skipped** — against real browsers and a real Firebase Auth Emulator, which is what actually proves the `firebase-admin` migration (see `ENV-001`). Reproduce with `cd backend && npm test`, `cd frontend && npm test`, `npm run test:e2e`
 - ♿ **Accessibility gated on every run** – `axe-core` scans nine routes — six public and three behind sign-in — as part of the browser suite, failing on anything it reports except a short allowlist that carries a reason, a ceiling, and an assertion that it names nothing already clean. Its first run found four real defects — two `<main>` landmarks on one page, a heading skip, and two sign-in pages with no `<h1>` — none of which the other 131 journeys could see
 - 🧬 **Mutation-tested invariants** – load-bearing behaviour is verified by deliberately breaking it and checking a test fails. Schema mutations run against a database dropped and recreated each time, because `CREATE TABLE IF NOT EXISTS` makes them invisible otherwise
 - 🔎 **SEO** – server-rendered pages, `sitemap.xml` generated from the live catalogue, `robots.txt`, and schema.org `TouristAttraction` structured data
@@ -529,7 +529,7 @@ Three layers, all reproducible from a clean checkout, and none of them mocked wh
 | Layer     | Count     | What it runs against                                                                 |
 | --------- | --------- | ------------------------------------------------------------------------------------ |
 | API       | **1,094** | A **real PostgreSQL**. Every suite truncates and re-seeds, so `maxWorkers: 1`        |
-| Component | **789**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
+| Component | **801**   | React Testing Library, pinned to `TZ=America/Los_Angeles`                            |
 | Browser   | **154**   | Real Chromium/WebKit + a real **Firebase Auth Emulator** — journeys actually sign in |
 
 ```bash
